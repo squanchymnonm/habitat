@@ -123,13 +123,15 @@ function handleHit(s, payload, deps) {
   }
   if (!s.monster) return;
   s.combat.hits++;
-  const u = readUsage(payload.transcript_path);
-  if (u) {
-    const damage = Math.max(0, u.totalTokens - s._lastTotal);
-    s.combat.tokens += damage;
-    s.combat.lastDamage = damage;
-    s._lastTotal = u.totalTokens;
-    s._resting = false;
-    s.stamina = staminaFromContext(u.contextTokens, maxContext);
+  if (payload.transcript_path) {
+    const u = readUsage(payload.transcript_path);
+    if (u) {
+      const damage = Math.max(0, u.totalTokens - s._lastTotal);
+      s.combat.tokens += damage;
+      s.combat.lastDamage = damage;
+      s._lastTotal = u.totalTokens;
+      s._resting = false;
+      s.stamina = staminaFromContext(u.contextTokens, maxContext);
+    }
   }
 }

@@ -41,14 +41,14 @@ test('golpe acumula daño = delta de totalTokens y baja stamina', () => {
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'b', status: 'in_progress' }] } }, deps(null));
   // primer golpe: total 1000, _lastTotal era 0 -> damage 1000
-  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' },
+  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash', transcript_path: '/t' },
     deps({ contextTokens: 40000, totalTokens: 1000 }));
   assert.equal(r.session.combat.hits, 1);
   assert.equal(r.session.combat.tokens, 1000);
   assert.equal(r.session.combat.lastDamage, 1000);
   assert.equal(r.session.stamina, 80); // 100*(1-40000/200000)
   // segundo golpe: total 1500 -> damage 500
-  r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Read' },
+  r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Read', transcript_path: '/t' },
     deps({ contextTokens: 50000, totalTokens: 1500 }));
   assert.equal(r.session.combat.tokens, 1500);
   assert.equal(r.session.combat.lastDamage, 500);
@@ -70,7 +70,7 @@ test('completar un todo emite fightResult con hp=tokens y loot', () => {
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'tests', status: 'in_progress' }, { content: 'review', status: 'pending' }] } }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Write',
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Write', transcript_path: '/t',
     tool_input: { file_path: 'tests/AuthTest.php' } }, deps({ contextTokens: 10, totalTokens: 8000 }));
   // ahora el primer todo pasa a completed
   const { fightResult } = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
