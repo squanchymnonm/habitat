@@ -364,12 +364,13 @@ function monsterSprite(type){return 'assets/monster/'+MONSTERS[hash('mon'+type)%
 function bossSprite(label){return 'assets/boss/'+BOSSES[hash('boss'+label)%BOSSES.length]+'.png'}
 function fmt(n){return (n||0).toLocaleString('es-AR')}
 
-// Anima un spritesheet calculando los frames desde las dims reales del PNG.
-// grid=true: hoja 4x4 (monstruo), anima la fila `row` (0=abajo,1=arriba,2=izq,3=der).
-// Si no (boss): strip horizontal, frames = ancho/alto.
-function animateSprite(el, url, grid, dur, row){
+// Anima un spritesheet desde las dims reales del PNG.
+// grid=true: hoja 4x4 (monstruo). Cada COLUMNA es una dirección (`dir`: 0=abajo,1=arriba,2=izq,3=der)
+//   y los 4 frames de la animación van por FILAS (se anima en Y).
+// grid=false: boss = strip horizontal (se anima en X).
+function animateSprite(el, url, grid, dur, dir){
   el.style.backgroundImage='url('+url+')';
-  const r = row||0;
+  const d = dir||0;
   const img=new Image();
   img.onload=()=>{
     const nW=img.naturalWidth, nH=img.naturalHeight;
@@ -377,13 +378,21 @@ function animateSprite(el, url, grid, dur, row){
     const frames = grid ? 4 : Math.max(1, Math.round(nW/nH));
     const scale = el.clientHeight / frameH;        // frameH*scale = clientHeight
     const dispFrameW = (grid ? nW/4 : frameH) * scale;
+    const dispH = el.clientHeight;
     el.style.width = dispFrameW+'px';
     el.style.backgroundSize = (nW*scale)+'px '+(nH*scale)+'px';
-    el.style.backgroundPositionY = (-(r*el.clientHeight))+'px';   // fila (dirección)
     if (el._anim) el._anim.cancel();
-    if (frames>1) el._anim = el.animate(
-      [{backgroundPositionX:'0px'},{backgroundPositionX:-(dispFrameW*frames)+'px'}],
-      {duration: dur||900, iterations: Infinity, easing:'steps('+frames+')'});
+    if (grid){
+      el.style.backgroundPositionX = (-(d*dispFrameW))+'px';      // columna = dirección (fija)
+      el._anim = el.animate(
+        [{backgroundPositionY:'0px'},{backgroundPositionY:-(dispH*4)+'px'}],
+        {duration: dur||900, iterations: Infinity, easing:'steps(4)'});
+    } else {
+      el.style.backgroundPositionY = '0px';
+      if (frames>1) el._anim = el.animate(
+        [{backgroundPositionX:'0px'},{backgroundPositionX:-(dispFrameW*frames)+'px'}],
+        {duration: dur||900, iterations: Infinity, easing:'steps('+frames+')'});
+    }
   };
   img.src=url;
 }
