@@ -75,11 +75,9 @@
   .spr.f4{background-size:320px 80px}
   @keyframes anim2{from{background-position-x:0}to{background-position-x:-160px}}
   @keyframes anim4{from{background-position-x:0}to{background-position-x:-320px}}
-  .pod.idle .spr{animation:anim4 1.7s steps(4) infinite}
-  .pod.working .spr{animation:anim4 .5s steps(4) infinite}
-  .pod.waiting .spr{animation:anim4 .5s steps(4) infinite}
-  .pod.done .spr,.pod.error .spr{animation:none}
-  .pod.offline .spr{animation:none; filter:grayscale(1) brightness(.85)}
+  /* Idle.png = 4 frames = 4 DIRECCIONES (no es animación). Grilla: estático, frame 0 (de frente). */
+  .spr{animation:none}
+  .pod.offline .spr{filter:grayscale(1) brightness(.85)}
 
   .bubble{position:absolute; top:6px; left:50%; transform:translateX(22px); background:var(--coral); color:#2a0d12;
     font-family:var(--f-ui); font-size:12px; width:24px; height:24px; display:none; align-items:center; justify-content:center;
@@ -308,6 +306,24 @@ function animateSprite(el, url, grid, dur){
   img.src=url;
 }
 
+// Muestra UN frame estático de un strip (para sprites direccionales como Idle.png).
+function showFrame(el, url, idx){
+  el.style.backgroundImage='url('+url+')';
+  const img=new Image();
+  img.onload=()=>{
+    const nW=img.naturalWidth, nH=img.naturalHeight;
+    const frames=Math.max(1, Math.round(nW/nH));
+    const scale=el.clientHeight/nH;
+    const fw=nH*scale;
+    if(el._anim){el._anim.cancel(); el._anim=null;}
+    el.style.width=fw+'px';
+    el.style.backgroundSize=(nW*scale)+'px '+(nH*scale)+'px';
+    el.style.backgroundPositionY='0px';
+    el.style.backgroundPositionX=(-Math.min(idx,frames-1)*fw)+'px';
+  };
+  img.src=url;
+}
+
 const scrim=document.getElementById('scrim'), drawer=document.getElementById('drawer');
 let currentDrawerId=null;
 const lastTokensSeen={};
@@ -341,7 +357,7 @@ function openDrawer(s){
 
 function setupBattle(s){
   const hero=drawer.querySelector('.bhero');
-  animateSprite(hero, faceForHeroIdle(s.name), false, s.status==='working'?500:900);
+  showFrame(hero, faceForHeroIdle(s.name), 3); // frame 3 = mirando a la derecha (hacia el monstruo)
   applyBattleState(s);
 }
 function faceForHeroIdle(name){return 'assets/char/'+pickKey(name)+'/idle.png'}

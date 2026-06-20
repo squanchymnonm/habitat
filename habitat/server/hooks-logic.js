@@ -19,7 +19,7 @@ function ensure(store, payload) {
 }
 
 function setStatus(s, status, action, now) {
-  if (s.status !== status) s.since = now();
+  if (s.status !== status || !s.since) s.since = now();
   s.status = status;
   if (action != null) s.action = String(action).slice(0, 200);
 }
