@@ -1,16 +1,24 @@
+  /* Tipografía propia del pack Ninja Adventure (self-hosted, sin Google Fonts). */
+  @font-face{
+    font-family:'NinjaAdventure';
+    src:url('/fonts/NormalFont.ttf') format('truetype');
+    font-display:swap;
+  }
   :root{
     --bg:#16121E; --bg2:#1E1830; --surface:#241D38; --surface2:#2C2342;
     --line:#100c1a; --soft:#3A2F55; --ink:#ECE6F5; --dim:#9D93B8;
     --gold:#F4B740; --teal:#46D6C8; --coral:#FF6B7A; --green:#8BD17C; --red:#FF5C5C; --lav:#7C7699;
-    --f-logo:'Press Start 2P', monospace;
-    --f-ui:'Silkscreen','Press Start 2P', monospace;
-    --f-body:'VT323', ui-monospace, monospace;
+    --f-logo:'NinjaAdventure', monospace;
+    --f-ui:'NinjaAdventure', monospace;
+    --f-body:'NinjaAdventure', monospace;
     --bevel: inset 2px 2px 0 rgba(255,255,255,.07), inset -2px -2px 0 rgba(0,0,0,.5);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{
     font-family:var(--f-body); color:var(--ink); font-size:17px;
+    /* NormalFont tiene el glifo de espacio muy angosto: ensanchar palabras */
+    word-spacing:5px; letter-spacing:.4px;
     background:
       radial-gradient(1100px 650px at 80% -10%, #2A2142 0%, transparent 60%),
       linear-gradient(160deg, var(--bg), var(--bg2));

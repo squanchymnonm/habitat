@@ -31,6 +31,7 @@ function submit() {
 </template>
 
 <style scoped>
+/* El chat es una caja de diálogo RPG (pergamino con marco 9-slice). */
 .chatlog {
   flex: 1;
   overflow: auto;
@@ -39,15 +40,18 @@ function submit() {
   flex-direction: column;
   gap: 8px;
   align-items: flex-end;
+  padding: 16px;
+  border: 16px solid transparent;
+  border-image: url('/assets/ui/dialogsimple.png') 14 fill stretch;
+  image-rendering: pixelated;
+  min-height: 120px;
 }
 .msg-out {
-  background: var(--surface2);
-  border: 2px solid var(--line);
-  box-shadow: var(--bevel);
-  padding: 8px 12px;
+  background: rgba(60, 40, 20, 0.08);
+  padding: 6px 12px;
   font-family: var(--f-body);
-  font-size: 18px;
-  color: var(--ink);
-  max-width: 80%;
+  font-size: 19px;
+  color: #3a2a18;
+  max-width: 85%;
 }
 </style>

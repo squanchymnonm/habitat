@@ -1,19 +1,30 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useSessions } from '../stores/sessions'
-import { STATUS_LABEL, type Session, type FightResult } from '../types'
+import { STATUS_LABEL, type Session, type Status, type FightResult } from '../types'
 import { heroIdle, monsterSprite, bossSprite, fmt, ago } from '../sprites'
 import Sprite from './Sprite.vue'
+import StaminaOrb from './StaminaOrb.vue'
 
 const props = defineProps<{ session: Session }>()
 const store = useSessions()
+
+// Emote (globo de diálogo) que comunica el estado del personaje.
+const EMOTE: Partial<Record<Status, number>> = {
+  waiting: 22, // "!" rojo — necesita tu atención
+  working: 20, // "..." — pensando/trabajando
+  done: 29, // estrella — dungeon cleared
+  error: 26, // corazón roto — algo falló
+  offline: 30, // cruz — caída
+}
+const emote = computed(() => EMOTE[props.session.status] ?? null)
+const emoteUrl = computed(() => (emote.value ? `assets/emote/${emote.value}.png` : ''))
 
 const monster = computed(() => props.session.monster ?? null)
 const monsterUrl = computed(() =>
   monster.value ? (monster.value.isBoss ? bossSprite(monster.value.label) : monsterSprite(monster.value.type)) : '',
 )
 const stam = computed(() => Math.max(0, Math.min(100, props.session.stamina ?? 100)))
-const stamColor = computed(() => (stam.value > 50 ? 'var(--green)' : stam.value > 20 ? 'var(--gold)' : 'var(--red)'))
 const counter = computed(() => {
   const q = props.session.quest
   return q && q.total ? `${q.done + (monster.value ? 1 : 0)}/${q.total}` : ''
@@ -77,10 +88,16 @@ function select() {
     <div class="ring"></div>
     <div class="badge ok">✓</div>
     <div class="badge err">!</div>
-    <div class="stage" :class="{ needs: session.status === 'waiting' }">
+    <div class="stage">
       <div class="pcount" v-if="counter">{{ counter }}</div>
-      <div class="bubble" v-if="session.status === 'waiting'">¡te necesita!</div>
+      <div class="stamina-slot"><StaminaOrb :value="stam" /></div>
       <div class="gfloor"></div>
+      <div
+        v-if="emoteUrl"
+        class="pemote"
+        :class="{ alert: session.status === 'waiting' }"
+        :style="{ backgroundImage: `url(${emoteUrl})` }"
+      ></div>
       <Sprite
         class="fighter phero"
         :class="{ flinch }"
@@ -104,13 +121,13 @@ function select() {
         -{{ d.text }}
       </div>
       <div class="ploot" :class="{ show: lootShown }" v-if="loot">
+        <div class="chest"></div>
         <div class="ttl">★ VENCIDO ★</div>
         <div class="mn">{{ loot.monster }}</div>
         <div class="stat">HP <b>{{ fmt(loot.hp) }}</b> · {{ loot.hits }} golpes</div>
         <div class="lootline">LOOT: <span>{{ loot.loot.join(', ') }}</span></div>
       </div>
     </div>
-    <div class="pstam"><i :style="{ width: stam + '%', background: stamColor }"></i><span class="lbl">STAMINA {{ stam }}%</span></div>
     <div class="meta">
       <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span></div>
       <div class="repo">{{ session.project }} <span class="br">⌥ {{ session.branch }}</span></div>
@@ -119,3 +136,43 @@ function select() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.stamina-slot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 3;
+}
+.pemote {
+  position: absolute;
+  left: 6%;
+  top: 26px;
+  width: 34px;
+  height: 32px;
+  background-repeat: no-repeat;
+  background-size: 34px 32px;
+  image-rendering: pixelated;
+  z-index: 4;
+}
+.pemote.alert {
+  animation: emoteBounce 0.7s steps(2) infinite;
+}
+@keyframes emoteBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.chest {
+  width: 64px;
+  height: 28px;
+  margin-bottom: 4px;
+  background: url('/assets/ui/chest.png') no-repeat center;
+  background-size: 64px 28px;
+  image-rendering: pixelated;
+}
+</style>

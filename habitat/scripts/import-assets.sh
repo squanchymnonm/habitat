@@ -52,6 +52,21 @@ for b in "${BOSSES[@]}"; do
   if [ -n "$idle" ]; then cp "$idle" "$DST/boss/$b.png"; copied=$((copied+1)); else log_skip "boss $b (sin idle png)"; fi
 done
 
+# --- UI: fuente, marcos, orbe, cofre, emotes ---
+FONTS="$ROOT/habitat/client/public/fonts"
+mkdir -p "$DST/ui" "$DST/emote" "$FONTS"
+cp "$SRC/Ui/Font/NormalFont.ttf" "$FONTS/NormalFont.ttf"
+cp "$SRC/Ui/Dialog/DialogBox.png" "$DST/ui/dialogbox.png"
+cp "$SRC/Ui/Dialog/DialogueBoxSimple.png" "$DST/ui/dialogsimple.png"
+cp "$SRC/Ui/Receptacle/Receptacle Sphere/BackgroundWood.png" "$DST/ui/orb-bg.png"
+cp "$SRC/Ui/Receptacle/Receptacle Sphere/ProgressGreen.png" "$DST/ui/orb-green.png"
+cp "$SRC/Ui/Receptacle/Receptacle Sphere/ProgressYellow.png" "$DST/ui/orb-yellow.png"
+cp "$SRC/Ui/Receptacle/Receptacle Sphere/ProgressHealth.png" "$DST/ui/orb-red.png"
+cp "$SRC/Ui/Receptacle/Receptacle Sphere/Over.png" "$DST/ui/orb-over.png"
+cp "$SRC/Items/Treasure/BigTreasureChest.png" "$DST/ui/chest.png"
+cp "$SRC/Items/Treasure/GoldCoin.png" "$DST/ui/coin.png"
+for i in $(seq 1 30); do cp "$SRC/Ui/Emote/emote$i.png" "$DST/emote/$i.png"; done
+
 echo "---"
 echo "copiados: $copied · saltados: $skipped"
-echo "chars: $(ls "$DST/char" | wc -l) · monsters: $(ls "$DST/monster" | wc -l) · bosses: $(ls "$DST/boss" | wc -l)"
+echo "chars: $(ls "$DST/char" | wc -l) · monsters: $(ls "$DST/monster" | wc -l) · bosses: $(ls "$DST/boss" | wc -l) · ui: $(ls "$DST/ui" | wc -l) · emotes: $(ls "$DST/emote" | wc -l)"
