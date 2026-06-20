@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Lee el JSON del hook por stdin y lo reenvía al servicio hábitat.
+# Requiere MNONM_TOKEN y (opcional) MNONM_URL en el entorno.
+set -euo pipefail
+URL="${MNONM_URL:-http://127.0.0.1:8377/hooks}"
+TOKEN="${MNONM_TOKEN:-}"
+payload="$(cat)"
+curl -fsS -m 3 -X POST "$URL" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  --data-binary "$payload" >/dev/null 2>&1 || true
