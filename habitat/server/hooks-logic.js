@@ -38,7 +38,11 @@ export function applyEvent(store, payload, deps) {
 
   switch (ev) {
     case 'SessionStart': {
-      if (payload.cwd) { s.name = basename(payload.cwd); s.project = s.name; }
+      if (payload.cwd) {
+        s.name = basename(payload.cwd);
+        s.project = s.name;
+        if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
+      }
       setStatus(s, 'idle', 'sesión iniciada', now);
       s.monster = null;
       break;

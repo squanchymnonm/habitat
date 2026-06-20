@@ -19,6 +19,14 @@ test('SessionStart registra sesión idle y deriva name del cwd', () => {
   assert.equal(session.name, 'proj-api');
 });
 
+test('SessionStart setea branch desde deps.gitBranch(cwd)', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj-api', hook_event_name: 'SessionStart',
+  }, { ...deps(null), gitBranch: (cwd) => (cwd === '/home/u/proj-api' ? 'feat/habitat-rpg' : '') });
+  assert.equal(session.branch, 'feat/habitat-rpg');
+});
+
 test('TodoWrite setea quest y monster', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));

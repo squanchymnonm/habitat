@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturePane, listSessions } from './tmux.js';
+import { capturePane, listSessions, sendKeys, gitBranch } from './tmux.js';
 
 test('capturePane devuelve las últimas N líneas', async () => {
   const exec = async () => 'l1\nl2\nl3\nl4\nl5\n';
@@ -21,4 +21,39 @@ test('listSessions parsea nombres', async () => {
 test('listSessions ante error devuelve []', async () => {
   const exec = async () => { throw new Error('no server'); };
   assert.deepEqual(await listSessions(exec), []);
+});
+
+test('sendKeys manda el texto literal y luego Enter', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  const ok = await sendKeys('api', 'npm test', exec);
+  assert.equal(ok, true);
+  assert.deepEqual(calls[0], ['tmux', 'send-keys', '-t', 'api', '-l', 'npm test']);
+  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'api', 'Enter']);
+});
+
+test('sendKeys ante error devuelve false', async () => {
+  const exec = async () => { throw new Error('no tmux'); };
+  assert.equal(await sendKeys('api', 'x', exec), false);
+});
+
+test('sendKeys ignora texto vacío', async () => {
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  assert.equal(await sendKeys('api', '   ', exec), false);
+  assert.equal(called, false);
+});
+
+test('gitBranch parsea la rama del cwd (síncrono)', () => {
+  const exec = (file, args) => {
+    assert.equal(file, 'git');
+    assert.deepEqual(args, ['-C', '/proj', 'rev-parse', '--abbrev-ref', 'HEAD']);
+    return 'feat/x\n';
+  };
+  assert.equal(gitBranch('/proj', exec), 'feat/x');
+});
+
+test('gitBranch ante error devuelve cadena vacía', () => {
+  const exec = () => { throw new Error('not a repo'); };
+  assert.equal(gitBranch('/x', exec), '');
 });

@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 
-export function attachWs(httpServer, store, { token }) {
+export function attachWs(httpServer, store, { token, onChat } = {}) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
@@ -11,6 +11,14 @@ export function attachWs(httpServer, store, { token }) {
       if (q !== token && hdr !== token) { ws.close(1008, 'unauthorized'); return; }
     }
     ws.send(JSON.stringify({ type: 'snapshot', sessions: store.snapshot() }));
+
+    ws.on('message', (data) => {
+      let msg;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+      if (msg && msg.type === 'chat' && msg.id && typeof msg.text === 'string' && onChat) {
+        onChat(msg.id, msg.text);
+      }
+    });
   });
 
   return {

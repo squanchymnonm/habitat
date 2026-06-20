@@ -35,6 +35,24 @@ test('al conectar manda snapshot; broadcast llega', async () => {
   ws.close(); hub.close(); server.close();
 });
 
+test('un mensaje chat del cliente invoca onChat(id, text)', async () => {
+  const store = createStore();
+  const server = createServer();
+  const seen = [];
+  const hub = attachWs(server, store, { token: '', onChat: (id, text) => seen.push([id, text]) });
+  const port = await listen(server);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  const snapPromise = nextMsg(ws); // adjuntar listener antes del open (evita perder el snapshot)
+  await new Promise((r) => ws.once('open', r));
+  await snapPromise; // descartar snapshot
+  ws.send(JSON.stringify({ type: 'chat', id: 's1', text: 'hola' }));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(seen, [['s1', 'hola']]);
+
+  ws.close(); hub.close(); server.close();
+});
+
 test('token inválido cierra la conexión', async () => {
   const store = createStore();
   const server = createServer();

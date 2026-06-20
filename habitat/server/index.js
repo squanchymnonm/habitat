@@ -7,7 +7,7 @@ import { createStore } from './state.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
-import { capturePane } from './tmux.js';
+import { capturePane, sendKeys, gitBranch } from './tmux.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -48,7 +48,7 @@ export function createApp({ config, store }) {
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
         const { session, fightResult } = applyEvent(store, payload, {
-          readUsage, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+          readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
         });
         hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
@@ -75,7 +75,13 @@ export function createApp({ config, store }) {
     } catch { res.writeHead(404).end(); }
   });
 
-  hub = attachWs(server, store, { token: config.TOKEN });
+  hub = attachWs(server, store, {
+    token: config.TOKEN,
+    onChat: (id, text) => {
+      const s = store.get(id);
+      if (s) sendKeys(s.tmux || s.name, text);
+    },
+  });
   return { server, get hub() { return hub; } };
 }
 
