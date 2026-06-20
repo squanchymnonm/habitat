@@ -25,8 +25,7 @@ function submit() {
     <button type="submit">Enviar</button>
   </form>
   <div class="phase2">
-    El backend del chat (send-keys) llega en la fase 2.<br />
-    Lo que escribís se envía por WS y queda registrado acá.
+    Lo que escribís se envía a la sesión por tmux (send-keys) y queda registrado acá.
   </div>
 </template>
 

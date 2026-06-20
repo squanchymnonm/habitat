@@ -130,7 +130,7 @@ function select() {
     </div>
     <div class="meta">
       <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span></div>
-      <div class="repo">{{ session.project }} <span class="br">⌥ {{ session.branch }}</span></div>
+      <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
       <div class="action">{{ session.action }}</div>
       <div class="since">ACTIVA HACE {{ ago(session.since) }}</div>
     </div>

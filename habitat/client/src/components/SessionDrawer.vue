@@ -30,7 +30,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
             {{ store.selected.name }}
             <span class="chip" :class="store.selected.status">{{ STATUS_LABEL[store.selected.status] }}</span>
           </div>
-          <div class="repo">{{ store.selected.project }} <span class="br">⌥ {{ store.selected.branch }}</span></div>
+          <div class="repo">{{ store.selected.project }} <span class="br" v-if="store.selected.branch">⌥ {{ store.selected.branch }}</span></div>
         </div>
         <button class="closex" aria-label="cerrar" @click="close">×</button>
       </div>
