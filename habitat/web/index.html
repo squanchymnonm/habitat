@@ -215,6 +215,8 @@ const ACTIONS={
   offline:['sesión cerrada','tmux caído']
 };
 function pick(a,seed){return a[hash(''+seed)%a.length]}
+// Payloads de hook = entrada no confiable (Ley 1): escapar antes de innerHTML.
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 let SESSIONS = [];
 const params = new URLSearchParams(location.search);
@@ -266,9 +268,9 @@ function render(){
         <div class="activity"><i></i><i></i><i></i></div>
       </div>
       <div class="meta">
-        <div class="name">${s.name} <span class="chip ${s.status}">${STATUS_LABEL[s.status]}</span></div>
-        <div class="repo">${s.project} <span class="br">⌥ ${s.branch}</span></div>
-        <div class="action">${s.action}</div>
+        <div class="name">${esc(s.name)} <span class="chip ${s.status}">${STATUS_LABEL[s.status]}</span></div>
+        <div class="repo">${esc(s.project)} <span class="br">⌥ ${esc(s.branch)}</span></div>
+        <div class="action">${esc(s.action)}</div>
         <div class="since">ACTIVA HACE ${ago(s.since)}</div>
       </div>`;
     pod.addEventListener('click',()=>openDrawer(s));
@@ -315,8 +317,8 @@ function openDrawer(s){
   drawer.innerHTML=`
     <div class="dhead">
       <img class="face" src="${faceFor(s.name)}" alt="">
-      <div class="dinfo"><div class="dname">${s.name} <span class="chip ${s.status}">${STATUS_LABEL[s.status]}</span></div>
-        <div class="repo">${s.project} <span class="br">⌥ ${s.branch}</span></div></div>
+      <div class="dinfo"><div class="dname">${esc(s.name)} <span class="chip ${s.status}">${STATUS_LABEL[s.status]}</span></div>
+        <div class="repo">${esc(s.project)} <span class="br">⌥ ${esc(s.branch)}</span></div></div>
       <button class="closex" aria-label="cerrar">×</button>
     </div>
     <div class="hpwrap">STAMINA (= CONTEXT) · <span class="counter"></span>
@@ -395,9 +397,9 @@ window.handleFightResult=function(msg){
   if(mon) mon.classList.add('dying');
   const r=msg.result;
   loot.innerHTML='<div class="ttl">★ MONSTRUO VENCIDO ★</div>'+
-    '<div class="mn">'+r.monster+'</div>'+
-    '<div class="stat">HP: <b>'+fmt(r.hp)+'</b> tokens · '+r.hits+' golpes</div>'+
-    '<div class="lootline">LOOT: <span>'+(r.loot||[]).join(', ')+'</span></div>';
+    '<div class="mn">'+esc(r.monster)+'</div>'+
+    '<div class="stat">HP: <b>'+fmt(r.hp)+'</b> tokens · '+Number(r.hits||0)+' golpes</div>'+
+    '<div class="lootline">LOOT: <span>'+(r.loot||[]).map(esc).join(', ')+'</span></div>';
   loot.classList.add('show');
   setTimeout(()=>{loot.classList.remove('show'); if(mon) mon.classList.remove('dying');},2600);
 };
