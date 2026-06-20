@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/sprites.ts","./src/types.ts","./src/vite-env.d.ts","./src/composables/useSocket.ts","./src/stores/sessions.ts","./src/App.vue","./src/components/ChatPanel.vue","./src/components/SessionDrawer.vue","./src/components/SessionGrid.vue","./src/components/SessionPod.vue","./src/components/Sprite.vue"],"errors":true,"version":"5.6.3"}

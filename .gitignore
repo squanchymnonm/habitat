@@ -1,1 +1,4 @@
 .superpowers/
+habitat/web/
+habitat/client/node_modules/
+habitat/client/dist/

@@ -1,7 +1,7 @@
 import { WebSocketServer } from 'ws';
 
 export function attachWs(httpServer, store, { token }) {
-  const wss = new WebSocketServer({ server: httpServer });
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
     if (token) {

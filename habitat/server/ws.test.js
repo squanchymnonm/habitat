@@ -19,7 +19,7 @@ test('al conectar manda snapshot; broadcast llega', async () => {
   const hub = attachWs(server, store, { token: '' });
   const port = await listen(server);
 
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const msgPromise = nextMsg(ws);
   await new Promise((r) => ws.once('open', r));
   const snap = await msgPromise;
@@ -41,7 +41,7 @@ test('token inválido cierra la conexión', async () => {
   const hub = attachWs(server, store, { token: 'secret' });
   const port = await listen(server);
 
-  const ws = new WebSocket(`ws://127.0.0.1:${port}?token=wrong`);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=wrong`);
   const code = await new Promise((r) => ws.once('close', (c) => r(c)));
   assert.equal(code, 1008);
 

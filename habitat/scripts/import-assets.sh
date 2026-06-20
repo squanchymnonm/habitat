@@ -8,7 +8,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="$ROOT/Ninja Adventure - Asset Pack"
-DST="$ROOT/habitat/web/assets"
+DST="$ROOT/habitat/client/public/assets"
 
 CHARS=(Boy Cavegirl Knight NinjaBlue Monk Hunter FighterRed DemonRed Eskimo GreenPig Lion Monkey Inspector Master KnightGold Caveman)
 MONSTERS=(Slime Slime3 Flam BlueBat Mushroom KappaGreen Eye Larva Mole Mouse Lizard Bear Beast GreenOctopus Butterfly Dragon)

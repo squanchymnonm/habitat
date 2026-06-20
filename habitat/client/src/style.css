@@ -1,0 +1,173 @@
+  :root{
+    --bg:#16121E; --bg2:#1E1830; --surface:#241D38; --surface2:#2C2342;
+    --line:#100c1a; --soft:#3A2F55; --ink:#ECE6F5; --dim:#9D93B8;
+    --gold:#F4B740; --teal:#46D6C8; --coral:#FF6B7A; --green:#8BD17C; --red:#FF5C5C; --lav:#7C7699;
+    --f-logo:'Press Start 2P', monospace;
+    --f-ui:'Silkscreen','Press Start 2P', monospace;
+    --f-body:'VT323', ui-monospace, monospace;
+    --bevel: inset 2px 2px 0 rgba(255,255,255,.07), inset -2px -2px 0 rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--f-body); color:var(--ink); font-size:17px;
+    background:
+      radial-gradient(1100px 650px at 80% -10%, #2A2142 0%, transparent 60%),
+      linear-gradient(160deg, var(--bg), var(--bg2));
+    background-attachment:fixed; min-height:100%; image-rendering:pixelated;
+  }
+  /* CRT scanlines */
+  body::after{content:""; position:fixed; inset:0; pointer-events:none; z-index:60;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); opacity:.6}
+
+  header{display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    padding:20px clamp(16px,4vw,40px); border-bottom:3px solid var(--line);
+    position:sticky; top:0; z-index:5; background:#1a1428}
+  .brand{display:flex; align-items:center; gap:12px}
+  .brand b{font-family:var(--f-logo); font-size:13px; letter-spacing:0; color:var(--ink)}
+  .brand .dot{color:var(--gold)}
+  .brand small{color:var(--dim); font-family:var(--f-ui); font-size:9px; letter-spacing:.5px}
+  .demo-badge{font-family:var(--f-ui); font-size:9px; letter-spacing:1px; color:#15101C; background:var(--gold); padding:5px 7px; box-shadow:var(--bevel)}
+  .count{margin-left:auto; display:flex; gap:18px; align-items:center; font-family:var(--f-ui); font-size:11px; color:var(--dim)}
+  .count b{color:var(--ink)} .count .need{color:var(--coral)}
+  .controls{display:flex; gap:10px; flex-wrap:wrap}
+  button.ctl{font-family:var(--f-ui); font-size:9px; text-transform:uppercase; letter-spacing:.5px;
+    background:var(--surface2); color:var(--ink); border:2px solid var(--line); border-radius:0;
+    padding:9px 11px; cursor:pointer; box-shadow:inset 1px 1px 0 rgba(255,255,255,.08), 3px 3px 0 #0c0913}
+  button.ctl:hover{background:var(--gold); color:#15101C; transform:translate(-1px,-1px); box-shadow:inset 1px 1px 0 rgba(255,255,255,.25), 4px 4px 0 #0c0913}
+  button.ctl:active{transform:translate(2px,2px); box-shadow:none}
+  button.ctl:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+
+  main{padding:clamp(18px,3.5vw,38px)}
+  .grid{display:grid; gap:24px; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); max-width:1500px; margin:0 auto}
+
+  .pod{position:relative; border:2px solid var(--line); border-radius:0; background:var(--surface);
+    padding:16px 14px 14px; cursor:pointer; overflow:hidden;
+    box-shadow:var(--bevel), 4px 4px 0 #0c0913; transition:transform .1s, border-color .1s}
+  .pod:hover{transform:translate(-2px,-2px); border-color:var(--gold); box-shadow:var(--bevel), 6px 6px 0 #0c0913}
+  .pod:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+  .pod .ring{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 0 2px transparent}
+  .pod.working .ring{box-shadow:inset 0 0 0 3px var(--teal)}
+  .pod.done .ring{box-shadow:inset 0 0 0 3px var(--green)}
+  .pod.error .ring{box-shadow:inset 0 0 0 3px var(--red)}
+  .pod.waiting{border-color:var(--coral)}
+  .pod.waiting .ring{box-shadow:inset 0 0 0 3px var(--coral), inset 0 0 0 6px rgba(255,107,122,.22); animation:needblink .7s steps(1) infinite}
+  @keyframes needblink{0%,50%{opacity:1}50.01%,100%{opacity:.3}}
+  .pod.offline{opacity:.5; filter:saturate(.4)}
+
+  /* ===== ARENA DE COMBATE (en el pod) ===== */
+  .stage{height:180px; position:relative; overflow:hidden; background:linear-gradient(180deg,#1c1630,#15101f); border:2px solid var(--line); box-shadow:var(--bevel)}
+  .gfloor{position:absolute; left:6px; right:6px; bottom:34px; height:2px; background:rgba(255,255,255,.07)}
+  .fighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
+  .phero{height:88px; left:9%}
+  .pmon{height:88px; right:9%}
+  .pmon.boss{height:124px; right:5%}
+  .pmon.hit{filter:brightness(3) saturate(0)}
+  .pmon.dying{animation:bdie .5s steps(5) forwards}
+  .phero.flinch{animation:bflinch .3s steps(2) 2}
+  .pcount{position:absolute; top:6px; left:8px; font-family:var(--f-ui); font-size:9px; color:var(--gold); letter-spacing:.3px}
+  .pmonname{position:absolute; bottom:4px; left:0; right:0; text-align:center; font-family:var(--f-body); font-size:15px;
+    color:#cdbfe6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 8px}
+  .pdmg{position:absolute; font-family:var(--f-ui); font-size:12px; color:var(--gold); text-shadow:2px 2px 0 #000;
+    pointer-events:none; animation:bdmgfloat .85s ease-out forwards; white-space:nowrap}
+  .pdmg.big{font-size:16px; color:#fff}
+  .pod.offline .stage{filter:grayscale(1) brightness(.85)}
+  .ploot{position:absolute; inset:0; background:rgba(10,7,16,.88); display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:3px; text-align:center; padding:10px}
+  .ploot.show{display:flex; animation:bfadein .2s}
+  .ploot .ttl{font-family:var(--f-ui); font-size:10px; color:var(--gold)}
+  .ploot .mn{font-family:var(--f-body); font-size:16px; color:#fff}
+  .ploot .stat{font-family:var(--f-body); font-size:13px; color:#cdbfe6} .ploot .stat b{color:var(--coral)}
+  .ploot .lootline{font-family:var(--f-body); font-size:12px; color:var(--green)} .ploot .lootline span{color:var(--dim)}
+
+  .pstam{height:12px; border:2px solid var(--line); background:#120E1B; box-shadow:var(--bevel); margin-top:8px; position:relative; overflow:hidden}
+  .pstam > i{display:block; height:100%; width:100%; background:var(--green); transition:width .4s steps(8)}
+  .pstam .lbl{position:absolute; right:5px; top:0; font-family:var(--f-ui); font-size:7px; color:#fff; mix-blend-mode:difference}
+
+  .bubble{position:absolute; top:6px; right:8px; background:var(--coral); color:#2a0d12;
+    font-family:var(--f-ui); font-size:11px; padding:5px 7px; display:none; align-items:center; justify-content:center;
+    border:2px solid var(--line); box-shadow:2px 2px 0 #0c0913; animation:blinkb .5s steps(1) infinite; z-index:3}
+  .pod.waiting .bubble{display:flex}
+  @keyframes blinkb{0%,60%{opacity:1}60.01%,100%{opacity:.4}}
+  .badge{position:absolute; top:8px; right:10px; font-family:var(--f-ui); font-size:13px; display:none; z-index:3}
+  .pod.done .badge.ok{display:block; color:var(--green)} .pod.error .badge.err{display:block; color:var(--red)}
+
+  .meta{margin-top:6px}
+  .name{font-family:var(--f-ui); font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .chip{font-family:var(--f-ui); font-size:9px; letter-spacing:.4px; text-transform:uppercase; padding:4px 6px; border:1px solid var(--line)}
+  .chip.idle{background:#332c4d; color:#c3bcd9}
+  .chip.working{background:#123733; color:var(--teal)}
+  .chip.waiting{background:#3a1620; color:var(--coral)}
+  .chip.done{background:#173318; color:var(--green)}
+  .chip.error{background:#3a1414; color:var(--red)}
+  .chip.offline{background:#2c2740; color:var(--dim)}
+  .repo{font-family:var(--f-body); font-size:17px; color:var(--dim); margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .repo .br{color:var(--gold)}
+  .action{font-family:var(--f-body); font-size:19px; color:#cfc7e2; margin-top:6px; min-height:34px; line-height:1.2}
+  .pod.waiting .action{color:#ffd0d6}
+  .since{font-family:var(--f-ui); font-size:9px; color:#6f6890; margin-top:8px; letter-spacing:.3px}
+  .empty{grid-column:1/-1; text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:48px 20px; font-family:var(--f-body); font-size:18px}
+  .empty code{color:var(--gold)}
+  footer{max-width:1280px; margin:8px auto 0; padding:0 clamp(18px,3.5vw,38px) 30px; color:#5f5980; font-family:var(--f-ui); font-size:8px; letter-spacing:.3px}
+
+  .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
+  .scrim.open{opacity:1; pointer-events:auto}
+  .drawer{position:fixed; top:0; right:0; height:100%; width:clamp(460px, 48vw, 960px); background:#1a1428; border-left:3px solid var(--line);
+    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:32px}
+  .drawer.open{transform:none}
+  .dhead{display:flex; gap:16px; align-items:flex-start}
+  .face{width:140px; height:140px; image-rendering:pixelated; border:3px solid var(--line); border-radius:0;
+    box-shadow:var(--bevel); background:#120E1B; flex:0 0 auto}
+  .dinfo{flex:1; min-width:0}
+  .dname{font-family:var(--f-ui); font-size:18px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
+  .closex{background:none; border:0; color:var(--dim); font-family:var(--f-ui); font-size:18px; cursor:pointer; line-height:1}
+  .term{margin-top:18px; background:#120E1B; border:2px solid var(--line); box-shadow:var(--bevel);
+    font-family:var(--f-body); font-size:16px; padding:14px; flex:1; overflow:auto; color:#b7aed0; white-space:pre-wrap; line-height:1.25}
+  .term .g{color:var(--green)} .term .t{color:var(--teal)} .term .y{color:var(--gold)} .term .d{color:#6f6890}
+  .chat{display:flex; gap:10px; margin-top:14px}
+  .chat{gap:12px; margin-top:16px}
+  .chat input{flex:1; background:var(--surface2); border:2px solid var(--line); color:var(--ink); border-radius:0; padding:14px 16px; font-family:var(--f-body); font-size:20px; box-shadow:var(--bevel)}
+  .chat input::placeholder{color:#6f6890}
+  .chat button{background:var(--gold); color:#15101C; border:2px solid var(--line); border-radius:0; padding:0 20px; font-family:var(--f-ui); font-size:10px; text-transform:uppercase; cursor:not-allowed; opacity:.6}
+  .dmeta{margin-top:22px}
+  .dmeta .action{font-family:var(--f-body); font-size:21px; color:#cfc7e2; line-height:1.3}
+  .dmeta .since{font-family:var(--f-ui); font-size:9px; color:#6f6890; margin-top:14px; letter-spacing:.3px}
+  .phase2{margin-top:12px; font-family:var(--f-body); font-size:15px; color:var(--dim); text-align:center}
+  @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
+
+  /* ===== BATTLE STAGE (drawer) ===== */
+  .hpwrap{margin-top:14px; font-family:var(--f-ui); font-size:8px; color:var(--dim); letter-spacing:.5px}
+  .hpbar{height:14px; border:2px solid var(--line); background:#120E1B; box-shadow:var(--bevel); margin-top:4px; position:relative; overflow:hidden}
+  .hpfill{height:100%; width:100%; background:var(--green); transition:width .4s steps(8)}
+  .hpval{position:absolute; right:5px; top:1px; font-size:8px; color:#fff; mix-blend-mode:difference}
+  .bstage{position:relative; height:180px; margin-top:12px; border:2px solid var(--line); background:linear-gradient(180deg,#1c1630,#15101f); box-shadow:var(--bevel); overflow:hidden}
+  .bground{position:absolute; left:0; right:0; bottom:34px; height:2px; background:rgba(255,255,255,.06)}
+  .bground::after{content:"";position:absolute;left:0;right:0;top:2px;height:32px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 6px,transparent 6px 12px)}
+  .bfighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
+  /* tamaño/animación de sprites los fija animateSprite() por JS (frames reales del PNG) */
+  .bhero{height:80px;left:8%;transition:transform .12s steps(2)}
+  .bmon{height:80px;right:8%}
+  .bmon.boss{height:120px;right:4%}
+  .bmon.hit{filter:brightness(3) saturate(0)}
+  .bmon.dying{animation:bdie .5s steps(5) forwards}
+  @keyframes bidle{0%,49%{background-position:0 0}50%,100%{background-position:-80px 0}}
+  @keyframes bidle2b{0%,49%{background-position:0 0}50%,100%{background-position:-120px 0}}
+  @keyframes bdie{to{opacity:0; transform:translateY(8px) scale(.7)}}
+  .bdmg{position:absolute; font-family:var(--f-ui); font-size:13px; color:var(--gold); text-shadow:2px 2px 0 #000; pointer-events:none; animation:bdmgfloat .85s ease-out forwards; white-space:nowrap}
+  .bdmg.big{font-size:17px; color:#fff}
+  @keyframes bdmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
+  .bmonname{position:absolute; bottom:6px; right:8%; max-width:55%; text-align:center; font-family:var(--f-body); font-size:14px; color:#cdbfe6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .bhero.flinch{animation:bflinch .3s steps(2) 2}
+  @keyframes bflinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
+  .bbubble{position:absolute; top:12px; left:calc(8% + 84px); background:var(--coral); color:#2a0d12; font-family:var(--f-ui); font-size:10px; padding:6px 8px; border:2px solid var(--line); box-shadow:2px 2px 0 #0c0913; display:none}
+  .bstage.needs .bbubble{display:block}
+  .bstage.needs .bmon{opacity:.4}
+  .bloot{position:absolute; inset:0; background:rgba(10,7,16,.86); display:none; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:14px}
+  .bloot.show{display:flex; animation:bfadein .2s}
+  @keyframes bfadein{from{opacity:0}to{opacity:1}}
+  .bloot .ttl{font-family:var(--f-ui); font-size:11px; color:var(--gold)}
+  .bloot .mn{font-family:var(--f-body); font-size:17px; color:#fff}
+  .bloot .stat{font-family:var(--f-body); font-size:15px; color:#cdbfe6}
+  .bloot .stat b{color:var(--coral)}
+  .bloot .lootline{font-family:var(--f-body); font-size:14px; color:var(--green); margin-top:2px}
+  .bloot .lootline span{color:var(--dim)}
