@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"hola"}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":100,"cache_creation_input_tokens":50,"cache_read_input_tokens":1000,"output_tokens":20}}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":200,"cache_creation_input_tokens":0,"cache_read_input_tokens":1200,"output_tokens":80}}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":300,"cache_creation_input_tokens":10,"cache_read_input_tokens":1500,"output_tokens":40}}}
