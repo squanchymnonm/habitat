@@ -75,8 +75,8 @@
   .pmon.hit{filter:brightness(3) saturate(0)}
   .pmon.dying{animation:bdie .5s steps(5) forwards}
   .phero.flinch{animation:bflinch .3s steps(2) 2}
-  .pcount{position:absolute; top:5px; left:8px; font-family:var(--f-ui); font-size:8px; color:var(--gold); letter-spacing:.3px}
-  .pmonname{position:absolute; bottom:4px; left:0; right:0; text-align:center; font-family:var(--f-body); font-size:13px;
+  .pcount{position:absolute; top:6px; left:8px; font-family:var(--f-ui); font-size:9px; color:var(--gold); letter-spacing:.3px}
+  .pmonname{position:absolute; bottom:4px; left:0; right:0; text-align:center; font-family:var(--f-body); font-size:15px;
     color:#cdbfe6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 8px}
   .pdmg{position:absolute; font-family:var(--f-ui); font-size:12px; color:var(--gold); text-shadow:2px 2px 0 #000;
     pointer-events:none; animation:bdmgfloat .85s ease-out forwards; white-space:nowrap}
@@ -102,34 +102,34 @@
   .badge{position:absolute; top:8px; right:10px; font-family:var(--f-ui); font-size:13px; display:none; z-index:3}
   .pod.done .badge.ok{display:block; color:var(--green)} .pod.error .badge.err{display:block; color:var(--red)}
 
-  .meta{margin-top:4px}
-  .name{font-family:var(--f-ui); font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-  .chip{font-family:var(--f-ui); font-size:8px; letter-spacing:.4px; text-transform:uppercase; padding:4px 6px; border:1px solid var(--line)}
+  .meta{margin-top:6px}
+  .name{font-family:var(--f-ui); font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .chip{font-family:var(--f-ui); font-size:9px; letter-spacing:.4px; text-transform:uppercase; padding:4px 6px; border:1px solid var(--line)}
   .chip.idle{background:#332c4d; color:#c3bcd9}
   .chip.working{background:#123733; color:var(--teal)}
   .chip.waiting{background:#3a1620; color:var(--coral)}
   .chip.done{background:#173318; color:var(--green)}
   .chip.error{background:#3a1414; color:var(--red)}
   .chip.offline{background:#2c2740; color:var(--dim)}
-  .repo{font-family:var(--f-body); font-size:15px; color:var(--dim); margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .repo{font-family:var(--f-body); font-size:17px; color:var(--dim); margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .repo .br{color:var(--gold)}
-  .action{font-family:var(--f-body); font-size:16px; color:#cfc7e2; margin-top:6px; min-height:32px; line-height:1.15}
+  .action{font-family:var(--f-body); font-size:19px; color:#cfc7e2; margin-top:6px; min-height:34px; line-height:1.2}
   .pod.waiting .action{color:#ffd0d6}
-  .since{font-family:var(--f-ui); font-size:8px; color:#6f6890; margin-top:8px; letter-spacing:.3px}
+  .since{font-family:var(--f-ui); font-size:9px; color:#6f6890; margin-top:8px; letter-spacing:.3px}
   .empty{grid-column:1/-1; text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:48px 20px; font-family:var(--f-body); font-size:18px}
   .empty code{color:var(--gold)}
   footer{max-width:1280px; margin:8px auto 0; padding:0 clamp(18px,3.5vw,38px) 30px; color:#5f5980; font-family:var(--f-ui); font-size:8px; letter-spacing:.3px}
 
   .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
   .scrim.open{opacity:1; pointer-events:auto}
-  .drawer{position:fixed; top:0; right:0; height:100%; width:min(580px,96vw); background:#1a1428; border-left:3px solid var(--line);
-    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:28px}
+  .drawer{position:fixed; top:0; right:0; height:100%; width:clamp(460px, 48vw, 960px); background:#1a1428; border-left:3px solid var(--line);
+    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:32px}
   .drawer.open{transform:none}
   .dhead{display:flex; gap:16px; align-items:flex-start}
   .face{width:140px; height:140px; image-rendering:pixelated; border:3px solid var(--line); border-radius:0;
     box-shadow:var(--bevel); background:#120E1B; flex:0 0 auto}
   .dinfo{flex:1; min-width:0}
-  .dname{font-family:var(--f-ui); font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
+  .dname{font-family:var(--f-ui); font-size:18px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
   .closex{background:none; border:0; color:var(--dim); font-family:var(--f-ui); font-size:18px; cursor:pointer; line-height:1}
   .term{margin-top:18px; background:#120E1B; border:2px solid var(--line); box-shadow:var(--bevel);
     font-family:var(--f-body); font-size:16px; padding:14px; flex:1; overflow:auto; color:#b7aed0; white-space:pre-wrap; line-height:1.25}
@@ -139,9 +139,9 @@
   .chat input{flex:1; background:var(--surface2); border:2px solid var(--line); color:var(--ink); border-radius:0; padding:14px 16px; font-family:var(--f-body); font-size:20px; box-shadow:var(--bevel)}
   .chat input::placeholder{color:#6f6890}
   .chat button{background:var(--gold); color:#15101C; border:2px solid var(--line); border-radius:0; padding:0 20px; font-family:var(--f-ui); font-size:10px; text-transform:uppercase; cursor:not-allowed; opacity:.6}
-  .dmeta{margin-top:18px; flex:1}
-  .dmeta .action{font-family:var(--f-body); font-size:18px; color:#cfc7e2; line-height:1.3}
-  .dmeta .since{font-family:var(--f-ui); font-size:8px; color:#6f6890; margin-top:12px; letter-spacing:.3px}
+  .dmeta{margin-top:22px; flex:1}
+  .dmeta .action{font-family:var(--f-body); font-size:21px; color:#cfc7e2; line-height:1.3}
+  .dmeta .since{font-family:var(--f-ui); font-size:9px; color:#6f6890; margin-top:14px; letter-spacing:.3px}
   .phase2{margin-top:12px; font-family:var(--f-body); font-size:15px; color:var(--dim); text-align:center}
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
