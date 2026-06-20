@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hábitat · modo batalla (mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16121E; --bg2:#1E1830; --surface:#241D38; --surface2:#2C2342;
+    --line:#100c1a; --soft:#3A2F55; --ink:#ECE6F5; --dim:#9D93B8;
+    --gold:#F4B740; --teal:#46D6C8; --coral:#FF6B7A; --green:#8BD17C; --red:#FF5C5C;
+    --f-logo:'Press Start 2P',monospace; --f-ui:'Silkscreen','Press Start 2P',monospace; --f-body:'VT323',monospace;
+    --bevel: inset 2px 2px 0 rgba(255,255,255,.07), inset -2px -2px 0 rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{font-family:var(--f-body); color:var(--ink); font-size:17px; padding:34px 16px;
+    background:radial-gradient(1100px 650px at 80% -10%, #2A2142 0%, transparent 60%), linear-gradient(160deg,var(--bg),var(--bg2));
+    background-attachment:fixed; display:flex; flex-direction:column; align-items:center; gap:18px; image-rendering:pixelated}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:60;background:repeating-linear-gradient(to bottom,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.6}
+  h1{font-family:var(--f-logo); font-size:14px; color:var(--ink); margin:0} h1 span{color:var(--gold)}
+  .sub{font-family:var(--f-ui); font-size:9px; color:var(--dim); letter-spacing:.5px; margin-top:-6px}
+
+  .pod{width:min(580px,96vw); border:2px solid var(--line); background:var(--surface); box-shadow:var(--bevel),5px 5px 0 #0c0913; padding:16px}
+  .top{display:flex; align-items:center; gap:10px}
+  .face{width:40px;height:40px;image-rendering:pixelated;border:2px solid var(--line);box-shadow:var(--bevel);background:#120E1B}
+  .who{flex:1}
+  .who .nm{font-family:var(--f-ui); font-size:13px}
+  .who .pj{font-family:var(--f-body); font-size:15px; color:var(--dim)}
+  .counter{font-family:var(--f-ui); font-size:11px; color:var(--gold)}
+
+  .hpwrap{margin-top:12px; font-family:var(--f-ui); font-size:8px; color:var(--dim); letter-spacing:.5px}
+  .hpbar{height:16px; border:2px solid var(--line); background:#120E1B; box-shadow:var(--bevel); margin-top:4px; position:relative; overflow:hidden}
+  .hpfill{height:100%; width:72%; background:var(--green); transition:width .4s steps(8)}
+  .hpval{position:absolute; right:5px; top:1px; font-size:8px; color:#fff; mix-blend-mode:difference}
+
+  .stage{position:relative; height:210px; margin-top:14px; border:2px solid var(--line); background:linear-gradient(180deg,#1c1630,#15101f); box-shadow:var(--bevel); overflow:hidden}
+  .ground{position:absolute; left:0; right:0; bottom:34px; height:2px; background:rgba(255,255,255,.06)}
+  .ground::after{content:"";position:absolute;left:0;right:0;top:2px;height:32px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 6px,transparent 6px 12px)}
+  .fighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
+  .hero{width:96px;height:96px;left:54px;background-size:192px 96px;animation:idle2 .9s steps(2) infinite;transition:transform .12s steps(2)}
+  .hero.lunge{transform:translateX(44px)}
+  .hero.atk{animation:none}
+  .mon{width:96px;height:96px;right:60px;background-size:192px 96px;animation:idle2 1.1s steps(2) infinite}
+  .mon.boss{width:150px;height:150px;right:36px;background-size:300px 150px;animation:idle2b 1.1s steps(2) infinite}
+  .mon.hit{filter:brightness(3) saturate(0)}
+  .mon.dying{animation:die .5s steps(5) forwards}
+  @keyframes idle2{0%,49%{background-position:0 0}50%,100%{background-position:-96px 0}}
+  @keyframes idle2b{0%,49%{background-position:0 0}50%,100%{background-position:-150px 0}}
+  @keyframes die{to{opacity:0; transform:translateY(8px) scale(.7)}}
+
+  .dmg{position:absolute; font-family:var(--f-ui); font-size:14px; color:var(--gold); text-shadow:2px 2px 0 #000; pointer-events:none; animation:dmgfloat .85s ease-out forwards; white-space:nowrap}
+  .dmg.big{font-size:18px; color:#fff}
+  @keyframes dmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
+  .monname{position:absolute; bottom:8px; right:40px; max-width:240px; text-align:center; font-family:var(--f-body); font-size:15px; color:#cdbfe6}
+  .hero.flinch{animation:flinch .3s steps(2) 2}
+  @keyframes flinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
+  .bubble{position:absolute; top:18px; left:120px; background:var(--coral); color:#2a0d12; font-family:var(--f-ui); font-size:12px; padding:8px 9px; border:2px solid var(--line); box-shadow:2px 2px 0 #0c0913; display:none}
+  .pod.needs .bubble{display:block}
+  .pod.needs .hero{animation:none}
+  .pod.needs .mon{opacity:.4}
+
+  .loot{position:absolute; inset:0; background:rgba(10,7,16,.86); display:none; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; padding:18px}
+  .loot.show{display:flex; animation:fadein .2s}
+  @keyframes fadein{from{opacity:0}to{opacity:1}}
+  .loot .ttl{font-family:var(--f-ui); font-size:13px; color:var(--gold)}
+  .loot .mn{font-family:var(--f-body); font-size:18px; color:#fff}
+  .loot .stat{font-family:var(--f-body); font-size:16px; color:#cdbfe6}
+  .loot .stat b{color:var(--coral)}
+  .loot .lootline{font-family:var(--f-body); font-size:15px; color:var(--green); margin-top:4px}
+  .loot .lootline span{color:var(--dim)}
+
+  .controls{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:580px}
+  button.ctl{font-family:var(--f-ui); font-size:9px; text-transform:uppercase; letter-spacing:.5px; background:var(--surface2); color:var(--ink); border:2px solid var(--line); padding:9px 11px; cursor:pointer; box-shadow:inset 1px 1px 0 rgba(255,255,255,.08),3px 3px 0 #0c0913}
+  button.ctl:hover{background:var(--gold); color:#15101C; transform:translate(-1px,-1px)}
+  button.ctl:active{transform:translate(2px,2px); box-shadow:none}
+  .note{font-family:var(--f-ui); font-size:8px; color:#5f5980; max-width:560px; text-align:center; line-height:1.8; letter-spacing:.3px}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001s !important}}
+</style>
+</head>
+<body>
+  <div>
+    <h1>EL MONO<span>.</span> — MODO BATALLA</h1>
+    <div class="sub">MOCK · datos de mentira para validar el look</div>
+  </div>
+
+  <div class="pod" id="pod">
+    <div class="top">
+      <img class="face" id="face" alt="">
+      <div class="who"><div class="nm" id="nm">mnonm-a</div><div class="pj">mnonm-api · feat/auth</div></div>
+      <div class="counter" id="counter">DUNGEON 1/8</div>
+    </div>
+    <div class="hpwrap">STAMINA (= CONTEXT)
+      <div class="hpbar"><div class="hpfill" id="hpfill"></div><div class="hpval" id="hpval">72%</div></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="ground"></div>
+      <div class="bubble">¡te necesita!</div>
+      <div class="fighter hero" id="hero"></div>
+      <div class="fighter mon" id="mon"></div>
+      <div class="monname" id="monname"></div>
+      <div class="loot" id="loot">
+        <div class="ttl">★ MONSTRUO VENCIDO ★</div>
+        <div class="mn" id="loot-mn"></div>
+        <div class="stat">HP: <b id="loot-hp"></b> tokens · <span id="loot-hits"></span> golpes</div>
+        <div class="lootline">LOOT: <span id="loot-loot"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" id="b-hit">golpe</button>
+    <button class="ctl" id="b-win">vencer monstruo</button>
+    <button class="ctl" id="b-need">te necesita</button>
+    <button class="ctl" id="b-err">error (te pega)</button>
+    <button class="ctl" id="b-reset">reiniciar dungeon</button>
+  </div>
+  <div class="note">El monstruo NO tiene barra (oculto, RPG viejo). Cada golpe muestra el daño = tokens del paso. Al vencerlo: HP (= tokens que costó), golpes y loot (entregable). El último es el BOSS.</div>
+
+<script>
+const IMGS={"face": "data:image/png;base64,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", "heroIdle": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAYAAAB3AH1ZAAABz0lEQVR4nK2Uv0tCURTHPy+E5gwD6ZVLWQ1ls7WVQdjU4NBW+DcEgmMQ9DcEbQ0NQVBTNQTp0uAv6MfDRTQeFBqNTbfheS9e3/PVy84ies655/v5nus1GDKEEEP1G34HRExTALy3WsZQU3wiNGgoQC6fdf0WRMxvADQBEdMUuXyWzM4+AGenRyrXK8bvwKAAI72N6UzKHwlIZ1LagV4ApUeL0qOl5XL5LLl81tXrWgE45FWrwVI85sp9PL15CgsKIJ3wFACwFI9RtRpKfZAIAhByJeMxDg+OtaKr7mcQIb8FGOjAX+IvAC4BVauhCuVB8rsk+s/wdMBrf37De292UAD1N3xvtYxirTLwloNjcbFW+fEx8ho0CEA5EDFNkVxM0O580S40qReazE3OA3B+cq8akosJz8fodjnKWrlCkgRjCxO+AL1hCCGImKa4XY4CcLOVVorrhSYAMytTaiXrl86VWivbmhNyDVJ0f2zvrgJwd/GguagcmN6YVAXtzpfWXO86Mh4eZW/TqaNsazUd2zbC0agYD4+6+l9en1m//ATgsKYLD4Gzf0mQzqQY6w59eX1GUs2sTAEwe3SN7Omn7Ni2UQT1Il6dXaucBOwX/g0T3/4++GMfaAAAAABJRU5ErkJggg==", "heroAtk": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAYAAAB3AH1ZAAABP0lEQVR4nM2VsW7CMBCG/0QdWTqkUlWjLCi0C+1cxoqJnYU1LxEpI1KlPkPnDp3p2JUVESQC3iKBkFKpeYLIHcpRTAzBzkBvSezc5/vvTr5YQgic0+yzRv/3AhzGhMOYcY9O4S9UEL0HoV/Y+1ourbKgOrxUAYcxEYQ+xjOO8YxLBwehjyD0cSwjE97ehbu9zrHkAADdXkcpwpQvtAAA3t9eEPEELc8tfMvitDSIDq8UAAAtz0XEEwB/vdSxU3lJQBangOfiefAqOX1snmVCTHjjOVDleu7yhRZEPNkqpUxoTSX9fLjeHrJ/rXR5ZQXIsWzvkOnwUgVG0wkecY/LuyulcxanGE0neNqsv9drKXsT3qK/IfWkeXN7IK9fW6zmUvA8zyvxNsE0RBarOYb9Gob9mgQ22nU02nWohk0V/gfT174IHtYklgAAAABJRU5ErkJggg==", "mon_a": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAYAAAB3AH1ZAAABh0lEQVR4nMVVO46DMBB9oD0CncsoB9hICy3Nlik5QUSH6HMNy13ECVJSpnGbNDlAanfcwVtsHjGODVntSjsSkhnG83tvhgR3yYSwPA/GJAjIKzY/lYSOy6YdlVrJpwCv2MQSnrN7c1/W75/fhwbQSlpeZHB+v11Pi5VlQti66wEAh93WxpJI6VwrueiUopVE2bQTSELB95sV9psV6q6P2o4dKJt2sTJ+d6GIBfel7vpgJ/6UAz5UoQL8e+mc40wI6xLJhWkOgsNu+5IOANKgFo9WzuHn27OQe7snwQmLn/hTAjQIkWgOe1du1xNcHtRdH+VX6reWF3zxdT5UPoy362nyxOAbyUAFR9IPeNht4Y5rLLibRF5UAIDL+RicHK3kYwzpUCtpiaGzSEZcYwuFzCf2eVHhcj6OZyZOn4RkwoFMCJsXVRTDvKgWCclKL+cjBmOSwZiEiYS6MHbAbaVWEmimhtx+5Uc7WdN3Dlnf3u3UYEzCxFk5OfS0SPwLISchGP7rb/pr+QJBcT5nNR76owAAAABJRU5ErkJggg==", "mon_b": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAYAAAB3AH1ZAAABs0lEQVR4nLWUsW7CMBRFbypmJoaqHqOCxII8MmSJ1B/IUD6gW8NAVz4AdcyQsPUDysAPVMqSgdFiqUSrjEEdmFD3dIBnbMcRBdorIZzn53fviZI4+Ae1GCtt9U1ROGatUvgL4/z13rrvDmaVINYApxCoZ1Tjh+xa23/xvrQgNEsbeA5Bnfktv5PXj/0OnqaxNUTjFALadwez0gyxXqxw0+/I3ufvg/l0sdLM14uVXDvHCGjAp3irvY00Ixv1AEAGMUXGXrSUZxvqpklA5lSzEZA2ReF4Ecps1LPuk1RzeQcuIVBFz1A26sGLlqB5tPaipQxbCWCG+C2BejaeNDEvXKSJgHj/AO+2AUCu/ZAjYDmG462ccWUzUP/ranUKWI540pSGfsjBu23EkyYCllf6tbeACLzoGAEqbwEAzAtXmlAvACDkAHLZA4hqAJUgUAgASAIaYqrFWOmHHGki9mbQaAOW742BNBHY9e4gtADnEKiiwGoQEhn7Rl1+B4jAtxAcjFUCUfkOUH13t4DheAsA2rV5VnsIVYJ54Wq/NBFaT538kEtjVWRu6mICVTSDIKinrg4APwUrTtD7/h3pAAAAAElFTkSuQmCC", "mon_c": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAQCAYAAAB3AH1ZAAABVklEQVR4nMVVsWrDMBB9drVlKIQaCoF2SXcHbulnNFO/JB/Rj3E/o4vA2dPFBkEhRtAhW0o6FDm6k+xa6dCbdKd7d+9Z8gn4Z8tk4GaxOLl1Z0wm435syFJylQTquxUAgNqaFevjwGmssKvh8JKUJKYkcIjQFBuqwQQIYkqyc7Zd3+Oo5+dEssyf2vw3AXksSZEd9V1xR3xIgF83VgMAcrdwyYosZssCs2UR9aWyvwpQwY4A+o0VWWjEP6kUAACf+ivwfdLU1lCdMRkBvYqyagA02G2INX940QCA7frHH7sPKQJyCZIN5VpaZ0zm3+yyavp8KaCsGiiy7EgYgevnKwDAx9tr0MiPHfU8+J0uFdD/BT6r28enIDEWkwPpEgHBJdxtKAD7scP7nu1xAUWygPMlxAoH7IOkVEsVwB6bqWOX2jp4qFJGto9nZxibaDGLPUZTsRL/DbUB0Eh7zo2TAAAAAElFTkSuQmCC", "boss": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAYAAABpYH0BAAAC8klEQVR4nO2YvWtTURjGn2jJHxAyeLnYbhW6BW0gzgqiODlkjFuGTiVSdHByUMTilKGbHTM4tgTqbCAq2Qp2a0tIh+IfEITrEN5w77nv+bw3t1c4vy3nPee9T5733PNxAY/H4/F4PJ7/korrwHoYRmLb9XRa0cWKoih9ay6D6mEYHRxupNq7HUQAIIsVZWKR+qwHyMQBwGg2BwC0giob73bOVz4Ti9bnNANlyISVhVXou2XTmVs7bMkjxypz2+Ywmq6UNP5qNLdPEn3GPx4nfqvi3c45gPw2Fk5fFmz0aTtwa0pz+wSNrc1E2+T0bGmSLh4XmtVE2ZqXpcA2+pRroGpBnpyeqYZq48BixmTZnVXm5VFgE33SQD0Mo5/rDQDAr3d/WJFxXCp8/20NAPDgYmI9E1X6xGeLGnRxG31sY1wcwZmYBRJH2Jhooi9rgU315XKMEc9XuvNWEXAz3iZuitExRjf7WkE1YZb42yWnDbpco9l8WVTut0tOQjoDbw8HAIBev422JslgXGPb2021iL3nwP7O4jkQFnUdNgUQi2n6ZiSe0eH7aF/h/Z0Bev2FhaIhZNzSBAHXcSbQGtbrt7WFci3wYFyLaeQLrNyFxaMIGUKYGqAb19jatNqFRW1FFFimUSm6HobR+0+f8eTpM1U3Z4bHR3jzatfpMF2WAitn4MsPAQDg3toeAORm5PD4CADw++9HAMCX1zNnE2+6wNJzYPyETzsWGUmYCifDCDIuvpjbXOvo7ltkgQH+bpxqkF2PuG1fNFQGCYnD7YQmJur0mWqSwRVXpc/4IN0KqikTOWNMc+UN6XPVJOYyxep7oCdNysDr6bRC38NUxG8bF5d3UnFqM7mVAOZrYNn0SV/h0WwuTSxe24CrlMj1u1epfrLrk+5aVWZ9qRlIi7QoTpWE+yOqqoq5WkEVB4cbRp/Ty6aPfYV1CTnip3ndFUmW0/QVLpM+58/pX789TFTjxaPvFZv4qim7Po/H4/F4PJ4b5h+uxR4b6xOGSwAAAABJRU5ErkJggg=="};
+
+const DUNGEON=[
+  {todo:'leer el spec y armar el plan', mon:'a'},
+  {todo:'crear el modelo User', mon:'b'},
+  {todo:'endpoint POST /login', mon:'c'},
+  {todo:'validar tokens JWT', mon:'a'},
+  {todo:'tests de auth', mon:'b'},
+  {todo:'middleware de sesión', mon:'c'},
+  {todo:'manejo de errores', mon:'a'},
+  {todo:'review final', mon:'boss'}
+];
+const LOOTS=[['plan.md'],['app/Models/User.php'],['routes/api.php','AuthController.php'],['app/Auth/Jwt.php'],['tests/AuthTest.php'],['app/Http/Session.php'],['app/Exceptions/Handler.php'],['PR #42']];
+const MONIMG={a:IMGS.mon_a, b:IMGS.mon_b, c:IMGS.mon_c, boss:IMGS.boss};
+
+const hero=document.getElementById('hero'), mon=document.getElementById('mon'), stage=document.getElementById('stage');
+const counter=document.getElementById('counter'), monname=document.getElementById('monname'), pod=document.getElementById('pod');
+const loot=document.getElementById('loot');
+let idx=0, combatTokens=0, hits=0, hp=72, attacking=true, autotimer=null;
+
+document.getElementById('face').src=IMGS.face;
+document.getElementById('hero').style.backgroundImage='url('+IMGS.heroIdle+')';
+
+function fmt(n){return n.toLocaleString('es-AR')}
+function setHp(v){hp=Math.max(0,Math.min(100,v)); document.getElementById('hpfill').style.width=hp+'%';
+  document.getElementById('hpval').textContent=hp+'%';
+  document.getElementById('hpfill').style.background = hp>50?'var(--green)':hp>20?'var(--gold)':'var(--red)';}
+function rest(){ // sin stamina -> descansa = compactación -> se recupera
+  const d=document.createElement('div'); d.className='dmg'; d.style.color='var(--teal)'; d.textContent='zZz · compactó';
+  const r=hero.getBoundingClientRect(), s=stage.getBoundingClientRect();
+  d.style.left=(r.left-s.left)+'px'; d.style.top=(r.top-s.top-6)+'px'; stage.appendChild(d); setTimeout(()=>d.remove(),850);
+  setHp(100);
+}
+
+function loadMonster(){
+  const m=DUNGEON[idx]; const isBoss=m.mon==='boss';
+  mon.className='fighter mon'+(isBoss?' boss':'');
+  mon.style.backgroundImage='url('+MONIMG[m.mon]+')';
+  monname.textContent=m.todo + (isBoss?'  (BOSS)':'');
+  counter.textContent='DUNGEON '+(idx+1)+'/'+DUNGEON.length;
+  combatTokens=0; hits=0;
+}
+function attack(){
+  if(!attacking) return;
+  hero.classList.add('lunge','atk');
+  hero.style.backgroundImage='url('+IMGS.heroAtk+')';
+  setTimeout(()=>{ // impacto
+    const dmg=600+Math.floor(Math.random()*2600);
+    combatTokens+=dmg; hits++;
+    spawnDmg(dmg, DUNGEON[idx].mon==='boss');
+    mon.classList.add('hit'); setTimeout(()=>mon.classList.remove('hit'),110);
+    setHp(hp-2); if(hp<=10) rest(); // atacar gasta stamina (= context)
+  },130);
+  setTimeout(()=>{ hero.classList.remove('lunge','atk'); hero.style.backgroundImage='url('+IMGS.heroIdle+')'; },300);
+}
+function spawnDmg(n,big){
+  const d=document.createElement('div'); d.className='dmg'+(big?' big':''); d.textContent='-'+fmt(n);
+  const r=mon.getBoundingClientRect(), s=stage.getBoundingClientRect();
+  d.style.left=(r.left-s.left+10)+'px'; d.style.top=(r.top-s.top+6)+'px';
+  stage.appendChild(d); setTimeout(()=>d.remove(),850);
+}
+function win(){
+  attacking=false; if(hits===0){combatTokens=600+Math.floor(Math.random()*4000);hits=1+Math.floor(Math.random()*6);}
+  mon.classList.add('dying');
+  setTimeout(()=>{
+    document.getElementById('loot-mn').textContent=DUNGEON[idx].todo;
+    document.getElementById('loot-hp').textContent=fmt(combatTokens);
+    document.getElementById('loot-hits').textContent=hits;
+    document.getElementById('loot-loot').textContent=LOOTS[idx].join(', ');
+    loot.classList.add('show');
+  },450);
+  setTimeout(()=>{
+    loot.classList.remove('show'); mon.classList.remove('dying');
+    idx++; if(idx>=DUNGEON.length){ idx=0; setHp(72); } loadMonster(); attacking=true;
+  },2600);
+}
+document.getElementById('b-hit').onclick=()=>{attacking=true; attack();};
+document.getElementById('b-win').onclick=win;
+document.getElementById('b-need').onclick=()=>{pod.classList.toggle('needs'); attacking=!pod.classList.contains('needs');};
+document.getElementById('b-err').onclick=()=>{ // el monstruo pega al héroe
+  mon.classList.add('lunge'); // reutilizamos: el bicho avanza
+  hero.classList.add('flinch'); setTimeout(()=>hero.classList.remove('flinch'),700);
+  setTimeout(()=>mon.classList.remove('lunge'),300);
+};
+document.getElementById('b-reset').onclick=()=>{idx=0; setHp(72); pod.classList.remove('needs'); attacking=true; loadMonster();};
+
+setHp(72); loadMonster();
+autotimer=setInterval(attack, 900);
+</script>
+</body>
+</html>
