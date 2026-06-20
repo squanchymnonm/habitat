@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useSessions } from '../stores/sessions'
 import { STATUS_LABEL } from '../types'
 import { faceFor, ago } from '../sprites'
+import { usePreview } from '../composables/usePreview'
 import ChatPanel from './ChatPanel.vue'
 
 const store = useSessions()
+const selectedId = computed(() => store.selected?.id ?? null)
+const { lines: preview, loading: previewLoading } = usePreview(selectedId)
 function close() {
   store.select(null)
 }
@@ -35,6 +38,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <div class="action">{{ store.selected.action }}</div>
         <div class="since">ACTIVA HACE {{ ago(store.selected.since) }}</div>
       </div>
+      <pre class="term" aria-label="terminal de la sesión">{{ preview || (previewLoading ? '…' : '(sin tmux)') }}</pre>
       <ChatPanel :session="store.selected" />
     </template>
   </aside>
