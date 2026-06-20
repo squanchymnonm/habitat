@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize } from 'node:path';
+import { dirname, join, extname, normalize, sep } from 'node:path';
 import config from './config.js';
 import { createStore } from './state.js';
 import { readUsage } from './transcript.js';
@@ -29,29 +29,36 @@ function readBody(req) {
 }
 
 export function createApp({ config, store }) {
+  function authorize(req, res) {
+    if (config.TOKEN) {
+      const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+      if (hdr !== config.TOKEN) { res.writeHead(401).end(); return false; }
+    }
+    if (!LOCAL.has(req.socket.remoteAddress)) { res.writeHead(403).end(); return false; }
+    return true;
+  }
+
   let hub;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
     if (req.method === 'POST' && url.pathname === '/hooks') {
-      if (config.TOKEN) {
-        const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-        if (hdr !== config.TOKEN) { res.writeHead(401).end(); return; }
-      }
-      const ip = req.socket.remoteAddress;
-      if (!LOCAL.has(ip)) { res.writeHead(403).end(); return; }
+      if (!authorize(req, res)) return;
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
-      const { session, fightResult } = applyEvent(store, payload, {
-        readUsage, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
-      });
-      hub.broadcast({ type: 'session', session: snapOf(session) });
-      if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+      try {
+        const { session, fightResult } = applyEvent(store, payload, {
+          readUsage, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+        });
+        hub.broadcast({ type: 'session', session: snapOf(session) });
+        if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+      } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/preview') {
+      if (!authorize(req, res)) return;
       const s = store.get(url.searchParams.get('id'));
       const lines = s ? await capturePane(s.tmux || s.name, config.PREVIEW_LINES) : '';
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ lines }));
@@ -61,7 +68,7 @@ export function createApp({ config, store }) {
     // estáticos
     let p = url.pathname === '/' ? '/index.html' : url.pathname;
     const file = normalize(join(WEB, p));
-    if (!file.startsWith(WEB)) { res.writeHead(403).end(); return; }
+    if (file !== WEB && !file.startsWith(WEB + sep)) { res.writeHead(403).end(); return; }
     try {
       const data = await readFile(file);
       res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' }).end(data);

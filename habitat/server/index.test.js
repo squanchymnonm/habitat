@@ -34,3 +34,22 @@ test('POST /hooks con token crea la sesión en el store', async () => {
   assert.equal(store.get('s1').name, 'api');
   server.close();
 });
+
+test('GET /preview sin token -> 401', async () => {
+  const store = createStore();
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/preview?id=x`);
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('GET path traversal -> no 200', async () => {
+  const store = createStore();
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  // Use percent-encoded dots so fetch doesn't normalize them away
+  const res = await fetch(`http://127.0.0.1:${port}/%2e%2e/server/config.js`);
+  assert.notEqual(res.status, 200);
+  server.close();
+});
