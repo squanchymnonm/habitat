@@ -49,7 +49,7 @@
   button.ctl:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 
   main{padding:clamp(18px,3.5vw,38px)}
-  .grid{display:grid; gap:20px; grid-template-columns:repeat(auto-fill, minmax(236px,1fr)); max-width:1280px; margin:0 auto}
+  .grid{display:grid; gap:24px; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); max-width:1500px; margin:0 auto}
 
   .pod{position:relative; border:2px solid var(--line); border-radius:0; background:var(--surface);
     padding:16px 14px 14px; cursor:pointer; overflow:hidden;
@@ -66,12 +66,12 @@
   .pod.offline{opacity:.5; filter:saturate(.4)}
 
   /* ===== ARENA DE COMBATE (en el pod) ===== */
-  .stage{height:120px; position:relative; overflow:hidden; background:linear-gradient(180deg,#1c1630,#15101f); border:2px solid var(--line); box-shadow:var(--bevel)}
-  .gfloor{position:absolute; left:6px; right:6px; bottom:26px; height:2px; background:rgba(255,255,255,.07)}
-  .fighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:20px}
-  .phero{height:60px; left:9%}
-  .pmon{height:60px; right:9%}
-  .pmon.boss{height:88px; right:5%}
+  .stage{height:180px; position:relative; overflow:hidden; background:linear-gradient(180deg,#1c1630,#15101f); border:2px solid var(--line); box-shadow:var(--bevel)}
+  .gfloor{position:absolute; left:6px; right:6px; bottom:34px; height:2px; background:rgba(255,255,255,.07)}
+  .fighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
+  .phero{height:88px; left:9%}
+  .pmon{height:88px; right:9%}
+  .pmon.boss{height:124px; right:5%}
   .pmon.hit{filter:brightness(3) saturate(0)}
   .pmon.dying{animation:bdie .5s steps(5) forwards}
   .phero.flinch{animation:bflinch .3s steps(2) 2}
@@ -122,11 +122,11 @@
 
   .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
   .scrim.open{opacity:1; pointer-events:auto}
-  .drawer{position:fixed; top:0; right:0; height:100%; width:min(440px,94vw); background:#1a1428; border-left:3px solid var(--line);
-    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:22px}
+  .drawer{position:fixed; top:0; right:0; height:100%; width:min(580px,96vw); background:#1a1428; border-left:3px solid var(--line);
+    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:28px}
   .drawer.open{transform:none}
   .dhead{display:flex; gap:16px; align-items:flex-start}
-  .face{width:112px; height:112px; image-rendering:pixelated; border:3px solid var(--line); border-radius:0;
+  .face{width:140px; height:140px; image-rendering:pixelated; border:3px solid var(--line); border-radius:0;
     box-shadow:var(--bevel); background:#120E1B; flex:0 0 auto}
   .dinfo{flex:1; min-width:0}
   .dname{font-family:var(--f-ui); font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
@@ -135,9 +135,10 @@
     font-family:var(--f-body); font-size:16px; padding:14px; flex:1; overflow:auto; color:#b7aed0; white-space:pre-wrap; line-height:1.25}
   .term .g{color:var(--green)} .term .t{color:var(--teal)} .term .y{color:var(--gold)} .term .d{color:#6f6890}
   .chat{display:flex; gap:10px; margin-top:14px}
-  .chat input{flex:1; background:var(--surface2); border:2px solid var(--line); color:var(--ink); border-radius:0; padding:10px 12px; font-family:var(--f-body); font-size:17px; box-shadow:var(--bevel)}
+  .chat{gap:12px; margin-top:16px}
+  .chat input{flex:1; background:var(--surface2); border:2px solid var(--line); color:var(--ink); border-radius:0; padding:14px 16px; font-family:var(--f-body); font-size:20px; box-shadow:var(--bevel)}
   .chat input::placeholder{color:#6f6890}
-  .chat button{background:var(--gold); color:#15101C; border:2px solid var(--line); border-radius:0; padding:0 14px; font-family:var(--f-ui); font-size:9px; text-transform:uppercase; cursor:not-allowed; opacity:.6}
+  .chat button{background:var(--gold); color:#15101C; border:2px solid var(--line); border-radius:0; padding:0 20px; font-family:var(--f-ui); font-size:10px; text-transform:uppercase; cursor:not-allowed; opacity:.6}
   .dmeta{margin-top:18px; flex:1}
   .dmeta .action{font-family:var(--f-body); font-size:18px; color:#cfc7e2; line-height:1.3}
   .dmeta .since{font-family:var(--f-ui); font-size:8px; color:#6f6890; margin-top:12px; letter-spacing:.3px}
