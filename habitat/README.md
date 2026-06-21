@@ -17,6 +17,20 @@ Monitor pixel-art de sesiones de Claude Code. Ver `docs/superpowers/specs/2026-0
     cd habitat/client && npm run dev                 # Vite en :5173, proxea /ws y /preview al backend
     # los sprites se generan con: bash habitat/scripts/import-assets.sh (a client/public/assets)
 
+## Crear sesiones desde el panel (opcional)
+
+Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
+
+    export MNONM_ALLOW_SPAWN=1
+    export MNONM_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # rutas absolutas, separadas por :
+
+Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server crea una sesión
+tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude
+dispara `SessionStart`. El nombre tmux = basename habilita el preview y el chat sobre esa sesión.
+
+> Crear sesiones spawnea procesos en tu máquina. El endpoint exige el mismo token, bind a
+> loopback, el flag `MNONM_ALLOW_SPAWN`, y que el directorio esté en `MNONM_PROJECTS`.
+
 ## Hooks (command hook)
 Agregar a `~/.claude/settings.json`. `mnonm-hook` debe estar en PATH o usar ruta absoluta.
 Exportar `MNONM_TOKEN` (y `MNONM_URL` si el server no está en el default) en el entorno del wrapper de arranque.
