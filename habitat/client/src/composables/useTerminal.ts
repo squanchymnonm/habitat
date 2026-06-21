@@ -13,7 +13,7 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   let ws: WebSocket | null = null
 
   function teardown() {
-    if (ws) { ws.close(); ws = null }
+    if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
     if (term) { term.dispose(); term = null }
     fitAddon = null
   }
@@ -59,7 +59,7 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     (cur) => {
       teardown()
       if (cur) {
-        // esperar a que el contenedor exista en el DOM
+        // rAF waits for the container div to be mounted in the DOM before calling setup
         requestAnimationFrame(() => cur && setup(cur))
       }
     },
