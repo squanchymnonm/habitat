@@ -1,3 +1,5 @@
+<!-- English: README.en.md -->
+
 # 🏰 Hábitat — un RPG pixel-art para tus sesiones de Claude Code
 
 > Convertí tu terminal en una mazmorra. Cada sesión de [Claude Code](https://claude.com/claude-code) es un personaje en una grilla; cada TODO en curso es un monstruo; los tokens que gasta son el daño que le hace. Mirás todas tus sesiones pelear en tiempo real desde una sola pantalla.
@@ -10,6 +12,8 @@
 - 👁️ **Preview real** — clic en un pod y ves la terminal (tmux) de esa sesión en vivo.
 - 💬 **Chat** — escribile a una sesión desde el panel (va por `tmux send-keys`).
 - ➕ **Crear sesiones** — lanzá una nueva sesión de Claude Code en un proyecto, desde el header.
+
+> 🇬🇧 Prefer English? See the [English README](README.en.md).
 
 ---
 
@@ -130,6 +134,10 @@ Specs y planes de diseño en `docs/superpowers/`.
 | `MNONM_BIND` | `127.0.0.1` | Interfaz. No la cambies sin VPN. |
 | `MNONM_ALLOW_SPAWN` | `0` | `1` habilita crear sesiones desde el panel. |
 | `MNONM_PROJECTS` | `''` | Whitelist de rutas absolutas (separadas por `:`) donde se pueden crear sesiones. |
+
+## 📄 Licencia
+
+MIT — ver [LICENSE](LICENSE).
 
 ## 🙏 Créditos
 
