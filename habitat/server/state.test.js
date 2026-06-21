@@ -140,3 +140,15 @@ test('questFromTodos cuenta total y done', () => {
   ];
   assert.deepEqual(questFromTodos(todos), { total: 3, done: 2 });
 });
+
+test('pending char: set y take (one-shot)', () => {
+  const store = createStore();
+  store.setPendingChar('api', 'Knight');
+  assert.equal(store.takePendingChar('api'), 'Knight');
+  assert.equal(store.takePendingChar('api'), undefined); // one-shot: el segundo take no reusa
+});
+
+test('pending char: take de inexistente -> undefined', () => {
+  const store = createStore();
+  assert.equal(store.takePendingChar('nope'), undefined);
+});

@@ -44,6 +44,9 @@ export function monsterFromTodos(todos = []) {
 // solas (los hooks sólo disparan con actividad), así que sin esto desaparecen.
 export function createStore({ persistPath } = {}) {
   const map = new Map();
+  // Personaje elegido en /spawn, keyed por nombre de proyecto. SessionStart lo consume
+  // (one-shot). En memoria: la ventana spawn->SessionStart es de ~1-2s, no se persiste.
+  const pendingChars = new Map();
 
   if (persistPath) {
     try {
@@ -67,6 +70,8 @@ export function createStore({ persistPath } = {}) {
     remove: (id) => { map.delete(id); persist(); },
     snapshot: () => [...map.values()].map(stripInternal),
     persist,
+    setPendingChar: (name, char) => { pendingChars.set(name, char); },
+    takePendingChar: (name) => { const c = pendingChars.get(name); pendingChars.delete(name); return c; },
   };
 }
 
