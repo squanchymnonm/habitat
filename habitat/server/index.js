@@ -8,7 +8,7 @@ import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
-import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
+import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { CHARACTERS } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -30,7 +30,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession } }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -93,6 +93,22 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const ok = await tmux.newTmuxSession(name, dir);
       if (!ok) { res.writeHead(500).end(); return; }
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/kill') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const id = body && body.id;
+      if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
+      const s = store.get(id);
+      if (!s) { res.writeHead(404).end(); return; }
+      await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      store.remove(id); // ya persiste a disco
+      hub.broadcast({ type: 'remove', id });
+      res.writeHead(200).end();
       return;
     }
 
