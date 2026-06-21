@@ -9,6 +9,7 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
+import { CHARACTERS } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -83,9 +84,12 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const dir = body && body.dir;
       if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      const char = body && body.char;
+      if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
       const name = basename(dir);
       const existing = await tmux.listSessions();
       if (existing.includes(name)) { res.writeHead(409).end(); return; }
+      if (char) store.setPendingChar(name, char);
       const ok = await tmux.newTmuxSession(name, dir);
       if (!ok) { res.writeHead(500).end(); return; }
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));

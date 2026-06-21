@@ -142,6 +142,31 @@ test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
   server.close();
 });
 
+test('POST /spawn con char inválido -> 400', async () => {
+  const { server } = createApp({ config: spawnConfig(), store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'NoExiste' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /spawn con char válido -> setPendingChar(name, char) y 200', async () => {
+  const store = createStore();
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const { server } = createApp({ config: spawnConfig(), store, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Knight' }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal(store.takePendingChar('proj-api'), 'Knight');
+  server.close();
+});
+
 // Regresión: con /ws y /term montados sobre el mismo http server, el upgrade a
 // /term debe completar el handshake (101) y dejar que la lógica de la app corra
 // (acá id desconocido -> close 1008). Si el routing de upgrade está roto, el
