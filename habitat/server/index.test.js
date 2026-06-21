@@ -204,7 +204,7 @@ test('WS /ws sigue conectando junto a /term', async () => {
 });
 
 test('POST /kill deshabilitado -> 403', async () => {
-  const { server } = createApp({ config, store: createStore() });
+  const { server } = createApp({ config: { ...config, ALLOW_SPAWN: false }, store: createStore() });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/kill`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
@@ -236,7 +236,7 @@ test('POST /kill id desconocido -> 404', async () => {
   server.close();
 });
 
-test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', async () => {
+test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { timeout: 5000 }, async () => {
   const store = createStore();
   store.upsert(newSession('s1', { name: 'proj-api' }));
   const killed = [];
