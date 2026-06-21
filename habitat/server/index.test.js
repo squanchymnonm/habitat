@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore } from './state.js';
+import { WebSocket } from 'ws';
+import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
@@ -138,5 +139,129 @@ test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
   assert.equal(r.status, 200);
   assert.equal(body.name, 'proj-api');
   assert.deepEqual(seen, [['proj-api', '/home/u/proj-api']]);
+  server.close();
+});
+
+test('POST /spawn con char inválido -> 400', async () => {
+  const { server } = createApp({ config: spawnConfig(), store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'NoExiste' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /spawn con char válido -> setPendingChar(name, char) y 200', async () => {
+  const store = createStore();
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const { server } = createApp({ config: spawnConfig(), store, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Knight' }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal(store.takePendingChar('proj-api'), 'Knight');
+  server.close();
+});
+
+// Regresión: con /ws y /term montados sobre el mismo http server, el upgrade a
+// /term debe completar el handshake (101) y dejar que la lógica de la app corra
+// (acá id desconocido -> close 1008). Si el routing de upgrade está roto, el
+// handshake aborta con 400 y nunca llegamos a 1008.
+test('WS /term convive con /ws: handshake completa (no 400)', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/term?id=nope&token=secret`);
+    const outcome = await new Promise((r) => {
+      ws.once('close', (code) => r({ kind: 'close', code }));
+      ws.once('error', (err) => r({ kind: 'error', err }));
+    });
+    assert.equal(outcome.kind, 'close', `esperaba close del lado app, no error de handshake: ${outcome.err?.message}`);
+    assert.equal(outcome.code, 1008);
+  } finally {
+    server.close();
+  }
+});
+
+test('WS /ws sigue conectando junto a /term', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+    const snapshot = await new Promise((r, rej) => {
+      ws.once('message', (d) => r(JSON.parse(d.toString())));
+      ws.once('error', rej);
+    });
+    assert.equal(snapshot.type, 'snapshot');
+    ws.close();
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /kill deshabilitado -> 403', async () => {
+  const { server } = createApp({ config: { ...config, ALLOW_SPAWN: false }, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'x' }),
+  });
+  assert.equal(r.status, 403);
+  server.close();
+});
+
+test('POST /kill body sin id -> 400', async () => {
+  const { server } = createApp({ config: spawnConfig(), store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /kill id desconocido -> 404', async () => {
+  const { server } = createApp({ config: spawnConfig(), store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'nope' }),
+  });
+  assert.equal(r.status, 404);
+  server.close();
+});
+
+test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { timeout: 5000 }, async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'proj-api' }));
+  const killed = [];
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async () => true,
+    killTmuxSession: async (n) => { killed.push(n); return true; },
+  };
+  const { server } = createApp({ config: spawnConfig(), store, tmux });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); }); // snapshot inicial
+  const removeMsg = new Promise((r) => ws.on('message', (d) => {
+    const m = JSON.parse(d.toString());
+    if (m.type === 'remove') r(m);
+  }));
+  const res = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 's1' }),
+  });
+  assert.equal(res.status, 200);
+  const m = await removeMsg;
+  assert.equal(m.id, 's1');
+  assert.equal(store.get('s1'), undefined);
+  assert.deepEqual(killed, ['proj-api']);
+  ws.close();
   server.close();
 });

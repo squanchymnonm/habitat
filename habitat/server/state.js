@@ -1,3 +1,5 @@
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+
 export function hashType(text) {
   let h = 5381;
   const s = String(text || '');
@@ -37,15 +39,52 @@ export function monsterFromTodos(todos = []) {
   return { type: hashType(label), isBoss: idx === todos.length - 1, label };
 }
 
-export function createStore() {
+// El store vive en memoria, pero opcionalmente se respalda en disco para que un
+// reinicio del server no vacíe la GUI: las sesiones idle no vuelven a anunciarse
+// solas (los hooks sólo disparan con actividad), así que sin esto desaparecen.
+export function createStore({ persistPath } = {}) {
   const map = new Map();
+  // Personaje elegido en /spawn, keyed por nombre de proyecto. SessionStart lo consume
+  // (one-shot). En memoria: la ventana spawn->SessionStart es de ~1-2s, no se persiste.
+  const pendingChars = new Map();
+
+  if (persistPath) {
+    try {
+      const raw = readFileSync(persistPath, 'utf8');
+      for (const s of JSON.parse(raw)) map.set(s.id, reviveSession(s));
+    } catch { /* sin archivo aún, o corrupto: arrancamos vacío */ }
+  }
+
+  function persist() {
+    if (!persistPath) return;
+    const data = JSON.stringify([...map.values()].map(serializeSession));
+    const tmp = `${persistPath}.tmp`;
+    writeFileSync(tmp, data);
+    renameSync(tmp, persistPath); // escritura atómica: nunca dejamos un JSON a medias
+  }
+
   return {
     get: (id) => map.get(id),
     all: () => [...map.values()],
     upsert: (session) => { map.set(session.id, session); return session; },
-    remove: (id) => { map.delete(id); },
+    remove: (id) => { map.delete(id); persist(); },
     snapshot: () => [...map.values()].map(stripInternal),
+    persist,
+    setPendingChar: (name, char) => { pendingChars.set(name, char); },
+    takePendingChar: (name) => { const c = pendingChars.get(name); pendingChars.delete(name); return c; },
   };
+}
+
+// _touched es un Set en memoria; JSON no lo serializa, así que va y vuelve como array.
+function serializeSession(s) {
+  const out = { ...s };
+  if (s._touched instanceof Set) out._touched = [...s._touched];
+  return out;
+}
+
+function reviveSession(s) {
+  if (Array.isArray(s._touched)) s._touched = new Set(s._touched);
+  return s;
 }
 
 function stripInternal(session) {

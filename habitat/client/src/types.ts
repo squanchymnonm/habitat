@@ -29,6 +29,7 @@ export interface Session {
   action: string
   since: number
   tmux?: string
+  char?: string // personaje elegido al crear; si no, se deriva por hash del nombre
   // --- capa RPG ---
   stamina: number // 0..100 = context restante
   quest?: Quest

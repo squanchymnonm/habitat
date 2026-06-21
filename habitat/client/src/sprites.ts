@@ -1,5 +1,5 @@
 // Selección estable de sprites desde assets/ (ver habitat/scripts/import-assets.sh).
-const CHARS = ['Boy', 'Cavegirl', 'Knight', 'NinjaBlue', 'Monk', 'Hunter', 'FighterRed', 'DemonRed', 'Eskimo', 'GreenPig', 'Lion', 'Monkey', 'Inspector', 'Master', 'KnightGold', 'Caveman']
+export const CHARACTERS = ['Boy', 'Cavegirl', 'Knight', 'NinjaBlue', 'Monk', 'Hunter', 'FighterRed', 'DemonRed', 'Eskimo', 'GreenPig', 'Lion', 'Monkey', 'Inspector', 'Master', 'KnightGold', 'Caveman']
 const MONSTERS = ['Slime', 'Slime3', 'Flam', 'BlueBat', 'Mushroom', 'KappaGreen', 'Eye', 'Larva', 'Mole', 'Mouse', 'Lizard', 'Bear', 'Beast', 'GreenOctopus', 'Butterfly', 'Dragon']
 const BOSSES = ['GiantFrog', 'DemonCyclop', 'GiantBamboo', 'TenguRed', 'GiantRacoon', 'GiantSpirit', 'GiantFlam', 'TenguBlue']
 
@@ -13,13 +13,17 @@ function hash(s: string): number {
 }
 
 export function charFor(name: string): string {
-  return CHARS[hash('spr' + name) % CHARS.length]
+  return CHARACTERS[hash('spr' + name) % CHARACTERS.length]
 }
-export function heroIdle(name: string): string {
-  return `assets/char/${charFor(name)}/idle.png`
+// Personaje a usar: el elegido (si es válido) o el derivado del nombre.
+function resolveChar(name: string, char?: string): string {
+  return char && CHARACTERS.includes(char) ? char : charFor(name)
 }
-export function faceFor(name: string): string {
-  return `assets/char/${charFor(name)}/face.png`
+export function heroIdle(name: string, char?: string): string {
+  return `assets/char/${resolveChar(name, char)}/idle.png`
+}
+export function faceFor(name: string, char?: string): string {
+  return `assets/char/${resolveChar(name, char)}/face.png`
 }
 export function monsterSprite(type: string): string {
   return `assets/monster/${MONSTERS[hash('mon' + type) % MONSTERS.length]}.png`

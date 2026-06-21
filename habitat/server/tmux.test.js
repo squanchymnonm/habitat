@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturePane, listSessions, sendKeys, gitBranch, newTmuxSession } from './tmux.js';
+import { capturePane, listSessions, sendKeys, gitBranch, newTmuxSession, killTmuxSession } from './tmux.js';
 
 test('capturePane devuelve las últimas N líneas', async () => {
   const exec = async () => 'l1\nl2\nl3\nl4\nl5\n';
@@ -72,4 +72,17 @@ test('newTmuxSession crea sesión detached en dir y lanza claude', async () => {
 test('newTmuxSession ante error de new-session devuelve false', async () => {
   const exec = async () => { throw new Error('duplicate session'); };
   assert.equal(await newTmuxSession('proj', '/x', exec), false);
+});
+
+test('killTmuxSession arma kill-session -t name', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  const ok = await killTmuxSession('proj', exec);
+  assert.equal(ok, true);
+  assert.deepEqual(calls[0], ['tmux', 'kill-session', '-t', 'proj']);
+});
+
+test('killTmuxSession ante error devuelve false', async () => {
+  const exec = async () => { throw new Error('no session'); };
+  assert.equal(await killTmuxSession('proj', exec), false);
 });
