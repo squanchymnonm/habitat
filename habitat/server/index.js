@@ -51,7 +51,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         const { session, fightResult } = applyEvent(store, payload, {
           readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
         });
-        hub.broadcast({ type: 'session', session: snapOf(session) });
+        if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
