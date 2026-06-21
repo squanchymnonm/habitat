@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { newSession, questFromTodos, monsterFromTodos } from './state.js';
+import { newSession, questFromTodos, monsterFromTodos, hashType } from './state.js';
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
@@ -22,6 +22,12 @@ function setStatus(s, status, action, now) {
   if (s.status !== status || !s.since) s.since = now();
   s.status = status;
   if (action != null) s.action = String(action).slice(0, 200);
+}
+
+function ensureMonster(s) {
+  if (!s.monster) {
+    s.monster = { type: hashType(s.name || s.id), isBoss: false, label: s.action || 'trabajando' };
+  }
 }
 
 export function applyEvent(store, payload, deps) {
@@ -51,6 +57,7 @@ export function applyEvent(store, payload, deps) {
       s._resting = false;
       setStatus(s, 'working', 'procesando tu pedido', now);
       recomputeStamina();
+      ensureMonster(s);
       break;
     }
     case 'Notification': {
@@ -70,10 +77,12 @@ export function applyEvent(store, payload, deps) {
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
+      s.monster = null;
       break;
     }
     case 'SessionEnd': {
       setStatus(s, 'offline', 'sesión cerrada', now);
+      s.monster = null;
       break;
     }
     case 'PreToolUse':
@@ -125,7 +134,7 @@ function handleHit(s, payload, deps) {
   if (EDIT_TOOLS.has(payload.tool_name) && payload.tool_input && payload.tool_input.file_path) {
     s._touched.add(payload.tool_input.file_path);
   }
-  if (!s.monster) return;
+  ensureMonster(s);
   s.combat.hits++;
   if (payload.transcript_path) {
     const u = readUsage(payload.transcript_path);
