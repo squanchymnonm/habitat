@@ -10,3 +10,9 @@ test('config tiene defaults sensatos', async () => {
   assert.ok(config.MAX_CONTEXT > 0);
   assert.equal(config.BIND, '127.0.0.1'); // loopback por default (Ley 1)
 });
+
+test('config: ALLOW_SPAWN y PROJECTS con defaults', async () => {
+  const { default: config } = await import('./config.js');
+  assert.equal(typeof config.ALLOW_SPAWN, 'boolean');
+  assert.equal(Array.isArray(config.PROJECTS), true);
+});
