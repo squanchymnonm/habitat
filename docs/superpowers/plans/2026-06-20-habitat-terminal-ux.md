@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - ESM en todo el server (`"type": "module"`). Imports con extensión `.js`.
-- Toda ruta nueva (HTTP o WS) se gatea con `config.TOKEN` (query `?token=` o header `Authorization: Bearer`) y se restringe a localhost, igual que `/ws` y `/preview`.
+- Las rutas HTTP nuevas se gatean con `config.TOKEN` (query `?token=` o header `Authorization: Bearer`) + check de loopback (`authorize()`). Las rutas WS (`/ws`, `/term`) validan SOLO token, no loopback — `/ws` se dejó así a propósito para acceso remoto por VPN; el bind default es `127.0.0.1`.
 - Inyección de dependencias para lo no-determinístico (igual que `exec` en `tmux.js` y `readUsage`/`now` en `hooks-logic.js`): el módulo de terminal recibe un factory `spawnPty` para poder testear con un PTY falso.
 - Tests con `node --test` (server). Cliente: verificación corriendo la app.
 - Commits frecuentes, uno por tarea.

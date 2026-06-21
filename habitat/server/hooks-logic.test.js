@@ -116,3 +116,41 @@ test('SessionEnd -> offline', () => {
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
   assert.equal(r.session.status, 'offline');
 });
+
+test('working sin todos asigna monstruo genérico estable', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
+  assert.ok(r.session.monster, 'debe haber monstruo al trabajar');
+  assert.equal(r.session.monster.isBoss, false);
+  const t1 = r.session.monster.type;
+  const r2 = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'Read' }, deps(null));
+  assert.equal(r2.session.monster.type, t1, 'el type del genérico es estable entre golpes');
+});
+
+test('UserPromptSubmit ya muestra monstruo', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  assert.ok(r.session.monster);
+});
+
+test('los todos tienen prioridad sobre el monstruo genérico', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null)); // genérico
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
+    tool_input: { todos: [{ content: 'arreglar auth', status: 'in_progress' }] } }, deps(null));
+  assert.equal(r.session.monster.label, 'arreglar auth');
+});
+
+test('Stop a idle y SessionEnd limpian el monstruo', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
+  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  assert.equal(r.session.monster, null);
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
+  r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
+  assert.equal(r.session.monster, null);
+});

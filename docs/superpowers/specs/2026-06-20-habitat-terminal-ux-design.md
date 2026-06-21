@@ -27,7 +27,7 @@ Cinco issues reportados sobre el panel del Hábitat:
 
 **Server**
 - Nueva dependencia: `node-pty` (binding nativo; requiere build tools — ver Riesgos).
-- Nuevo endpoint WebSocket `/term?id=<id>&token=<t>`, token-gated y restringido a localhost igual que `/ws` y `/preview` hoy.
+- Nuevo endpoint WebSocket `/term?id=<id>&token=<t>`, token-gated igual que `/ws` hoy (los WS validan token, no loopback — `/ws` se dejó así a propósito para acceso remoto por VPN; el bind default es `127.0.0.1`).
 - Por cada conexión `/term`:
   - Resolver la sesión (`store.get(id)`) y su nombre tmux (`s.tmux || s.name`).
   - Spawn de un PTY que corre `tmux attach-session -t <name>` (o variante agrupada, ver Sizing).
@@ -104,7 +104,7 @@ resize drawer/ventana ──> fit() ──> {resize,cols,rows} ──> pty.resiz
 
 ## Seguridad
 
-El PTY da control total de la sesión vía WS. Mismo modelo de confianza que `send-keys` hoy: gated por `TOKEN` + restringido a localhost. Sin cambios en el modelo.
+El PTY da control total de la sesión vía WS. Mismo modelo de confianza que el chat→`send-keys` de `/ws` hoy (que ya da control de escritura): gated por `TOKEN`. Los WS NO restringen a loopback a propósito — el caso de uso incluye acceso remoto por VPN con token; el bind default es `127.0.0.1`. Si se bindea a una interfaz pública, setear `HABITAT_TOKEN` es obligatorio en la práctica. Sin cambios en el modelo respecto de `/ws`.
 
 ## Riesgos
 

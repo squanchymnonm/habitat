@@ -7,6 +7,7 @@ import { createStore } from './state.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
+import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -107,6 +108,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       if (s) sendKeys(s.tmux || s.name, text);
     },
   });
+  attachTerm(server, store, { token: config.TOKEN });
   return { server, get hub() { return hub; } };
 }
 
