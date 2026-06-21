@@ -59,3 +59,14 @@ export async function newTmuxSession(name, dir, exec = defaultExec) {
     return false;
   }
 }
+
+// Mata la sesión tmux (y con ella claude+shell). Best-effort: si la sesión ya no
+// existe, exec tira y devolvemos false, pero el endpoint igual limpia el pod.
+export async function killTmuxSession(name, exec = defaultExec) {
+  try {
+    await exec('tmux', ['kill-session', '-t', name]);
+    return true;
+  } catch {
+    return false;
+  }
+}
