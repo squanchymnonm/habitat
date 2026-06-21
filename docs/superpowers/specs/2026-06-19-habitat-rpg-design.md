@@ -52,7 +52,7 @@ Servicio Node único en `habitat/server/`:
 | `config.js`     | Puerto, bind, token, N líneas de preview, max-context por modelo. |
 
 `web/index.html` parte de `habitat-prototipo.html` con la `CAPA MOCK`
-reemplazada. `hook/mnonm-hook` es el script fallback (stdin → curl) si la versión
+reemplazada. `hook/habitat-hook` es el script fallback (stdin → curl) si la versión
 de Claude Code no soporta HTTP hooks.
 
 **Flujo:** hook de Claude Code → POST a `hooks.js` → actualiza la `Session` en
@@ -186,7 +186,7 @@ ej. tokens estimados por tipo de tool) sin romper el contrato.
   como respaldo para huérfanas.
 - **Identidad:** correlacionar `session_id` de Claude con la sesión tmux. El
   wrapper de arranque (`mono <proyecto>`) crea la tmux con nombre conocido y
-  exporta `MNONM_TMUX`; el hook lo adjunta (`X-Mnonm-Tmux` en HTTP, o el script
+  exporta `HABITAT_TMUX`; el hook lo adjunta (`X-Habitat-Tmux` en HTTP, o el script
   lo lee de la env). Fallback: derivar de `cwd` + `git rev-parse --abbrev-ref`.
 - **Preview (drawer):** `tmux capture-pane -p -t <tmux>` → últimas N líneas.
 - **Fallback de actividad:** sin hooks por X tiempo → `idle`/`offline`.
@@ -215,7 +215,7 @@ habitat/
   web/
     index.html      # prototipo, CAPA MOCK → cliente WS, drawer con batalla
   hook/
-    mnonm-hook      # script fallback (stdin → curl)
+    habitat-hook      # script fallback (stdin → curl)
   README.md
 ```
 

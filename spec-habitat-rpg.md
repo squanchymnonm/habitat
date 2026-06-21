@@ -1,4 +1,4 @@
-# MNONMAgents — Hábitat · Capa RPG "dungeon" (addendum al Spec Fase 1)
+# Habitat — Hábitat · Capa RPG "dungeon" (addendum al Spec Fase 1)
 
 > Extiende `spec-habitat-fase1.md`. Agrega campos al contrato (§5) y entradas al
 > mapeo de hooks (§6.3), más una capa visual de combate. Lo que se muestra es

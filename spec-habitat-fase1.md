@@ -1,4 +1,4 @@
-# MNONMAgents — Hábitat de sesiones · Spec Fase 1 (mirador)
+# Habitat — Hábitat de sesiones · Spec Fase 1 (mirador)
 
 > Spec para levantar en Claude Code. Sugerido: abrir, opcionalmente correr
 > `superpowers:brainstorming` para afinar, luego `writing-plans` → TDD.
@@ -90,9 +90,9 @@ error / caída.
 ### 6.1 Configuración de hooks
 
 Preferir **hooks HTTP** (`"type": "http"`) que hacen POST del payload al servicio
-con un `Authorization: Bearer $MNONM_TOKEN` (usar `allowedEnvVars` para inyectar
+con un `Authorization: Bearer $HABITAT_TOKEN` (usar `allowedEnvVars` para inyectar
 el token). Si la versión instalada no soporta HTTP hooks, fallback a **command
-hook**: un script `mnonm-hook` que lee el JSON de stdin y lo reenvía por `curl`.
+hook**: un script `habitat-hook` que lee el JSON de stdin y lo reenvía por `curl`.
 
 Requisito: Claude Code ≥ 1.0.20 (los hooks se introdujeron ahí). **Verificar el
 esquema exacto de cada evento contra la doc oficial** (ver §16) durante la
@@ -103,8 +103,8 @@ implementación, porque puede haber cambiado.
 Correlacionar el `session_id` de Claude con la sesión tmux:
 
 - El wrapper de arranque (`mono <proyecto>`) crea la sesión tmux con nombre
-  conocido y exporta `MNONM_TMUX=<nombre>` en el entorno.
-- El hook adjunta ese valor (header `X-Mnonm-Tmux: $MNONM_TMUX` en HTTP hooks, o
+  conocido y exporta `HABITAT_TMUX=<nombre>` en el entorno.
+- El hook adjunta ese valor (header `X-Habitat-Tmux: $HABITAT_TMUX` en HTTP hooks, o
   el script lo lee de la env).
 - Fallback: derivar `name`/`project` del campo `cwd` del payload, y `branch` con
   `git -C <cwd> rev-parse --abbrev-ref HEAD`.
@@ -189,10 +189,10 @@ Partir de `habitat-prototipo.html`:
 
 ## 11. Estructura de archivos (propuesta)
 
-Alineado con `/srv/mnonmagents/` (`infra/`, `app/`, `data/`). Componente nuevo:
+Alineado con `/srv/habitat/` (`infra/`, `app/`, `data/`). Componente nuevo:
 
 ```
-/srv/mnonmagents/habitat/
+/srv/habitat/habitat/
   server/
     index.js        # arranque: static + ws + hooks
     state.js        # Map de sesiones + reglas de transición
@@ -203,7 +203,7 @@ Alineado con `/srv/mnonmagents/` (`infra/`, `app/`, `data/`). Componente nuevo:
   web/
     index.html      # el prototipo aprobado, con la capa mock reemplazada
   hook/
-    mnonm-hook      # script fallback (lee stdin, curl-ea al servicio)
+    habitat-hook      # script fallback (lee stdin, curl-ea al servicio)
   README.md
 ```
 

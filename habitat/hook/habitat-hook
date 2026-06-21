@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Lee el JSON del hook por stdin y lo reenvía al servicio hábitat.
-# Requiere MNONM_TOKEN y (opcional) MNONM_URL en el entorno.
+# Requiere HABITAT_TOKEN y (opcional) HABITAT_URL en el entorno.
 # Diseñado para NUNCA bloquear Claude Code: siempre sale 0.
-URL="${MNONM_URL:-http://127.0.0.1:8377/hooks}"
-TOKEN="${MNONM_TOKEN:-}"
+URL="${HABITAT_URL:-http://127.0.0.1:8377/hooks}"
+TOKEN="${HABITAT_TOKEN:-}"
 payload="$(cat || true)"
 curl -fsS -m 3 -X POST "$URL" \
   -H "Content-Type: application/json" \

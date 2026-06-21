@@ -22,14 +22,14 @@
 **Requisitos:** Node 18+, npm, tmux, git y Claude Code instalado.
 
 ```bash
-git clone https://github.com/squanchymnonm/RPG-Agents.git
+git clone https://github.com/squanchyhabitat/RPG-Agents.git
 cd RPG-Agents/habitat
 
 npm install                                   # backend (solo depende de 'ws')
 (cd client && npm install && npm run build)   # front Vue → genera habitat/web/
 
-export MNONM_TOKEN="$(openssl rand -hex 16)"  # token secreto; anotalo
-echo "TU TOKEN: $MNONM_TOKEN"
+export HABITAT_TOKEN="$(openssl rand -hex 16)"  # token secreto; anotalo
+echo "TU TOKEN: $HABITAT_TOKEN"
 
 npm start                                     # → hábitat en http://127.0.0.1:8377
 ```
@@ -47,14 +47,14 @@ El panel se alimenta de los *hooks* de Claude Code. Agregá esto a `~/.claude/se
 ```json
 {
   "hooks": {
-    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "Notification":     [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "PreCompact":       [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "Stop":             [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }]
+    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "Notification":     [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "PreCompact":       [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }]
   }
 }
 ```
@@ -62,8 +62,8 @@ El panel se alimenta de los *hooks* de Claude Code. Agregá esto a `~/.claude/se
 Y en tu shell (`~/.bashrc` / `~/.zshrc` del entorno donde abrís Claude Code):
 
 ```bash
-export MNONM_TOKEN="<el mismo token>"
-export PATH="$PATH:$HOME/RPG-Agents/habitat/hook"   # para que 'mnonm-hook' resuelva
+export HABITAT_TOKEN="<el mismo token>"
+export PATH="$PATH:$HOME/RPG-Agents/habitat/hook"   # para que 'habitat-hook' resuelva
 ```
 
 > **Importante para preview/chat:** corré tus sesiones de Claude Code **dentro de tmux**, con el nombre de la sesión tmux = basename del directorio del proyecto (ej. `~/dev/mi-app` → `tmux new -s mi-app`). Así el panel matchea la sesión con su terminal. Las sesiones creadas con **"+ NUEVA SESIÓN"** ya lo hacen solas.
@@ -97,12 +97,12 @@ Después, dejámelo corriendo en esta máquina, paso a paso y verificando cada u
 2. Instalá dependencias: `cd habitat && npm install` y `cd habitat/client && npm install`.
 3. Buildeá el front: `npm run build` en habitat/client (genera habitat/web/).
 4. Generá un token con `openssl rand -hex 16`, mostrámelo y guardalo para los pasos siguientes.
-5. Arrancá el server con ese MNONM_TOKEN y confirmá que responde en http://127.0.0.1:8377.
+5. Arrancá el server con ese HABITAT_TOKEN y confirmá que responde en http://127.0.0.1:8377.
 6. Mostrame el bloque de hooks que tengo que poner en ~/.claude/settings.json y ofrecé
-   agregarlo vos (sin pisar hooks que ya tenga). Recordame exportar MNONM_TOKEN y poner
+   agregarlo vos (sin pisar hooks que ya tenga). Recordame exportar HABITAT_TOKEN y poner
    habitat/hook en el PATH.
 7. Explicame en 3 líneas cómo abrir la GUI (con ?token=) y cómo crear sesiones desde el panel
-   si quiero habilitar MNONM_ALLOW_SPAWN + MNONM_PROJECTS.
+   si quiero habilitar HABITAT_ALLOW_SPAWN + HABITAT_PROJECTS.
 
 No expongas el server fuera de loopback. Si algo falla, mostrame el error y pará.
 ```
@@ -115,13 +115,13 @@ No expongas el server fuera de loopback. Si algo falla, mostrame el error y par�
 Tu PC (browser)  ──túnel SSH / VPN──▶  Servidor
                                          ├─ habitat server   HTTP + WebSocket  (127.0.0.1:8377)
                                          ├─ sesiones tmux con `claude`
-                                         └─ hook mnonm-hook   ──POST /hooks──▶ server
+                                         └─ hook habitat-hook   ──POST /hooks──▶ server
 ```
 
 - **`habitat/server/`** — Node (ESM, sin TypeScript), única dependencia `ws`. HTTP sirve el front + `/hooks` + `/preview` + `/projects` + `/spawn`; WebSocket empuja el estado. Tests con `node --test` (**36/36**). Estado RPG derivado de los hooks (TodoWrite → monstruo/quest; tokens del transcript → daño/stamina).
 - **`habitat/client/`** — Vue 3 + TypeScript + Vite. Buildea a `habitat/web/` (lo sirve el server).
-- **`habitat/hook/mnonm-hook`** — reenvía los eventos de Claude Code al server.
-- **Seguridad (Ley 1):** Bearer token + bind a loopback en todos los endpoints; crear sesiones exige además flag `MNONM_ALLOW_SPAWN` + whitelist `MNONM_PROJECTS`. Comandos tmux vía `execFile` (sin shell). Nunca exponer a internet sin VPN.
+- **`habitat/hook/habitat-hook`** — reenvía los eventos de Claude Code al server.
+- **Seguridad (Ley 1):** Bearer token + bind a loopback en todos los endpoints; crear sesiones exige además flag `HABITAT_ALLOW_SPAWN` + whitelist `HABITAT_PROJECTS`. Comandos tmux vía `execFile` (sin shell). Nunca exponer a internet sin VPN.
 
 Specs y planes de diseño en `docs/superpowers/`.
 
@@ -129,11 +129,11 @@ Specs y planes de diseño en `docs/superpowers/`.
 
 | Variable | Default | Para qué |
 |---|---|---|
-| `MNONM_TOKEN` | `''` | Bearer token de hooks/WS/GUI. **Ponelo siempre.** |
-| `MNONM_PORT` | `8377` | Puerto HTTP. |
-| `MNONM_BIND` | `127.0.0.1` | Interfaz. No la cambies sin VPN. |
-| `MNONM_ALLOW_SPAWN` | `0` | `1` habilita crear sesiones desde el panel. |
-| `MNONM_PROJECTS` | `''` | Whitelist de rutas absolutas (separadas por `:`) donde se pueden crear sesiones. |
+| `HABITAT_TOKEN` | `''` | Bearer token de hooks/WS/GUI. **Ponelo siempre.** |
+| `HABITAT_PORT` | `8377` | Puerto HTTP. |
+| `HABITAT_BIND` | `127.0.0.1` | Interfaz. No la cambies sin VPN. |
+| `HABITAT_ALLOW_SPAWN` | `0` | `1` habilita crear sesiones desde el panel. |
+| `HABITAT_PROJECTS` | `''` | Whitelist de rutas absolutas (separadas por `:`) donde se pueden crear sesiones. |
 
 ## 📄 Licencia
 

@@ -30,8 +30,8 @@ pre-registra la sesión en el store: el hook `SessionStart` de `claude` la repor
 
 Dos variables nuevas, leídas de `process.env` con defaults:
 
-- `MNONM_ALLOW_SPAWN` → `ALLOW_SPAWN: boolean` (default `false`). `'1'`/`'true'` lo habilitan.
-- `MNONM_PROJECTS` → `PROJECTS: string[]` (default `[]`). Rutas absolutas separadas por `:`
+- `HABITAT_ALLOW_SPAWN` → `ALLOW_SPAWN: boolean` (default `false`). `'1'`/`'true'` lo habilitan.
+- `HABITAT_PROJECTS` → `PROJECTS: string[]` (default `[]`). Rutas absolutas separadas por `:`
   (estilo `PATH`). Se filtran vacíos. No se normalizan ni resuelven symlinks: la comparación
   de whitelist es por igualdad exacta de string contra lo que mande el cliente.
 

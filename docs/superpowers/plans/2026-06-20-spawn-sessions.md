@@ -12,7 +12,7 @@
 
 - **Server: JavaScript plano (ESM)**, sin TypeScript. Tests con `node:test` (`node --test`).
 - **Sin dependencias nuevas.** Solo `ws` (ya presente).
-- **Seguridad (Ley 1):** `/projects` y `/spawn` exigen `authorize()` (Bearer `MNONM_TOKEN` + bind loopback). `/spawn` además requiere `ALLOW_SPAWN` y whitelist.
+- **Seguridad (Ley 1):** `/projects` y `/spawn` exigen `authorize()` (Bearer `HABITAT_TOKEN` + bind loopback). `/spawn` además requiere `ALLOW_SPAWN` y whitelist.
 - **Contrato estable:** no renombrar campos existentes. Comandos tmux vía `execFile` con array de args (sin shell).
 - **Commits frecuentes**, uno por tarea. Terminar mensajes con `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - **Front:** correr `npm run build` (incluye `vue-tsc`) en `habitat/client` antes del commit del front; el build sale a `habitat/web/` (gitignored).
@@ -53,13 +53,13 @@ const bool = (v) => v === '1' || v === 'true';
 const list = (v) => (v ? String(v).split(':').map((s) => s.trim()).filter(Boolean) : []);
 
 export default {
-  PORT: num(process.env.MNONM_PORT, 8377),
-  BIND: process.env.MNONM_BIND || '127.0.0.1',
-  TOKEN: process.env.MNONM_TOKEN || '',
-  PREVIEW_LINES: num(process.env.MNONM_PREVIEW_LINES, 30),
-  MAX_CONTEXT: num(process.env.MNONM_MAX_CONTEXT, 200000),
-  ALLOW_SPAWN: bool(process.env.MNONM_ALLOW_SPAWN),
-  PROJECTS: list(process.env.MNONM_PROJECTS),
+  PORT: num(process.env.HABITAT_PORT, 8377),
+  BIND: process.env.HABITAT_BIND || '127.0.0.1',
+  TOKEN: process.env.HABITAT_TOKEN || '',
+  PREVIEW_LINES: num(process.env.HABITAT_PREVIEW_LINES, 30),
+  MAX_CONTEXT: num(process.env.HABITAT_MAX_CONTEXT, 200000),
+  ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
+  PROJECTS: list(process.env.HABITAT_PROJECTS),
 };
 ```
 
@@ -557,15 +557,15 @@ Agregar una sección a `habitat/README.md`:
 
 Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
 
-    export MNONM_ALLOW_SPAWN=1
-    export MNONM_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # rutas absolutas, separadas por :
+    export HABITAT_ALLOW_SPAWN=1
+    export HABITAT_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # rutas absolutas, separadas por :
 
 Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server crea una sesión
 tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude
 dispara `SessionStart`. El nombre tmux = basename habilita el preview y el chat sobre esa sesión.
 
 > Crear sesiones spawnea procesos en tu máquina. El endpoint exige el mismo token, bind a
-> loopback, el flag `MNONM_ALLOW_SPAWN`, y que el directorio esté en `MNONM_PROJECTS`.
+> loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en `HABITAT_PROJECTS`.
 ```
 
 - [ ] **Step 3: Commit**
@@ -581,7 +581,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Criterios de aceptación
 
-- [ ] `MNONM_ALLOW_SPAWN=1` + `MNONM_PROJECTS=...` → aparece "+ NUEVA SESIÓN" en el header.
+- [ ] `HABITAT_ALLOW_SPAWN=1` + `HABITAT_PROJECTS=...` → aparece "+ NUEVA SESIÓN" en el header.
 - [ ] Elegir un proyecto → se crea la sesión tmux y `claude` arranca; el pod aparece vía hook.
 - [ ] Sin el flag → no aparece el botón y `POST /spawn` responde 403.
 - [ ] `dir` fuera de la whitelist → 403; sesión ya existente → 409.

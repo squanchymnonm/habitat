@@ -14,7 +14,7 @@
 - **Node 18.19.1**, npm 9. WebSocket NO es nativo en Node 18 → dependencia `ws`. No agregar otras dependencias salvo `ws`.
 - **Tests con `node:test`**, ejecutados con `node --test`. Sin Jest/Mocha/Vitest.
 - **Contrato de sesión estable** (Task 2 §5 del diseño): NO renombrar campos. Campos internos no-contrato van prefijados con `_` (ej. `_lastTotal`).
-- **Seguridad (Ley 1):** el endpoint de hooks y el WS exigen Bearer token (`MNONM_TOKEN`); bind a loopback/VPN; nunca exponer a internet; payloads de hook tratados como no confiables.
+- **Seguridad (Ley 1):** el endpoint de hooks y el WS exigen Bearer token (`HABITAT_TOKEN`); bind a loopback/VPN; nunca exponer a internet; payloads de hook tratados como no confiables.
 - **Ubicación del componente:** `habitat/` en la raíz del repo (`habitat/server/`, `habitat/web/`, `habitat/hook/`).
 - **Commits frecuentes**, uno por tarea como mínimo. Terminar mensajes de commit con `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - **Estados válidos:** `'idle' | 'working' | 'waiting' | 'done' | 'error' | 'offline'`.
@@ -86,11 +86,11 @@ Expected: FAIL — `Cannot find module './config.js'`.
 const num = (v, d) => (v == null || v === '' ? d : Number(v));
 
 export default {
-  PORT: num(process.env.MNONM_PORT, 8377),
-  BIND: process.env.MNONM_BIND || '127.0.0.1',
-  TOKEN: process.env.MNONM_TOKEN || '',
-  PREVIEW_LINES: num(process.env.MNONM_PREVIEW_LINES, 30),
-  MAX_CONTEXT: num(process.env.MNONM_MAX_CONTEXT, 200000),
+  PORT: num(process.env.HABITAT_PORT, 8377),
+  BIND: process.env.HABITAT_BIND || '127.0.0.1',
+  TOKEN: process.env.HABITAT_TOKEN || '',
+  PREVIEW_LINES: num(process.env.HABITAT_PREVIEW_LINES, 30),
+  MAX_CONTEXT: num(process.env.HABITAT_MAX_CONTEXT, 200000),
 };
 ```
 
@@ -1095,23 +1095,23 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 8: Script de hook + README de configuración
 
 **Files:**
-- Create: `habitat/hook/mnonm-hook`
+- Create: `habitat/hook/habitat-hook`
 - Create: `habitat/README.md`
 
 **Interfaces:**
-- Produces: script `mnonm-hook` (bash) que lee el JSON del hook por stdin y lo POSTea al servicio con el Bearer token. Se registra en `~/.claude/settings.json` como command hook para los eventos del diseño §5.
+- Produces: script `habitat-hook` (bash) que lee el JSON del hook por stdin y lo POSTea al servicio con el Bearer token. Se registra en `~/.claude/settings.json` como command hook para los eventos del diseño §5.
 
 - [ ] **Step 1: Crear el script de hook**
 
-`habitat/hook/mnonm-hook`:
+`habitat/hook/habitat-hook`:
 
 ```bash
 #!/usr/bin/env bash
 # Lee el JSON del hook por stdin y lo reenvía al servicio hábitat.
-# Requiere MNONM_TOKEN y (opcional) MNONM_URL en el entorno.
+# Requiere HABITAT_TOKEN y (opcional) HABITAT_URL en el entorno.
 set -euo pipefail
-URL="${MNONM_URL:-http://127.0.0.1:8377/hooks}"
-TOKEN="${MNONM_TOKEN:-}"
+URL="${HABITAT_URL:-http://127.0.0.1:8377/hooks}"
+TOKEN="${HABITAT_TOKEN:-}"
 payload="$(cat)"
 curl -fsS -m 3 -X POST "$URL" \
   -H "Content-Type: application/json" \
@@ -1121,17 +1121,17 @@ curl -fsS -m 3 -X POST "$URL" \
 
 - [ ] **Step 2: Hacerlo ejecutable**
 
-Run: `chmod +x habitat/hook/mnonm-hook`
+Run: `chmod +x habitat/hook/habitat-hook`
 Expected: sin salida; `ls -l` muestra `x`.
 
 - [ ] **Step 3: Verificar el script contra el servicio corriendo**
 
 Run (en una terminal arrancar el server, en otra probar):
 ```bash
-cd habitat && MNONM_TOKEN=test npm start &
+cd habitat && HABITAT_TOKEN=test npm start &
 sleep 1
 echo '{"session_id":"smoke","hook_event_name":"SessionStart","cwd":"/home/u/smoke"}' \
-  | MNONM_TOKEN=test MNONM_URL=http://127.0.0.1:8377/hooks habitat/hook/mnonm-hook
+  | HABITAT_TOKEN=test HABITAT_URL=http://127.0.0.1:8377/hooks habitat/hook/habitat-hook
 curl -s http://127.0.0.1:8377/preview?id=smoke
 ```
 Expected: el `curl` responde `{"lines":""}` (sesión existe, sin tmux) — confirma que el hook llegó y creó la sesión. Matar el server al terminar (`kill %1`).
@@ -1148,23 +1148,23 @@ Monitor pixel-art de sesiones de Claude Code. Ver `docs/superpowers/specs/2026-0
 ## Correr
     cd habitat
     npm install
-    MNONM_TOKEN=<tu-token> npm start
+    HABITAT_TOKEN=<tu-token> npm start
     # GUI en http://127.0.0.1:8377  (bind loopback; exponer solo por VPN)
 
 ## Hooks (command hook)
-Agregar a `~/.claude/settings.json`. `mnonm-hook` debe estar en PATH o usar ruta absoluta.
-Exportar `MNONM_TOKEN` (y `MNONM_URL` si el server no está en el default) en el entorno del wrapper de arranque.
+Agregar a `~/.claude/settings.json`. `habitat-hook` debe estar en PATH o usar ruta absoluta.
+Exportar `HABITAT_TOKEN` (y `HABITAT_URL` si el server no está en el default) en el entorno del wrapper de arranque.
 
     {
       "hooks": {
-        "SessionStart":     [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "Notification":     [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "PreCompact":       [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "Stop":             [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }],
-        "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "mnonm-hook" }] }]
+        "SessionStart":     [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "Notification":     [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "PreCompact":       [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "Stop":             [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }],
+        "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "habitat-hook" }] }]
       }
     }
 
@@ -1177,7 +1177,7 @@ Exportar `MNONM_TOKEN` (y `MNONM_URL` si el server no está en el default) en el
 - [ ] **Step 5: Commit**
 
 ```bash
-git add habitat/hook/mnonm-hook habitat/README.md
+git add habitat/hook/habitat-hook habitat/README.md
 git commit -m "feat(habitat): script de hook (command) + README de config
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -1254,10 +1254,10 @@ render();
 
 Run:
 ```bash
-cd habitat && MNONM_TOKEN=test npm start &
+cd habitat && HABITAT_TOKEN=test npm start &
 sleep 1
-echo '{"session_id":"s1","hook_event_name":"SessionStart","cwd":"/home/u/api"}' | MNONM_TOKEN=test habitat/hook/mnonm-hook
-echo '{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"TodoWrite","tool_input":{"todos":[{"content":"crear modelo","status":"in_progress"},{"content":"review","status":"pending"}]}}' | MNONM_TOKEN=test habitat/hook/mnonm-hook
+echo '{"session_id":"s1","hook_event_name":"SessionStart","cwd":"/home/u/api"}' | HABITAT_TOKEN=test habitat/hook/habitat-hook
+echo '{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"TodoWrite","tool_input":{"todos":[{"content":"crear modelo","status":"in_progress"},{"content":"review","status":"pending"}]}}' | HABITAT_TOKEN=test habitat/hook/habitat-hook
 ```
 Abrir `http://127.0.0.1:8377` en el browser. Expected: aparece un pod `api` en estado `working`. Recargar → el snapshot lo trae de nuevo. `kill %1` al terminar.
 
@@ -1359,9 +1359,9 @@ Cuando la sesión del drawer está en `waiting`, agregar la clase `needs` al con
 
 Run:
 ```bash
-cd habitat && MNONM_TOKEN=test npm start &
+cd habitat && HABITAT_TOKEN=test npm start &
 sleep 1
-H="MNONM_TOKEN=test habitat/hook/mnonm-hook"
+H="HABITAT_TOKEN=test habitat/hook/habitat-hook"
 echo '{"session_id":"s1","hook_event_name":"SessionStart","cwd":"/home/u/api"}' | eval $H
 echo '{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"TodoWrite","tool_input":{"todos":[{"content":"tests de auth","status":"in_progress"},{"content":"review","status":"pending"}]}}' | eval $H
 echo '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Bash"}' | eval $H

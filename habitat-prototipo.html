@@ -176,7 +176,7 @@ const ACTIONS={
   error:['falló el build','tests en rojo','no pudo clonar el repo'],
   offline:['sesión cerrada','tmux caído']
 };
-const PROJECTS=[['mnonm-api','feat/login'],['api-pagos','fix/webhook'],['landing','feat/hero'],['infra','chore/ci'],['bot-slack','feat/commands'],['dashboard','feat/charts']];
+const PROJECTS=[['habitat-api','feat/login'],['api-pagos','fix/webhook'],['landing','feat/hero'],['infra','chore/ci'],['bot-slack','feat/commands'],['dashboard','feat/charts']];
 let SESSIONS=[], nidx=0;
 function pick(a,seed){return a[hash(''+seed)%a.length]}
 function mkSession(forceStatus){
