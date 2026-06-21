@@ -193,7 +193,7 @@ function select() {
   z-index: 5;
 }
 .pod:hover .killx,
-.pod:focus .killx {
+.pod:focus-within .killx {
   opacity: 1;
 }
 .chest {
