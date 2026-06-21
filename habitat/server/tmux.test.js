@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturePane, listSessions, sendKeys, gitBranch } from './tmux.js';
+import { capturePane, listSessions, sendKeys, gitBranch, newTmuxSession } from './tmux.js';
 
 test('capturePane devuelve las últimas N líneas', async () => {
   const exec = async () => 'l1\nl2\nl3\nl4\nl5\n';
@@ -56,4 +56,20 @@ test('gitBranch parsea la rama del cwd (síncrono)', () => {
 test('gitBranch ante error devuelve cadena vacía', () => {
   const exec = () => { throw new Error('not a repo'); };
   assert.equal(gitBranch('/x', exec), '');
+});
+
+test('newTmuxSession crea sesión detached en dir y lanza claude', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  const ok = await newTmuxSession('proj', '/home/u/proj', exec);
+  assert.equal(ok, true);
+  assert.deepEqual(calls[0], ['tmux', 'new-session', '-d', '-s', 'proj', '-c', '/home/u/proj']);
+  // luego send-keys del comando claude + Enter (vía sendKeys)
+  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'proj', '-l', 'claude']);
+  assert.deepEqual(calls[2], ['tmux', 'send-keys', '-t', 'proj', 'Enter']);
+});
+
+test('newTmuxSession ante error de new-session devuelve false', async () => {
+  const exec = async () => { throw new Error('duplicate session'); };
+  assert.equal(await newTmuxSession('proj', '/x', exec), false);
 });

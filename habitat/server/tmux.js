@@ -47,3 +47,15 @@ export function gitBranch(cwd, exec = defaultSyncExec) {
     return '';
   }
 }
+
+// Crea una sesión tmux detached en `dir` y lanza claude dentro (vía shell de login,
+// para heredar PATH/rc y disparar los hooks de ~/.claude/settings.json).
+export async function newTmuxSession(name, dir, exec = defaultExec) {
+  try {
+    await exec('tmux', ['new-session', '-d', '-s', name, '-c', dir]);
+    await sendKeys(name, 'claude', exec);
+    return true;
+  } catch {
+    return false;
+  }
+}
