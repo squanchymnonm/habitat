@@ -145,16 +145,9 @@
   .term{margin-top:18px; background:#160e07; border:2px solid var(--line); box-shadow:var(--bevel);
     padding:8px; flex:1; min-height:0; overflow:hidden}
   .term .g{color:var(--green)} .term .t{color:var(--teal)} .term .y{color:var(--gold)} .term .d{color:#8a7350}
-  .chat{display:flex; gap:10px; margin-top:14px}
-  .chat{gap:12px; margin-top:16px}
-  .chat input{flex:1; background:var(--surface2); border:2px solid var(--line); color:var(--ink); border-radius:0; padding:14px 16px; font-family:var(--f-body); font-size:20px; box-shadow:var(--bevel)}
-  .chat input::placeholder{color:#8a7350}
-  .chat button{background:var(--gold); color:#2a1c0a; border:2px solid var(--line); border-radius:0; padding:0 20px; font-family:var(--f-ui); font-size:11px; text-transform:uppercase; cursor:pointer; box-shadow:var(--glow-gold); transition:transform .1s}
-  .chat button:hover{transform:translateY(-1px)} .chat button:active{transform:translateY(1px)}
   .dmeta{margin-top:22px}
   .dmeta .action{font-family:var(--f-body); font-size:21px; color:#e0cfa6; line-height:1.3}
   .dmeta .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:14px; letter-spacing:.3px}
-  .phase2{margin-top:12px; font-family:var(--f-body); font-size:15px; color:var(--dim); text-align:center}
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
   /* ===== BATTLE STAGE (drawer) ===== */

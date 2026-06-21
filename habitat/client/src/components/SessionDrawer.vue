@@ -12,7 +12,7 @@ const { fit } = useTerminal(termEl, selectedId)
 
 const MIN_W = 380
 const MAX_W = 1400
-const width = ref(Number(localStorage.getItem('habitat.drawerWidth')) || 720)
+const width = ref(Math.min(MAX_W, Math.max(MIN_W, Number(localStorage.getItem('habitat.drawerWidth')) || 720)))
 
 function startResize(e: MouseEvent) {
   e.preventDefault()

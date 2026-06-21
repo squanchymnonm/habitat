@@ -4,8 +4,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 // Factory por defecto: PTY real que attachea a la sesión tmux por nombre.
-// window-size=latest hace que la ventana tome el tamaño del último cliente activo,
-// para no encoger la terminal real del usuario de forma permanente.
+// Relies on tmux's default client-sizing behavior (does not set window-size option).
 function defaultSpawnPty(target, { cols, rows }) {
   // import perezoso: node-pty es binario nativo; sólo se carga al usar la terminal real.
   const pty = require('node-pty');
