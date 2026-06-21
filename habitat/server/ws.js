@@ -1,7 +1,15 @@
 import { WebSocketServer } from 'ws';
 
 export function attachWs(httpServer, store, { token, onChat } = {}) {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // noServer + ruteo manual por pathname: si usáramos { server, path }, este WSS
+  // abortaría con 400 cualquier upgrade que no sea /ws (incluido /term), pisando
+  // al otro WSS montado sobre el mismo http server. Acá cedemos los paths ajenos.
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url, 'http://x');
+    if (pathname !== '/ws') return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
 
   wss.on('connection', (ws, req) => {
     if (token) {

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { WebSocket } from 'ws';
 import { createStore } from './state.js';
 import { createApp } from './index.js';
 
@@ -139,4 +140,40 @@ test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
   assert.equal(body.name, 'proj-api');
   assert.deepEqual(seen, [['proj-api', '/home/u/proj-api']]);
   server.close();
+});
+
+// Regresión: con /ws y /term montados sobre el mismo http server, el upgrade a
+// /term debe completar el handshake (101) y dejar que la lógica de la app corra
+// (acá id desconocido -> close 1008). Si el routing de upgrade está roto, el
+// handshake aborta con 400 y nunca llegamos a 1008.
+test('WS /term convive con /ws: handshake completa (no 400)', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/term?id=nope&token=secret`);
+    const outcome = await new Promise((r) => {
+      ws.once('close', (code) => r({ kind: 'close', code }));
+      ws.once('error', (err) => r({ kind: 'error', err }));
+    });
+    assert.equal(outcome.kind, 'close', `esperaba close del lado app, no error de handshake: ${outcome.err?.message}`);
+    assert.equal(outcome.code, 1008);
+  } finally {
+    server.close();
+  }
+});
+
+test('WS /ws sigue conectando junto a /term', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+    const snapshot = await new Promise((r, rej) => {
+      ws.once('message', (d) => r(JSON.parse(d.toString())));
+      ws.once('error', rej);
+    });
+    assert.equal(snapshot.type, 'snapshot');
+    ws.close();
+  } finally {
+    server.close();
+  }
 });

@@ -17,7 +17,14 @@ function defaultSpawnPty(target, { cols, rows }) {
 }
 
 export function attachTerm(httpServer, store, { token, spawnPty = defaultSpawnPty } = {}) {
-  const wss = new WebSocketServer({ server: httpServer, path: '/term' });
+  // noServer + ruteo manual: ver nota en ws.js. Con { server, path } este WSS
+  // pisaría a /ws (abortaría su upgrade con 400) y viceversa.
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url, 'http://x');
+    if (pathname !== '/term') return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
 
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url, 'http://x');
