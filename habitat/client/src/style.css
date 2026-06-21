@@ -137,9 +137,12 @@
 
   .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
   .scrim.open{opacity:1; pointer-events:auto}
-  .drawer{position:fixed; top:0; right:0; height:100%; width:clamp(460px, 48vw, 960px); background:#1a1428; border-left:3px solid var(--line);
+  .drawer{position:fixed; top:0; right:0; height:100%; background:#1a1428; border-left:3px solid var(--line);
     transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:32px}
   .drawer.open{transform:none}
+  .dragx{position:absolute; left:0; top:0; width:8px; height:100%; cursor:ew-resize; z-index:22;
+    background:linear-gradient(90deg, rgba(201,143,46,.35), transparent)}
+  .dragx:hover{background:linear-gradient(90deg, rgba(201,143,46,.6), transparent)}
   .dhead{display:flex; gap:16px; align-items:flex-start}
   .face{width:140px; height:140px; image-rendering:pixelated; border:3px solid var(--soft); border-radius:0;
     box-shadow:var(--bevel), var(--glow-purple); background:#160e07; flex:0 0 auto}
@@ -147,7 +150,7 @@
   .dname{font-family:var(--f-ui); font-size:18px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
   .closex{background:none; border:0; color:var(--dim); font-family:var(--f-ui); font-size:18px; cursor:pointer; line-height:1}
   .term{margin-top:18px; background:#160e07; border:2px solid var(--line); box-shadow:var(--bevel);
-    font-family:var(--f-body); font-size:16px; padding:14px; flex:1; overflow:auto; color:#cdb892; white-space:pre-wrap; line-height:1.25}
+    padding:8px; flex:1; min-height:0; overflow:hidden}
   .term .g{color:var(--green)} .term .t{color:var(--teal)} .term .y{color:var(--gold)} .term .d{color:#8a7350}
   .chat{display:flex; gap:10px; margin-top:14px}
   .chat{gap:12px; margin-top:16px}
