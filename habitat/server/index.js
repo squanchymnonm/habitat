@@ -1,13 +1,13 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize, sep } from 'node:path';
+import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
 import { createStore } from './state.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
-import { capturePane, sendKeys, gitBranch } from './tmux.js';
+import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -28,7 +28,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -62,6 +62,31 @@ export function createApp({ config, store }) {
       const s = store.get(url.searchParams.get('id'));
       const lines = s ? await capturePane(s.tmux || s.name, config.PREVIEW_LINES) : '';
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ lines }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      const projects = (config.PROJECTS || []).map((dir) => ({ name: basename(dir), dir }));
+      const canSpawn = !!(config.ALLOW_SPAWN && projects.length > 0);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/spawn') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const dir = body && body.dir;
+      if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
+      if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      const name = basename(dir);
+      const existing = await tmux.listSessions();
+      if (existing.includes(name)) { res.writeHead(409).end(); return; }
+      const ok = await tmux.newTmuxSession(name, dir);
+      if (!ok) { res.writeHead(500).end(); return; }
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
       return;
     }
 
