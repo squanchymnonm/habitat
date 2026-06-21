@@ -197,3 +197,10 @@
   .bloot .stat b{color:var(--coral)}
   .bloot .lootline{font-family:var(--f-body); font-size:14px; color:var(--green); margin-top:2px}
   .bloot .lootline span{color:var(--dim)}
+  /* ===== MENÚ DE NUEVA SESIÓN ===== */
+  .spawn{position:relative}
+  .spawn-menu{position:absolute; top:calc(100% + 8px); right:0; z-index:10;
+    background:#1f1710; border:2px solid var(--line); box-shadow:var(--bevel), 4px 4px 0 #0b0703;
+    padding:8px; display:flex; flex-direction:column; gap:6px; min-width:180px}
+  .spawn-item{text-align:left; text-transform:none}
+  .spawn-err{font-family:var(--f-body); font-size:14px; color:var(--red); padding:4px 2px}
