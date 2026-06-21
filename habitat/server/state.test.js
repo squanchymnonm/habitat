@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { rmSync, existsSync } from 'node:fs';
 import { newSession, createStore, hashType, monsterFromTodos, questFromTodos } from './state.js';
+
+function tmpStatePath(tag) {
+  return join(tmpdir(), `habitat-state-${process.pid}-${tag}.json`);
+}
 
 test('newSession aplica defaults RPG', () => {
   const s = newSession('abc', { name: 'api' });
@@ -31,6 +38,69 @@ test('snapshot oculta campos internos (_)', () => {
   assert.equal(snap.length, 1);
   assert.equal('_lastTotal' in snap[0], false);
   assert.equal('stamina' in snap[0], true);
+});
+
+test('persistencia: persist() escribe y un store nuevo recarga las sesiones', () => {
+  const path = tmpStatePath('reload');
+  rmSync(path, { force: true });
+  try {
+    const a = createStore({ persistPath: path });
+    a.upsert(newSession('s1', { name: 'api', status: 'working', stamina: 42 }));
+    a.upsert(newSession('s2', { name: 'web' }));
+    a.persist();
+    assert.ok(existsSync(path), 'debería haber escrito el archivo');
+
+    const b = createStore({ persistPath: path });
+    assert.equal(b.all().length, 2);
+    assert.equal(b.get('s1').name, 'api');
+    assert.equal(b.get('s1').stamina, 42);
+    assert.equal(b.get('s2').name, 'web');
+  } finally {
+    rmSync(path, { force: true });
+  }
+});
+
+test('persistencia: remove() también persiste', () => {
+  const path = tmpStatePath('remove');
+  rmSync(path, { force: true });
+  try {
+    const a = createStore({ persistPath: path });
+    a.upsert(newSession('s1', {}));
+    a.persist();
+    a.remove('s1');
+    const b = createStore({ persistPath: path });
+    assert.equal(b.get('s1'), undefined);
+    assert.equal(b.all().length, 0);
+  } finally {
+    rmSync(path, { force: true });
+  }
+});
+
+test('persistencia: _touched (Set) sobrevive el round-trip como Set', () => {
+  const path = tmpStatePath('set');
+  rmSync(path, { force: true });
+  try {
+    const a = createStore({ persistPath: path });
+    const s = newSession('s1', {});
+    s._touched = new Set(['/a.js', '/b.js']);
+    a.upsert(s);
+    a.persist();
+
+    const b = createStore({ persistPath: path });
+    const loaded = b.get('s1');
+    assert.ok(loaded._touched instanceof Set, '_touched debe rehidratarse como Set');
+    assert.equal(loaded._touched.size, 2);
+    assert.ok(loaded._touched.has('/a.js'));
+  } finally {
+    rmSync(path, { force: true });
+  }
+});
+
+test('persistencia: sin persistPath funciona igual (persist es no-op)', () => {
+  const store = createStore();
+  store.upsert(newSession('a', {}));
+  assert.doesNotThrow(() => store.persist());
+  assert.equal(store.all().length, 1);
 });
 
 test('hashType es estable y no vacío', () => {

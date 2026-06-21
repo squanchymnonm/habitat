@@ -3,5 +3,7 @@ habitat/web/
 habitat/node_modules/
 habitat/client/node_modules/
 habitat/client/dist/
+habitat/.state.json
+habitat/.state.json.tmp
 
 .idea/

@@ -53,6 +53,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         });
         hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+        store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
       return;
@@ -114,7 +115,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
 
 // arranque real
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const store = createStore();
+  const store = createStore({ persistPath: config.STATE_PATH });
   const { server } = createApp({ config, store });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
