@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/ws': { target: 'ws://127.0.0.1:8377', ws: true },
-      '/preview': 'http://127.0.0.1:8377',
+      '/term': { target: 'ws://127.0.0.1:8377', ws: true },
     },
   },
 })
