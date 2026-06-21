@@ -1,5 +1,6 @@
 .superpowers/
 habitat/web/
+habitat/node_modules/
 habitat/client/node_modules/
 habitat/client/dist/
 
