@@ -65,10 +65,6 @@ export async function worktreeAdd(projectDir, branch, base, path, exec = default
   }
 }
 
-// Quita el worktree al cerrar la sesión. Sin --force a propósito (default): si el worktree
-// tiene cambios sin commitear git rechaza el remove y lo dejamos en disco (no destruimos
-// trabajo); worktreeAdd lo reutilizará en el próximo spawn de esa rama. El rollback del
-// spawn (worktrees recién creados, sin trabajo) sí pasa { force: true }.
 // Subcarpetas inmediatas de `dir` que son repos git (tienen una entrada `.git`).
 // Vacío si `dir` no existe o no tiene sub-repos. Define si un proyecto es "contenedor".
 export async function findNestedRepos(dir, deps = {}) {
@@ -120,6 +116,10 @@ export async function remoteDefaultBranch(repoDir, exec = defaultExec) {
   return currentBranch(repoDir, exec);
 }
 
+// Quita el worktree al cerrar la sesión. Sin --force a propósito (default): si el worktree
+// tiene cambios sin commitear git rechaza el remove y lo dejamos en disco (no destruimos
+// trabajo); worktreeAdd lo reutilizará en el próximo spawn de esa rama. El rollback del
+// spawn (worktrees recién creados, sin trabajo) sí pasa { force: true }.
 export async function worktreeRemove(projectDir, path, { force = false } = {}, exec = defaultExec) {
   if (String(path).startsWith('-')) return false;
   try {
@@ -188,6 +188,9 @@ export async function ensureContainerRepo(dir, nested, exec = defaultExec, deps 
     const has = new Set(lines);
     for (const name of nested) {
       if (!has.has(`${name}/`) && !has.has(name)) { lines.push(`${name}/`); has.add(`${name}/`); }
+    }
+    for (const pattern of ['.env', '.env.*', '*.key', '*.pem']) {
+      if (!has.has(pattern)) { lines.push(pattern); has.add(pattern); }
     }
     await writeFile(giPath, lines.join('\n') + '\n');
     await exec('git', ['-C', dir, 'add', '-A']);

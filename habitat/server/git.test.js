@@ -227,6 +227,8 @@ test('ensureContainerRepo inicializa: init + gitignore + add + commit', async ()
   assert.ok(written.p.endsWith('/proj/.gitignore'));
   assert.ok(written.body.includes('back/'));
   assert.ok(written.body.includes('front/'));
+  assert.ok(written.body.includes('.env'), '.env debe estar en el .gitignore');
+  assert.ok(written.body.includes('*.key'), '*.key debe estar en el .gitignore');
 });
 
 test('ensureContainerRepo no pisa entradas existentes del .gitignore', async () => {
@@ -242,6 +244,9 @@ test('ensureContainerRepo no pisa entradas existentes del .gitignore', async () 
   assert.ok(written.includes('front/'));
   // 'back/' aparece una sola vez
   assert.equal(written.split('\n').filter((l) => l.trim() === 'back/').length, 1);
+  // patrones de secreto también presentes
+  assert.ok(written.includes('.env'), '.env debe añadirse a líneas existentes');
+  assert.ok(written.includes('*.key'), '*.key debe añadirse a líneas existentes');
 });
 
 test('ensureContainerRepo devuelve false ante error de exec', async () => {
