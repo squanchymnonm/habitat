@@ -16,4 +16,5 @@ export default {
   ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
   PROJECTS: list(process.env.HABITAT_PROJECTS),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
+  SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
 };

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
+import { createSettings } from './settings.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -263,5 +264,75 @@ test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { 
   assert.equal(store.get('s1'), undefined);
   assert.deepEqual(killed, ['proj-api']);
   ws.close();
+  server.close();
+});
+
+test('GET /settings sin token -> 401', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/settings`);
+  assert.equal(r.status, 401);
+  server.close();
+});
+
+test('GET /settings devuelve el default acceptEdits', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/settings`, { headers: auth });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.permissionMode, 'acceptEdits');
+  server.close();
+});
+
+test('POST /settings con modo inválido -> 400', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/settings`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ permissionMode: 'nope' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /settings válido -> 200, persiste en el store y broadcast', { timeout: 5000 }, async () => {
+  const settingsStore = createSettings();
+  const { server } = createApp({ config, store: createStore(), settingsStore });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); }); // snapshot inicial
+  const settingsMsg = new Promise((r) => ws.on('message', (d) => {
+    const m = JSON.parse(d.toString());
+    if (m.type === 'settings') r(m);
+  }));
+  const res = await fetch(`http://127.0.0.1:${port}/settings`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ permissionMode: 'plan' }),
+  });
+  assert.equal(res.status, 200);
+  const m = await settingsMsg;
+  assert.equal(m.settings.permissionMode, 'plan');
+  assert.equal(settingsStore.get().permissionMode, 'plan');
+  ws.close();
+  server.close();
+});
+
+test('POST /spawn pasa el permissionMode de settings a newTmuxSession', async () => {
+  const settingsStore = createSettings();
+  settingsStore.set({ permissionMode: 'plan' });
+  const seen = [];
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async (name, dir, _exec, opts) => { seen.push([name, dir, opts]); return true; },
+  };
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), settingsStore, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api' }),
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [['proj-api', '/home/u/proj-api', { permissionMode: 'plan' }]]);
   server.close();
 });
