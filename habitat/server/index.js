@@ -9,6 +9,8 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
+import { worktreeAdd } from './git.js';
+import { worktreePaths, worktreeName } from './worktree.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -29,7 +31,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession } }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession }, git = { worktreeAdd } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -50,6 +52,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       try {
         const { session, fightResult } = applyEvent(store, payload, {
           readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+          worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
         hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
@@ -82,6 +85,20 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const dir = body && body.dir;
       if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      const branch = body && body.branch;
+      if (branch != null && branch !== '') {
+        if (typeof branch !== 'string' || !/^[A-Za-z0-9._/-]+$/.test(branch) || branch.includes('..')) {
+          res.writeHead(400).end(); return;
+        }
+        const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
+        const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
+        const existing = await tmux.listSessions();
+        if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
+        if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
+        if (!(await tmux.newTmuxSession(tmuxName, path))) { res.writeHead(500).end(); return; }
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
+        return;
+      }
       const name = basename(dir);
       const existing = await tmux.listSessions();
       if (existing.includes(name)) { res.writeHead(409).end(); return; }

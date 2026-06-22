@@ -142,6 +142,83 @@ test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
   server.close();
 });
 
+test('POST /spawn con branch crea worktree y tmux <proyecto>-<rama>', async () => {
+  const seenTmux = [];
+  const seenGit = [];
+  const tmux = { listSessions: async () => [], newTmuxSession: async (n, d) => { seenTmux.push([n, d]); return true; } };
+  const git = { worktreeAdd: async (...a) => { seenGit.push(a); return true; } };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x', base: 'main' }),
+  });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.name, 'proj-api-feature-x');
+  assert.deepEqual(seenGit, [['/home/u/proj-api', 'feature/x', 'main', '/home/u/habitat-worktrees/proj-api/feature-x']]);
+  assert.deepEqual(seenTmux, [['proj-api-feature-x', '/home/u/habitat-worktrees/proj-api/feature-x']]);
+  server.close();
+});
+
+test('POST /spawn con branch usa base=main por default', async () => {
+  const seenGit = [];
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = { worktreeAdd: async (...a) => { seenGit.push(a); return true; } };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'fix' }),
+  });
+  assert.equal(seenGit[0][2], 'main');
+  server.close();
+});
+
+test('POST /spawn branch inválida -> 400', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = { worktreeAdd: async () => true };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: '../evil' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /spawn colisión de tmux de worktree -> 409', async () => {
+  const tmux = { listSessions: async () => ['proj-api-feature-x'], newTmuxSession: async () => true };
+  const git = { worktreeAdd: async () => true };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x' }),
+  });
+  assert.equal(r.status, 409);
+  server.close();
+});
+
+test('POST /spawn fallo de worktreeAdd -> 500', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = { worktreeAdd: async () => false };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feat' }),
+  });
+  assert.equal(r.status, 500);
+  server.close();
+});
+
 // Regresión: con /ws y /term montados sobre el mismo http server, el upgrade a
 // /term debe completar el handshake (101) y dejar que la lógica de la app corra
 // (acá id desconocido -> close 1008). Si el routing de upgrade está roto, el
