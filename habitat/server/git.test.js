@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validBranch, branchExists, worktreeAdd, worktreeRemove, findNestedRepos,
+  currentBranch, remoteDefaultBranch,
 } from './git.js';
 
 test('validBranch acepta nombres seguros y rechaza inválidos', () => {
@@ -152,4 +153,52 @@ test('findNestedRepos devuelve las subcarpetas con .git, ordenadas', async () =>
 test('findNestedRepos devuelve [] si el dir no existe', async () => {
   const deps = { readdir: async () => { throw new Error('ENOENT'); }, stat: async () => ({}) };
   assert.deepEqual(await findNestedRepos('/nope', deps), []);
+});
+
+test('currentBranch devuelve la rama actual trimmeada', async () => {
+  const exec = async (file, args) => {
+    assert.deepEqual(args, ['-C', '/proj', 'rev-parse', '--abbrev-ref', 'HEAD']);
+    return 'develop\n';
+  };
+  assert.equal(await currentBranch('/proj', exec), 'develop');
+});
+
+test('currentBranch devuelve "" ante error', async () => {
+  const exec = async () => { throw new Error('not a repo'); };
+  assert.equal(await currentBranch('/proj', exec), '');
+});
+
+test('remoteDefaultBranch lee origin/HEAD', async () => {
+  const exec = async (file, args) => {
+    if (args.includes('symbolic-ref')) return 'origin/main\n';
+    throw new Error('inesperado');
+  };
+  assert.equal(await remoteDefaultBranch('/proj', exec), 'origin/main');
+});
+
+test('remoteDefaultBranch hace set-head y reintenta cuando origin/HEAD falta', async () => {
+  const calls = [];
+  let symbolicTries = 0;
+  const exec = async (file, args) => {
+    calls.push(args.join(' '));
+    if (args.includes('symbolic-ref')) {
+      symbolicTries += 1;
+      if (symbolicTries === 1) throw new Error('no ref');
+      return 'origin/develop\n';
+    }
+    if (args.includes('set-head')) return '';
+    throw new Error('inesperado');
+  };
+  assert.equal(await remoteDefaultBranch('/proj', exec), 'origin/develop');
+  assert.ok(calls.some((c) => c.includes('remote set-head origin -a')));
+});
+
+test('remoteDefaultBranch cae a currentBranch si no hay remoto', async () => {
+  const exec = async (file, args) => {
+    if (args.includes('symbolic-ref')) throw new Error('no ref');
+    if (args.includes('set-head')) throw new Error('no origin');
+    if (args.includes('rev-parse')) return 'main\n';
+    throw new Error('inesperado');
+  };
+  assert.equal(await remoteDefaultBranch('/proj', exec), 'main');
 });

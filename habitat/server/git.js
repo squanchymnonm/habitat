@@ -90,6 +90,33 @@ export async function findNestedRepos(dir, deps = {}) {
   return repos.sort();
 }
 
+// Rama actual de un repo (async). '' ante error. (gitBranch en tmux.js es la versión síncrona.)
+export async function currentBranch(repoDir, exec = defaultExec) {
+  try {
+    return String(await exec('git', ['-C', repoDir, 'rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+  } catch {
+    return '';
+  }
+}
+
+// Rama default del remoto como ref de start-point (ej. 'origin/main'). Si origin/HEAD no está
+// seteado, intenta resolverlo (remote set-head -a) y reintenta; último fallback: rama actual.
+export async function remoteDefaultBranch(repoDir, exec = defaultExec) {
+  const read = async () => String(
+    await exec('git', ['-C', repoDir, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']),
+  ).trim();
+  try {
+    const d = await read();
+    if (d) return d;
+  } catch { /* sin origin/HEAD: intentamos resolverlo abajo */ }
+  try {
+    await exec('git', ['-C', repoDir, 'remote', 'set-head', 'origin', '-a']);
+    const d = await read();
+    if (d) return d;
+  } catch { /* sin remoto utilizable */ }
+  return currentBranch(repoDir, exec);
+}
+
 export async function worktreeRemove(projectDir, path, { force = false } = {}, exec = defaultExec) {
   if (String(path).startsWith('-')) return false;
   try {
