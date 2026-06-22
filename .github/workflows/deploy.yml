@@ -26,9 +26,15 @@ jobs:
           PROD=/home/mnonm/HabitatProdu
           echo "==> Actualizando $PROD a origin/main"
           cd "$PROD"
+          # Un branch local llamado 'origin/main' (refs/heads/origin/main) sombrea a la
+          # rama remota (refs/remotes/origin/main) por las reglas de desambiguación de git
+          # y haría que 'origin/main' apunte al commit equivocado. Lo borramos si existe.
+          git rev-parse --verify --quiet refs/heads/origin/main && git branch -D origin/main || true
           git fetch --prune origin main
-          git checkout main
-          git reset --hard origin/main
+          # Reseteamos a FETCH_HEAD (lo recién fetcheado de origin main): ref inequívoco,
+          # inmune a tags/branches locales con nombres colisionantes.
+          git checkout -B main FETCH_HEAD
+          git reset --hard FETCH_HEAD
           echo "    HEAD ahora en: $(git rev-parse --short HEAD)"
 
           echo "==> npm install (server)"
