@@ -49,11 +49,13 @@ export function gitBranch(cwd, exec = defaultSyncExec) {
 }
 
 // Crea una sesión tmux detached en `dir` y lanza claude dentro (vía shell de login,
-// para heredar PATH/rc y disparar los hooks de ~/.claude/settings.json).
-export async function newTmuxSession(name, dir, exec = defaultExec) {
+// para heredar PATH/rc y disparar los hooks de ~/.claude/settings.json). El
+// permissionMode (setting global) define el flag: 'default'/ausente => claude pelado.
+export async function newTmuxSession(name, dir, exec = defaultExec, { permissionMode } = {}) {
   try {
     await exec('tmux', ['new-session', '-d', '-s', name, '-c', dir]);
-    await sendKeys(name, 'claude', exec);
+    const flag = permissionMode && permissionMode !== 'default' ? ` --permission-mode ${permissionMode}` : '';
+    await sendKeys(name, `claude${flag}`, exec);
     return true;
   } catch {
     return false;
