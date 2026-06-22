@@ -133,6 +133,40 @@ export async function worktreeRemove(projectDir, path, { force = false } = {}, e
   }
 }
 
+// Orquesta el worktree de un proyecto contenedor: padre + cada repo hijo, en la misma rama.
+// Todo o nada: ante cualquier fallo, rollback de lo ya creado (en orden inverso, con --force
+// porque son worktrees recién creados sin trabajo del usuario) y devuelve false.
+export async function containerWorktreeAdd(projectDir, branch, wtPath, nested, exec = defaultExec, deps = {}) {
+  if (!validBranch(branch)) return false;
+  if (!(await ensureContainerRepo(projectDir, nested, exec, deps))) return false;
+  const created = []; // [{ repoDir, path }] en orden de creación
+  const rollback = async () => {
+    for (const c of [...created].reverse()) {
+      await worktreeRemove(c.repoDir, c.path, { force: true }, exec);
+    }
+  };
+  // 1) padre primero: trae .claude/docs/.sdd; los hijos quedan ausentes (gitignored)
+  const parentBase = (await currentBranch(projectDir, exec)) || 'HEAD';
+  if (!(await worktreeAdd(projectDir, branch, parentBase, wtPath, exec))) {
+    await rollback();
+    return false;
+  }
+  created.push({ repoDir: projectDir, path: wtPath });
+  // 2) cada hijo dentro del worktree del padre
+  for (const name of nested) {
+    const repoDir = join(projectDir, name);
+    const childPath = join(wtPath, name);
+    try { await exec('git', ['-C', repoDir, 'fetch', 'origin']); } catch { /* best-effort */ }
+    const base = await remoteDefaultBranch(repoDir, exec);
+    if (!(await worktreeAdd(repoDir, branch, base, childPath, exec))) {
+      await rollback();
+      return false;
+    }
+    created.push({ repoDir, path: childPath });
+  }
+  return true;
+}
+
 // Asegura que el contenedor sea un repo git que versiona lo no-git de la raíz (.claude, docs, …).
 // Idempotente. El .gitignore excluye cada sub-repo para que el worktree del padre no intente
 // materializarlos (ahí van los worktrees de los hijos). Commit con identidad explícita para no
