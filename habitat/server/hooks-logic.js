@@ -102,6 +102,9 @@ export function applyEvent(store, payload, deps) {
         s.project = s.name;
         if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
       }
+      // Sesión lanzada a mano dentro de tmux: el hook reporta el nombre de la tmux para
+      // que el panel pueda attachear terminal/chat. El worktree (arriba) tiene prioridad.
+      if (!s.tmux && payload.tmux) s.tmux = payload.tmux;
       const pendingChar = store.takePendingChar(s.tmux || s.name);
       if (pendingChar) s.char = pendingChar;
       // /spawn creó un pod provisional `pending:<tmux>` (para que aceptes la confianza
