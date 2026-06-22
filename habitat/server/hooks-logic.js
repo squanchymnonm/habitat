@@ -30,11 +30,31 @@ function ensureMonster(s) {
   }
 }
 
-// El pod vivo de una tmux: la tmux es única por nombre de proyecto (s.name), así
-// que buscamos el pod de ese proyecto distinto del id nuevo (el más reciente si
-// hubiera duplicados persistidos).
-function findPodByTmux(store, name, exceptId) {
-  const matches = store.all().filter((s) => s.name === name && s.id !== exceptId);
+// Resuelve la identidad del pod (name + tmux) desde el cwd igual que el SessionStart
+// normal: bajo worktree manda el worktree (project + tmux derivados), si no el basename.
+// La tmux manual (payload.tmux) sólo aplica fuera de un worktree.
+function resolveIdentity(payload, deps) {
+  let name = payload.cwd ? basename(payload.cwd) : null;
+  let tmux = null;
+  if (payload.cwd && deps.worktreeName) {
+    const wt = deps.worktreeName(payload.cwd);
+    if (wt) {
+      name = wt.project;
+      tmux = wt.tmux;
+    }
+  }
+  if (!tmux && payload.tmux) tmux = payload.tmux;
+  return { name, tmux };
+}
+
+// El pod vivo de una tmux: la tmux es la clave única real (dos worktrees del mismo
+// proyecto comparten name pero tienen tmux distinta). Matcheamos por tmux cuando la
+// hay; si no, caemos al name. Devolvemos el más reciente si hubiera duplicados.
+function findPodByTmux(store, { name, tmux }, exceptId) {
+  const matches = store.all().filter((s) => {
+    if (s.id === exceptId) return false;
+    return tmux ? s.tmux === tmux : s.name === name && !s.tmux;
+  });
   if (!matches.length) return null;
   return matches.sort((a, b) => (b.since || 0) - (a.since || 0))[0];
 }
@@ -48,17 +68,19 @@ export function applyEvent(store, payload, deps) {
   // compartida, y con ella la sesión nueva): reusamos el pod existente, lo rekeyeamos
   // al id nuevo y le recargamos la stamina (clear vacía el contexto).
   if (ev === 'SessionStart' && payload.source === 'clear' && payload.cwd) {
-    const name = basename(payload.cwd);
-    const prev = findPodByTmux(store, name, payload.session_id);
+    const { name, tmux } = resolveIdentity(payload, deps);
+    const prev = findPodByTmux(store, { name, tmux }, payload.session_id);
     if (prev) {
       store.remove(prev.id);
       prev.id = payload.session_id;
+      prev.name = name;
+      if (tmux) prev.tmux = tmux;
       prev.stamina = 100;
       prev.monster = null;
       prev.combat = { hits: 0, tokens: 0 };
       prev._lastTotal = 0;
       prev._touched = new Set();
-      const pendingChar = store.takePendingChar(name);
+      const pendingChar = store.takePendingChar(tmux || name);
       if (pendingChar) prev.char = pendingChar;
       if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
       setStatus(prev, 'idle', 'memoria despejada', now);
