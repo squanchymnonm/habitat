@@ -19,6 +19,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
+  #app{display:flex; flex-direction:column; height:100dvh; overflow:hidden}
   body{
     font-family:var(--f-body); color:var(--ink); font-size:15px;
     letter-spacing:0;
@@ -54,7 +55,6 @@
   button.ctl:active{transform:translate(2px,2px); box-shadow:none}
   button.ctl:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 
-  main{padding:clamp(18px,3.5vw,38px)}
   /* Lista de pods. Por defecto: 1 columna con scroll vertical (landscape/narrow).
      En portrait ancho se convierte en tira horizontal (ver bloque de orientación). */
   .rail{display:flex; flex-direction:column; gap:14px; padding:14px; overflow:auto; height:100%}
@@ -96,7 +96,7 @@
   .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:8px; letter-spacing:.3px}
   .empty{text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:40px 18px; font-family:var(--f-body); font-size:16px; margin:auto}
   .empty code{color:var(--gold)}
-  footer{max-width:1280px; margin:8px auto 0; padding:0 clamp(18px,3.5vw,38px) 30px; color:#5f5980; font-family:var(--f-ui); font-size:11px; letter-spacing:.3px}
+  footer{flex:0 0 auto; padding:6px clamp(18px,3.5vw,38px); color:#5f5980; font-family:var(--f-ui); font-size:11px; letter-spacing:.3px}
 
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
