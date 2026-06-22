@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { readdir as fsReaddir, stat as fsStat } from 'node:fs/promises';
+import { join } from 'node:path';
 
 const run = promisify(execFile);
 const defaultExec = async (file, args) => (await run(file, args)).stdout;
@@ -64,6 +66,30 @@ export async function worktreeAdd(projectDir, branch, base, path, exec = default
 // tiene cambios sin commitear git rechaza el remove y lo dejamos en disco (no destruimos
 // trabajo); worktreeAdd lo reutilizará en el próximo spawn de esa rama. El rollback del
 // spawn (worktrees recién creados, sin trabajo) sí pasa { force: true }.
+// Subcarpetas inmediatas de `dir` que son repos git (tienen una entrada `.git`).
+// Vacío si `dir` no existe o no tiene sub-repos. Define si un proyecto es "contenedor".
+export async function findNestedRepos(dir, deps = {}) {
+  const readdir = deps.readdir || fsReaddir;
+  const stat = deps.stat || fsStat;
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const repos = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    try {
+      await stat(join(dir, e.name, '.git'));
+      repos.push(e.name);
+    } catch {
+      // no es repo git
+    }
+  }
+  return repos.sort();
+}
+
 export async function worktreeRemove(projectDir, path, { force = false } = {}, exec = defaultExec) {
   if (String(path).startsWith('-')) return false;
   try {

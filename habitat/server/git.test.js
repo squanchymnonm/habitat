@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validBranch, branchExists, worktreeAdd, worktreeRemove } from './git.js';
+import {
+  validBranch, branchExists, worktreeAdd, worktreeRemove, findNestedRepos,
+} from './git.js';
 
 test('validBranch acepta nombres seguros y rechaza inválidos', () => {
   assert.equal(validBranch('feature/x'), true);
@@ -129,4 +131,25 @@ test('worktreeRemove con force:true agrega --force', async () => {
   assert.deepEqual(calls.at(-1), [
     'git', '-C', '/proj', 'worktree', 'remove', '--force', '/wt/proj/feat',
   ]);
+});
+
+test('findNestedRepos devuelve las subcarpetas con .git, ordenadas', async () => {
+  const deps = {
+    readdir: async () => ([
+      { name: 'front', isDirectory: () => true },
+      { name: 'back', isDirectory: () => true },
+      { name: 'README.md', isDirectory: () => false },
+      { name: 'docs', isDirectory: () => true },
+    ]),
+    stat: async (p) => {
+      if (p.endsWith('/back/.git') || p.endsWith('/front/.git')) return {};
+      throw new Error('ENOENT');
+    },
+  };
+  assert.deepEqual(await findNestedRepos('/proj', deps), ['back', 'front']);
+});
+
+test('findNestedRepos devuelve [] si el dir no existe', async () => {
+  const deps = { readdir: async () => { throw new Error('ENOENT'); }, stat: async () => ({}) };
+  assert.deepEqual(await findNestedRepos('/nope', deps), []);
 });
