@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useSessions } from '../stores/sessions'
 import { useProjects } from '../composables/useProjects'
 import { STATUS_LABEL, type Session, type Status, type FightResult } from '../types'
-import { heroIdle, monsterSprite, bossSprite, fmt, ago } from '../sprites'
+import { heroIdle, heroAnim, monsterSprite, bossSprite, fmt, ago } from '../sprites'
 import Sprite from './Sprite.vue'
 import StaminaOrb from './StaminaOrb.vue'
 
@@ -107,12 +107,23 @@ function select() {
         :style="{ backgroundImage: `url(${emoteUrl})` }"
       ></div>
       <Sprite
+        v-if="monster"
         class="fighter phero"
         :class="{ flinch }"
         :src="heroIdle(session.name, session.char)"
         :height="88"
         mode="static"
-        :frame="monster ? 3 : 0"
+        :frame="3"
+      />
+      <Sprite
+        v-else
+        class="fighter phero"
+        :class="{ flinch, dim: session.status === 'offline' }"
+        :key="session.status"
+        :src="heroAnim(session.name, session.char, session.status)"
+        :height="88"
+        mode="strip"
+        :duration="900"
       />
       <Sprite
         v-if="monster"
@@ -203,5 +214,8 @@ function select() {
   background: url('/assets/ui/chest.png') no-repeat center;
   background-size: 64px 28px;
   image-rendering: pixelated;
+}
+.phero.dim {
+  filter: grayscale(1) brightness(0.6);
 }
 </style>
