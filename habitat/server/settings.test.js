@@ -28,6 +28,12 @@ test('set inválido devuelve false y no cambia el modo previo', () => {
   assert.equal(s.get().permissionMode, 'plan');
 });
 
+test('set(null) devuelve false sin tirar', () => {
+  const s = createSettings();
+  assert.equal(s.set(null), false);
+  assert.equal(s.get().permissionMode, 'acceptEdits');
+});
+
 test('persistencia: set escribe y un store nuevo recarga el modo', () => {
   const path = tmpPath('reload');
   rmSync(path, { force: true });

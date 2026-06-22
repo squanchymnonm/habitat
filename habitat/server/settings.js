@@ -26,7 +26,7 @@ export function createSettings({ persistPath } = {}) {
     get: () => ({ permissionMode }),
     // true si el patch trae un modo válido (aplica + persiste); false si es inválido.
     set: (patch = {}) => {
-      if (!PERMISSION_MODES.includes(patch.permissionMode)) return false;
+      if (!patch || !PERMISSION_MODES.includes(patch.permissionMode)) return false;
       permissionMode = patch.permissionMode;
       persist();
       return true;
