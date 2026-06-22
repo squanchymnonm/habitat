@@ -162,6 +162,26 @@ test('POST /spawn con branch crea worktree y tmux <proyecto>-<rama>', async () =
   server.close();
 });
 
+test('POST /spawn con branch crea pod provisional pending:<tmux> en el store', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = { worktreeAdd: async () => true };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const store = createStore();
+  const { server } = createApp({ config: cfg, store, tmux, git });
+  const port = await listen(server);
+  await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x', char: 'Knight' }),
+  });
+  const prov = store.get('pending:proj-api-feature-x');
+  assert.ok(prov, 'debe existir el pod provisional');
+  assert.equal(prov.tmux, 'proj-api-feature-x');
+  assert.equal(prov.branch, 'feature/x');
+  assert.equal(prov.status, 'waiting');
+  assert.equal(prov.char, 'Knight');
+  server.close();
+});
+
 test('POST /spawn con branch usa base=main por default', async () => {
   const seenGit = [];
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };

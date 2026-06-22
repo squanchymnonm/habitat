@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore } from './state.js';
+import { createStore, newSession } from './state.js';
 import { applyEvent } from './hooks-logic.js';
 
 const deps = (usage) => ({
@@ -184,6 +184,27 @@ test('SessionStart bajo worktree consume pending char por s.tmux', () => {
   }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
   assert.equal(session.char, 'Knight');
   assert.equal(store.takePendingChar('rpg-feature-x'), undefined);
+});
+
+test('SessionStart adopta el pod provisional con mismo tmux (lo quita y lo reporta)', () => {
+  const store = createStore();
+  store.upsert(newSession('pending:rpg-feature-x', { tmux: 'rpg-feature-x', status: 'waiting' }));
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session, removed } = applyEvent(store, {
+    session_id: 'real-1', cwd, hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(removed, 'pending:rpg-feature-x');
+  assert.equal(store.get('pending:rpg-feature-x'), undefined);
+  assert.equal(session.id, 'real-1');
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
+test('SessionStart sin pod provisional no reporta removed', () => {
+  const store = createStore();
+  const { removed } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(removed, null);
 });
 
 test('SessionStart consume pending char y lo asigna a s.char (one-shot)', () => {
