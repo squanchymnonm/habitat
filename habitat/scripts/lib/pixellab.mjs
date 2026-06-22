@@ -18,7 +18,7 @@ export function buildAnimateRequest({ description, action, refBase64 }) {
     view: 'high top-down',
     direction: 'south',
     n_frames: 4,
-    image_guidance_scale: 3.0,
+    image_guidance_scale: 4.0,
     text_guidance_scale: 7.0,
     reference_image: img,
     color_image: img,

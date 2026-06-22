@@ -31,10 +31,10 @@ const CHAR_DESC = {
 
 const ANIMS = {
   anim_idle: 'breathing idle, subtle up and down bob',
-  anim_work: 'working, busy repetitive gesture, hammering',
+  anim_work: 'concentrated, looking down and nodding slightly while busy',
   anim_waiting: 'waving one arm to get attention, impatient',
-  anim_done: 'celebrating, raising arms, cheerful',
-  anim_error: 'dizzy stumble, hurt flinch',
+  anim_done: 'happy and excited, bouncing up and down cheerfully',
+  anim_error: 'shaking head side to side, dizzy and confused',
 }
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : null }
