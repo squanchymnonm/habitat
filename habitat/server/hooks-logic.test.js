@@ -173,6 +173,62 @@ test('SessionStart sin pending char deja char undefined', () => {
   assert.equal(session.char, undefined);
 });
 
+test('/clear reusa el pod (misma tmux), lo rekeyea y recarga stamina; no deja pod caído', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  // desgaste: stamina baja (100*(1-160000/200000)=20)
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash', transcript_path: '/t' },
+    deps({ contextTokens: 160000, totalTokens: 5000 }));
+  // /clear: SessionEnd (reason clear) de la vieja + SessionStart (source clear) de la nueva, mismo cwd
+  applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+
+  assert.equal(store.all().length, 1, 'un solo pod, sin caídos');
+  assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
+  assert.equal(session.name, 'api', 'mismo proyecto/tmux');
+  assert.notEqual(session.status, 'offline');
+  assert.equal(session.status, 'idle');
+  assert.equal(session.stamina, 100, 'stamina recargada');
+});
+
+test('/clear funciona aunque SessionStart llegue antes que SessionEnd', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  // orden invertido
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+
+  assert.equal(store.all().length, 1);
+  assert.equal(session.id, 's2');
+  assert.equal(store.get('s1'), undefined);
+  assert.equal(r.session, null, 'el SessionEnd del id viejo es no-op');
+});
+
+test('SessionEnd con reason clear no marca el pod offline', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  assert.equal(r.session, null);
+  // el pod sigue vivo, no offline
+  assert.notEqual(store.get('s1'), undefined);
+  assert.notEqual(store.get('s1').status, 'offline');
+});
+
+test('/clear sin pod previo (p.ej. tras reinicio) crea un pod limpio, no falla', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.id, 's2');
+  assert.equal(session.name, 'api');
+  assert.equal(session.status, 'idle');
+});
+
 test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {
   const store = createStore();
   const { session } = applyEvent(store, {

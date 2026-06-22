@@ -30,9 +30,48 @@ function ensureMonster(s) {
   }
 }
 
+// El pod vivo de una tmux: la tmux es única por nombre de proyecto (s.name), así
+// que buscamos el pod de ese proyecto distinto del id nuevo (el más reciente si
+// hubiera duplicados persistidos).
+function findPodByTmux(store, name, exceptId) {
+  const matches = store.all().filter((s) => s.name === name && s.id !== exceptId);
+  if (!matches.length) return null;
+  return matches.sort((a, b) => (b.since || 0) - (a.since || 0))[0];
+}
+
 export function applyEvent(store, payload, deps) {
   const { readUsage, maxContext, now } = deps;
   const ev = payload.hook_event_name;
+
+  // /clear cierra la sesión vieja y abre una nueva (otro session_id) sobre la MISMA
+  // tmux. No queremos un pod "caído" + uno nuevo (cerrar el caído mataría la tmux
+  // compartida, y con ella la sesión nueva): reusamos el pod existente, lo rekeyeamos
+  // al id nuevo y le recargamos la stamina (clear vacía el contexto).
+  if (ev === 'SessionStart' && payload.source === 'clear' && payload.cwd) {
+    const name = basename(payload.cwd);
+    const prev = findPodByTmux(store, name, payload.session_id);
+    if (prev) {
+      store.remove(prev.id);
+      prev.id = payload.session_id;
+      prev.stamina = 100;
+      prev.monster = null;
+      prev.combat = { hits: 0, tokens: 0 };
+      prev._lastTotal = 0;
+      prev._touched = new Set();
+      const pendingChar = store.takePendingChar(name);
+      if (pendingChar) prev.char = pendingChar;
+      if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
+      setStatus(prev, 'idle', 'memoria despejada', now);
+      store.upsert(prev);
+      return { session: prev, fightResult: null };
+    }
+  }
+
+  // SessionEnd con reason 'clear' no es un cierre real: viene seguido de un
+  // SessionStart que reusa el pod. No lo marcamos offline.
+  if (ev === 'SessionEnd' && payload.reason === 'clear') {
+    return { session: null, fightResult: null };
+  }
 
   // SessionEnd de una sesión que ya no existe (p.ej. la matamos desde la GUI): no la
   // recreamos sólo para marcarla offline. ensure() crearía un pod zombie.
