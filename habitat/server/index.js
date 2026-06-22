@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
-import { createStore } from './state.js';
+import { createStore, newSession } from './state.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
@@ -43,6 +43,22 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
   }
 
   let hub;
+  // Pod provisional: la sesión tmux ya existe pero claude todavía no disparó SessionStart
+  // (típicamente esperando el prompt "do you trust this folder?" en un worktree nuevo).
+  // Mostramos el pod ya, con su terminal apuntando al tmux, para que aceptes desde ahí.
+  // SessionStart luego lo adopta (lo reemplaza por la sesión real).
+  function announcePending(tmuxName, fields) {
+    const s = newSession(`pending:${tmuxName}`, {
+      tmux: tmuxName,
+      status: 'waiting',
+      action: 'aceptá la confianza en la terminal',
+      ...fields,
+    });
+    store.upsert(s);
+    store.persist();
+    if (hub) hub.broadcast({ type: 'session', session: snapOf(s) });
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
@@ -51,12 +67,13 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
-        const { session, fightResult } = applyEvent(store, payload, {
+        const { session, fightResult, removed } = applyEvent(store, payload, {
           readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
         if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+        if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
@@ -101,6 +118,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         if (char) store.setPendingChar(tmuxName, char);
         if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
         if (!(await tmux.newTmuxSession(tmuxName, path))) { res.writeHead(500).end(); return; }
+        announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
         return;
       }
@@ -110,6 +128,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       if (char) store.setPendingChar(name, char);
       const ok = await tmux.newTmuxSession(name, dir);
       if (!ok) { res.writeHead(500).end(); return; }
+      announcePending(name, { name, project: name, char });
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
       return;
     }

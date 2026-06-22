@@ -37,11 +37,12 @@ export function applyEvent(store, payload, deps) {
   // SessionEnd de una sesión que ya no existe (p.ej. la matamos desde la GUI): no la
   // recreamos sólo para marcarla offline. ensure() crearía un pod zombie.
   if (ev === 'SessionEnd' && !store.get(payload.session_id)) {
-    return { session: null, fightResult: null };
+    return { session: null, fightResult: null, removed: null };
   }
 
   const s = ensure(store, payload);
   let fightResult = null;
+  let removed = null;
 
   const recomputeStamina = () => {
     if (!payload.transcript_path) return;
@@ -64,6 +65,14 @@ export function applyEvent(store, payload, deps) {
       }
       const pendingChar = store.takePendingChar(s.tmux || s.name);
       if (pendingChar) s.char = pendingChar;
+      // /spawn creó un pod provisional `pending:<tmux>` (para que aceptes la confianza
+      // desde su terminal). Ahora que arrancó la sesión real, lo adoptamos: lo quitamos
+      // para no dejar un pod duplicado.
+      const provId = `pending:${s.tmux || s.name}`;
+      if (payload.session_id !== provId && store.get(provId)) {
+        store.remove(provId);
+        removed = provId;
+      }
       setStatus(s, 'idle', 'sesión iniciada', now);
       s.monster = null;
       break;
@@ -112,7 +121,7 @@ export function applyEvent(store, payload, deps) {
     default:
       break;
   }
-  return { session: s, fightResult };
+  return { session: s, fightResult, removed };
 }
 
 function handleTodoWrite(s, payload, now) {
