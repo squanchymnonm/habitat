@@ -45,7 +45,13 @@ export function applyEvent(store, payload, deps) {
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
-        s.name = basename(payload.cwd);
+        const wt = deps.worktreeName ? deps.worktreeName(payload.cwd) : null;
+        if (wt) {
+          s.name = wt.project;
+          s.tmux = wt.tmux;
+        } else {
+          s.name = basename(payload.cwd);
+        }
         s.project = s.name;
         if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
       }

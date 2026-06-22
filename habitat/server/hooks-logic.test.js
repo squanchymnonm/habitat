@@ -154,3 +154,23 @@ test('Stop a idle y SessionEnd limpian el monstruo', () => {
   r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
   assert.equal(r.session.monster, null);
 });
+
+test('SessionStart bajo worktree setea s.tmux y project derivados', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd, hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.project, 'rpg');
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
+test('SessionStart sin worktreeName mantiene basename y sin s.tmux', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.tmux, undefined);
+});
