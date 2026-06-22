@@ -6,6 +6,7 @@ import { pickSelection } from './pickSelection'
 export const useSessions = defineStore('sessions', () => {
   const list = ref<Session[]>([])
   const selectedId = ref<string | null>(null)
+  const selectTick = ref(0)
   // último fightResult; `seq` permite a los pods reaccionar aunque se repita el id
   const lastFight = ref<{ id: string; result: FightResult; seq: number } | null>(null)
   let seq = 0
@@ -32,11 +33,12 @@ export const useSessions = defineStore('sessions', () => {
   }
   function select(id: string | null) {
     selectedId.value = id
+    selectTick.value++
   }
   // Mantiene una selección válida: conserva la actual o cae al primero.
   function reconcile() {
     selectedId.value = pickSelection(list.value.map((s) => s.id), selectedId.value)
   }
 
-  return { list, selected, selectedId, needCount, lastFight, setAll, upsert, remove, fight, select }
+  return { list, selected, selectedId, selectTick, needCount, lastFight, setAll, upsert, remove, fight, select }
 })

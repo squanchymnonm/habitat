@@ -35,4 +35,14 @@ describe('sessions store — selección', () => {
     s.upsert(mk('z'))
     expect(s.selectedId).toBe('z')
   })
+
+  it('select() incrementa selectTick pero reconcile no', () => {
+    const s = useSessions()
+    s.setAll([mk('a'), mk('b')]) // auto-selección vía reconcile: no incrementa
+    expect(s.selectTick).toBe(0)
+    s.select('b')
+    expect(s.selectTick).toBe(1)
+    s.remove('b') // reconcile reselecciona 'a': no incrementa
+    expect(s.selectTick).toBe(1)
+  })
 })

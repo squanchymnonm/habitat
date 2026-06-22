@@ -29,24 +29,27 @@ function startResize(e: MouseEvent) {
   document.addEventListener('mouseup', onUp)
 }
 
-// En narrow el detalle es overlay; se abre al elegir un pod (no en la auto-selección inicial).
+// En narrow el detalle es overlay; se abre solo en selección explícita del usuario (selectTick).
 const mobileOpen = ref(false)
-let firstSelect = true
-watch(
-  () => store.selectedId,
-  (id) => {
-    if (firstSelect) { firstSelect = false; return }
-    if (isNarrow.value) mobileOpen.value = !!id
-  },
-)
+watch(() => store.selectTick, () => { if (isNarrow.value) mobileOpen.value = true })
 function closeOverlay() { mobileOpen.value = false }
 
 function refit() { nextTick(() => requestAnimationFrame(() => panel.value?.fit())) }
 watch(isNarrow, refit)
 function onResize() { refit() }
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && isNarrow.value && mobileOpen.value) closeOverlay() }
-onMounted(() => { window.addEventListener('resize', onResize); document.addEventListener('keydown', onKey) })
-onUnmounted(() => { window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey) })
+let mqOrient: MediaQueryList | null = null
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  document.addEventListener('keydown', onKey)
+  mqOrient = window.matchMedia('(orientation: portrait)')
+  mqOrient.addEventListener('change', refit)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  document.removeEventListener('keydown', onKey)
+  mqOrient?.removeEventListener('change', refit)
+})
 </script>
 
 <template>
