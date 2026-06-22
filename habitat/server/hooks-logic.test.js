@@ -276,6 +276,44 @@ test('/clear reusa el pod (misma tmux), lo rekeyea y recarga stamina; no deja po
   assert.equal(session.stamina, 100, 'stamina recargada');
 });
 
+test('/clear bajo worktree reusa el pod (match por tmux, no por basename)', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const wt = () => ({ project: 'rpg', tmux: 'rpg-feature-x' });
+  applyEvent(store, { session_id: 's1', cwd, hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wt });
+  // /clear sobre el MISMO worktree: nuevo session_id, source clear
+  applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd, source: 'clear', hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: wt });
+
+  assert.equal(store.all().length, 1, 'un solo pod, sin duplicado');
+  assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
+  assert.equal(session.tmux, 'rpg-feature-x', 'misma tmux');
+});
+
+test('/clear no roba el pod de OTRO worktree del mismo proyecto', () => {
+  const store = createStore();
+  const wtA = () => ({ project: 'rpg', tmux: 'rpg-feature-a' });
+  const wtB = () => ({ project: 'rpg', tmux: 'rpg-feature-b' });
+  applyEvent(store, { session_id: 'a1', cwd: '/home/u/habitat-worktrees/rpg/feature-a', hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wtA });
+  applyEvent(store, { session_id: 'b1', cwd: '/home/u/habitat-worktrees/rpg/feature-b', hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wtB });
+  // /clear en el worktree B
+  applyEvent(store, { session_id: 'b1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  applyEvent(store, {
+    session_id: 'b2', cwd: '/home/u/habitat-worktrees/rpg/feature-b', source: 'clear', hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: wtB });
+
+  assert.equal(store.all().length, 2, 'cada worktree conserva su pod');
+  assert.notEqual(store.get('a1'), undefined, 'el pod del worktree A sigue intacto');
+  assert.equal(store.get('b1'), undefined, 'el id viejo de B se rekeyeó');
+  assert.notEqual(store.get('b2'), undefined, 'el pod de B reusado con el id nuevo');
+});
+
 test('/clear funciona aunque SessionStart llegue antes que SessionEnd', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
