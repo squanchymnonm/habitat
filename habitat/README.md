@@ -28,6 +28,12 @@ Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server cr
 tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude
 dispara `SessionStart`. El nombre tmux = basename habilita el preview y el chat sobre esa sesión.
 
+Con `HABITAT_ALLOW_SPAWN=1`, al elegir un proyecto se pide una **rama** y una **base** (default `main`).
+Hábitat crea un git worktree en `HABITAT_WORKTREES_DIR` (default `~/habitat-worktrees/<proyecto>/<rama>`),
+levanta una sesión tmux `<proyecto>-<rama>` y lanza `claude` dentro. Así varios agentes trabajan el mismo
+repo en paralelo, cada uno en su rama. Los worktrees persisten: limpialos con `git worktree remove` cuando
+termines.
+
 > Crear sesiones spawnea procesos en tu máquina. El endpoint exige el mismo token, bind a
 > loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en `HABITAT_PROJECTS`.
 

@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -15,5 +16,6 @@ export default {
   MAX_CONTEXT: num(process.env.HABITAT_MAX_CONTEXT, 200000),
   ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
   PROJECTS: list(process.env.HABITAT_PROJECTS),
+  WORKTREES_DIR: process.env.HABITAT_WORKTREES_DIR || join(homedir(), 'habitat-worktrees'),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
 };

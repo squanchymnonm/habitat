@@ -137,6 +137,7 @@
     padding:8px; display:flex; flex-direction:column; gap:6px; min-width:180px}
   .spawn-item{text-align:left; text-transform:none}
   .spawn-err{font-family:var(--f-body); font-size:14px; color:var(--red); padding:4px 2px}
+  .spawn-input{display:block; width:100%; box-sizing:border-box; margin-bottom:4px; font:inherit}
 
   /* ===== PANEL DE DETALLE (permanente) ===== */
   .dpanel{display:flex; flex-direction:column; height:100%; min-height:0; background:#1a1428; position:relative; padding:18px}
