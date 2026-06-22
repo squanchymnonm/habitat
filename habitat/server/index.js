@@ -9,7 +9,7 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
-import { worktreeAdd } from './git.js';
+import { worktreeAdd, validBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -87,7 +87,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
       const branch = body && body.branch;
       if (branch != null && branch !== '') {
-        if (typeof branch !== 'string' || !/^[A-Za-z0-9._/-]+$/.test(branch) || branch.includes('..')) {
+        if (typeof branch !== 'string' || !validBranch(branch)) {
           res.writeHead(400).end(); return;
         }
         const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
