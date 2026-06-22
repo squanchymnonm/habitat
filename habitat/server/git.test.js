@@ -9,6 +9,16 @@ test('validBranch acepta nombres seguros y rechaza inválidos', () => {
   assert.equal(validBranch('a b'), false);
   assert.equal(validBranch('../evil'), false);
   assert.equal(validBranch('a;rm -rf'), false);
+  assert.equal(validBranch('-b'), false);
+  assert.equal(validBranch('--force'), false);
+});
+
+test('worktreeAdd rechaza base/path con prefijo - (flag smuggling)', async () => {
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  assert.equal(await worktreeAdd('/proj', 'feat', '--foo', '/wt/x', exec), false);
+  assert.equal(await worktreeAdd('/proj', 'feat', 'main', '-rf', exec), false);
+  assert.equal(called, false);
 });
 
 test('branchExists true cuando rev-parse no falla', async () => {

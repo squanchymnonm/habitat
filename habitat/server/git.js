@@ -6,7 +6,7 @@ const defaultExec = async (file, args) => (await run(file, args)).stdout;
 
 export function validBranch(branch) {
   const b = String(branch || '');
-  if (!b || b.includes('..')) return false;
+  if (!b || b.includes('..') || b.startsWith('-')) return false;
   return /^[A-Za-z0-9._/-]+$/.test(b);
 }
 
@@ -21,6 +21,8 @@ export async function branchExists(projectDir, branch, exec = defaultExec) {
 
 export async function worktreeAdd(projectDir, branch, base, path, exec = defaultExec) {
   if (!validBranch(branch)) return false;
+  // argv flag smuggling: rechazar positionals que empiecen con '-'
+  if (String(base).startsWith('-') || String(path).startsWith('-')) return false;
   try {
     const args = (await branchExists(projectDir, branch, exec))
       ? ['-C', projectDir, 'worktree', 'add', path, branch]
