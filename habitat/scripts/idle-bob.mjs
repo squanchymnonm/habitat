@@ -13,8 +13,10 @@ const SRC = path.join(ROOT, 'habitat/assets-src/char')
 const PUB = path.join(ROOT, 'habitat/client/public/assets/char')
 const FRAME = 16, TARGET = 32
 const CHARS = ['Boy', 'Cavegirl', 'Knight', 'NinjaBlue', 'Monk', 'Hunter', 'FighterRed', 'DemonRed', 'Eskimo', 'GreenPig', 'Lion', 'Monkey', 'Inspector', 'Master', 'KnightGold', 'Caveman']
-// bob vertical sutil (en px de 32): sube y baja. Loop suave de 4 frames.
-const DY = [0, -1, -2, -1]
+// bob vertical sutil (en px de 32): respiración de 1px. Loop suave de 4 frames.
+// Se desplaza hacia arriba (las filas superiores del sprite son margen vacío, así
+// no se recorta la cabeza; abajo queda transparente revelando el piso).
+const DY = [0, -1, -1, 0]
 
 function shiftY(png, dy) {
   const { width: W, height: H } = png

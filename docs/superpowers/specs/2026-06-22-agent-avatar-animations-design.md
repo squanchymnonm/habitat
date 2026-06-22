@@ -1,7 +1,20 @@
 # Animaciones de avatar por estado del agente
 
 **Fecha:** 2026-06-22
-**Estado:** diseño aprobado, pendiente de plan de implementación
+**Estado:** implementado con pivot (ver nota abajo)
+
+> **Actualización (pivot durante implementación):** el free tier de PixelLab
+> resultó ser un tope duro de 40 generaciones y la calidad del lote AI salió
+> despareja (fondos de escena opacos, identidad perdida en personajes simples;
+> solo los muy distintivos como el Knight salieron bien). Decisión aprobada: se
+> shippeó un **idle procedural** (bob de respiración generado por código desde el
+> sprite estático — limpio y fiel para los 16) y **todos los estados** apuntan a
+> ese idle por ahora. Las 4 animaciones de acción con IA (work/waiting/done/error)
+> quedan **diferidas** hasta cargar crédito; el pipeline (`scripts/lib/imgproc.mjs`,
+> `scripts/lib/pixellab.mjs` con `negative_description` anti-fondo, y
+> `scripts/animate-chars.mjs`) queda listo y testeado para esa regeneración. El
+> idle procedural se genera con `scripts/idle-bob.mjs`. La sección de abajo
+> describe el diseño AI original; léela con esa salvedad.
 
 ## Objetivo
 

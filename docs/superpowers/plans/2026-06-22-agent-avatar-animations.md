@@ -8,6 +8,14 @@
 
 **Tech Stack:** Node 20 (ESM), `node --test` + `node:assert/strict`, `pngjs` (procesamiento de imágenes JS puro), Vue 3 + TypeScript (`vue-tsc`), PixelLab REST API.
 
+> **Pivot al ejecutar:** el free tier de PixelLab tope a 40 generaciones y la
+> calidad AI salió despareja. Task 4 se reemplazó por un **idle procedural**
+> (`scripts/idle-bob.mjs`, sin IA) para los 16 personajes, y `STATUS_ANIM`
+> (Task 6) quedó con **todos los estados → `anim_idle`**. Las acciones AI quedan
+> diferidas; las Tasks 1-3 (pipeline AI) siguen vigentes y testeadas para
+> regenerar con crédito (ahora con `negative_description` anti-fondo). Tasks 5-7
+> se implementaron tal cual.
+
 ## Global Constraints
 
 - Runtime: **Node ESM** (`"type":"module"`). Tests con el runner integrado: `node --test` (`node:test` + `node:assert/strict`). No hay vitest/jest.
