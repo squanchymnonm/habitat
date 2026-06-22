@@ -1,3 +1,6 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 const num = (v, d) => (v == null || v === '' ? d : Number(v));
 const bool = (v) => v === '1' || v === 'true';
 const list = (v) => (v ? String(v).split(':').map((s) => s.trim()).filter(Boolean) : []);
@@ -10,4 +13,5 @@ export default {
   MAX_CONTEXT: num(process.env.HABITAT_MAX_CONTEXT, 200000),
   ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
   PROJECTS: list(process.env.HABITAT_PROJECTS),
+  WORKTREES_DIR: process.env.HABITAT_WORKTREES_DIR || join(homedir(), 'habitat-worktrees'),
 };
