@@ -459,6 +459,33 @@ test('POST /spawn de contenedor: fallo de containerWorktreeAdd -> 500', async ()
   server.close();
 });
 
+test('POST /kill de sesión contenedor remueve worktrees hijos y luego el padre', async () => {
+  const seenRemove = [];
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  const git = {
+    findNestedRepos: async () => ['back', 'front'],
+    worktreeRemove: async (projectDir, path) => { seenRemove.push([projectDir, path]); return true; },
+  };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees', PROJECTS: ['/home/u/Artisano'] });
+  const store = createStore();
+  store.upsert(newSession('sid1', {
+    name: 'Artisano', project: 'Artisano', tmux: 'Artisano-feature-x', branch: 'feature/x',
+  }));
+  const { server } = createApp({ config: cfg, store, tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'sid1' }),
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seenRemove, [
+    ['/home/u/Artisano/back', '/home/u/habitat-worktrees/Artisano/feature-x/back'],
+    ['/home/u/Artisano/front', '/home/u/habitat-worktrees/Artisano/feature-x/front'],
+    ['/home/u/Artisano', '/home/u/habitat-worktrees/Artisano/feature-x'],
+  ]);
+  server.close();
+});
+
 test('POST /kill de sesión plana (no worktree) no toca el worktree', async () => {
   const seenRemove = [];
   const tmux = {

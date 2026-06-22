@@ -155,6 +155,13 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
         if (projectDir) {
           const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
+          const nested = await git.findNestedRepos(projectDir);
+          // Contenedor: remover primero los hijos (sin force: si hay cambios sin commitear git
+          // rechaza y se deja en disco), luego el padre. Si un hijo queda, el padre tampoco se
+          // borra (su carpeta no queda vacía) -> el conjunto sobrevive y un re-spawn lo reutiliza.
+          for (const name of nested) {
+            await git.worktreeRemove(join(projectDir, name), join(path, name));
+          }
           await git.worktreeRemove(projectDir, path);
         }
       }
