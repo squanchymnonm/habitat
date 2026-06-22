@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validBranch, branchExists, worktreeAdd, worktreeRemove, findNestedRepos,
-  currentBranch, remoteDefaultBranch,
+  currentBranch, remoteDefaultBranch, ensureContainerRepo,
 } from './git.js';
 
 test('validBranch acepta nombres seguros y rechaza inválidos', () => {
@@ -201,4 +201,55 @@ test('remoteDefaultBranch cae a currentBranch si no hay remoto', async () => {
     throw new Error('inesperado');
   };
   assert.equal(await remoteDefaultBranch('/proj', exec), 'main');
+});
+
+test('ensureContainerRepo no toca un repo ya inicializado', async () => {
+  let execCalled = false;
+  const exec = async () => { execCalled = true; return ''; };
+  const deps = { access: async () => ({}) }; // .git existe
+  assert.equal(await ensureContainerRepo('/proj', ['back'], exec, deps), true);
+  assert.equal(execCalled, false);
+});
+
+test('ensureContainerRepo inicializa: init + gitignore + add + commit', async () => {
+  const calls = [];
+  let written = null;
+  const exec = async (file, args) => { calls.push(args.join(' ')); return ''; };
+  const deps = {
+    access: async () => { throw new Error('no .git'); }, // hay que inicializar
+    readFile: async () => { throw new Error('no .gitignore'); },
+    writeFile: async (p, body) => { written = { p, body }; },
+  };
+  assert.equal(await ensureContainerRepo('/proj', ['back', 'front'], exec, deps), true);
+  assert.ok(calls.some((c) => c.endsWith('-C /proj init')));
+  assert.ok(calls.some((c) => c.includes('add -A')));
+  assert.ok(calls.some((c) => c.includes('commit')));
+  assert.ok(written.p.endsWith('/proj/.gitignore'));
+  assert.ok(written.body.includes('back/'));
+  assert.ok(written.body.includes('front/'));
+});
+
+test('ensureContainerRepo no pisa entradas existentes del .gitignore', async () => {
+  let written = null;
+  const exec = async () => '';
+  const deps = {
+    access: async () => { throw new Error('no .git'); },
+    readFile: async () => 'node_modules/\nback/\n', // back ya está
+    writeFile: async (p, body) => { written = body; },
+  };
+  await ensureContainerRepo('/proj', ['back', 'front'], exec, deps);
+  assert.ok(written.includes('node_modules/'));
+  assert.ok(written.includes('front/'));
+  // 'back/' aparece una sola vez
+  assert.equal(written.split('\n').filter((l) => l.trim() === 'back/').length, 1);
+});
+
+test('ensureContainerRepo devuelve false ante error de exec', async () => {
+  const exec = async () => { throw new Error('git init falló'); };
+  const deps = {
+    access: async () => { throw new Error('no .git'); },
+    readFile: async () => { throw new Error('no .gitignore'); },
+    writeFile: async () => {},
+  };
+  assert.equal(await ensureContainerRepo('/proj', ['back'], exec, deps), false);
 });

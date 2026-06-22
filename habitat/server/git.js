@@ -1,6 +1,9 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir as fsReaddir, stat as fsStat } from 'node:fs/promises';
+import {
+  readdir as fsReaddir, stat as fsStat,
+  access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 const run = promisify(execFile);
@@ -124,6 +127,41 @@ export async function worktreeRemove(projectDir, path, { force = false } = {}, e
     if (force) args.push('--force');
     args.push(path);
     await exec('git', args);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Asegura que el contenedor sea un repo git que versiona lo no-git de la raíz (.claude, docs, …).
+// Idempotente. El .gitignore excluye cada sub-repo para que el worktree del padre no intente
+// materializarlos (ahí van los worktrees de los hijos). Commit con identidad explícita para no
+// depender de la config global de git.
+export async function ensureContainerRepo(dir, nested, exec = defaultExec, deps = {}) {
+  const access = deps.access || fsAccess;
+  const readFile = deps.readFile || fsReadFile;
+  const writeFile = deps.writeFile || fsWriteFile;
+  try {
+    await access(join(dir, '.git'));
+    return true; // ya es repo
+  } catch { /* falta .git: inicializar */ }
+  try {
+    await exec('git', ['-C', dir, 'init']);
+    const giPath = join(dir, '.gitignore');
+    let current = '';
+    try { current = String(await readFile(giPath, 'utf8')); } catch { /* sin .gitignore previo */ }
+    const lines = current.split('\n').map((l) => l.trim()).filter(Boolean);
+    const has = new Set(lines);
+    for (const name of nested) {
+      if (!has.has(`${name}/`) && !has.has(name)) { lines.push(`${name}/`); has.add(`${name}/`); }
+    }
+    await writeFile(giPath, lines.join('\n') + '\n');
+    await exec('git', ['-C', dir, 'add', '-A']);
+    await exec('git', [
+      '-C', dir,
+      '-c', 'user.name=habitat', '-c', 'user.email=habitat@local',
+      'commit', '--allow-empty', '-m', 'habitat: init container repo',
+    ]);
     return true;
   } catch {
     return false;
