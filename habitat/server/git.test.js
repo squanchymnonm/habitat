@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validBranch, branchExists, worktreeAdd } from './git.js';
+import { validBranch, branchExists, worktreeAdd, worktreeRemove } from './git.js';
 
 test('validBranch acepta nombres seguros y rechaza inválidos', () => {
   assert.equal(validBranch('feature/x'), true);
@@ -72,8 +72,52 @@ test('worktreeAdd con branch inválida devuelve false sin ejecutar', async () =>
 
 test('worktreeAdd ante fallo de git devuelve false', async () => {
   const exec = async (file, args) => {
+    if (args.includes('list')) return '';
     if (args.includes('rev-parse')) throw new Error('no existe');
     throw new Error('worktree add failed');
   };
   assert.equal(await worktreeAdd('/proj', 'feat', 'main', '/wt/feat', exec), false);
+});
+
+test('worktreeAdd reutiliza el worktree existente de la rama (sesión cerrada sin limpiar)', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push(args.join(' '));
+    if (args.includes('list')) {
+      return 'worktree /wt/proj/feat\nHEAD abc123\nbranch refs/heads/feat\n\n';
+    }
+    return '';
+  };
+  const ok = await worktreeAdd('/proj', 'feat', 'main', '/wt/proj/feat', exec);
+  assert.equal(ok, true);
+  assert.ok(!calls.some((c) => c.includes('worktree add')), 'no debe ejecutar worktree add');
+});
+
+test('worktreeAdd no secuestra una rama en uso en otra ruta -> false', async () => {
+  const exec = async (file, args) => {
+    if (args.includes('list')) return 'worktree /otro/lado\nHEAD abc123\nbranch refs/heads/feat\n\n';
+    return '';
+  };
+  assert.equal(await worktreeAdd('/proj', 'feat', 'main', '/wt/proj/feat', exec), false);
+});
+
+test('worktreeRemove ejecuta git worktree remove y devuelve true', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', exec), true);
+  assert.deepEqual(calls.at(-1), [
+    'git', '-C', '/proj', 'worktree', 'remove', '/wt/proj/feat',
+  ]);
+});
+
+test('worktreeRemove rechaza path con prefijo - (flag smuggling) sin ejecutar', async () => {
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  assert.equal(await worktreeRemove('/proj', '-rf', exec), false);
+  assert.equal(called, false);
+});
+
+test('worktreeRemove ante fallo de git (worktree sucio) devuelve false', async () => {
+  const exec = async () => { throw new Error('contains modified or untracked files'); };
+  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', exec), false);
 });

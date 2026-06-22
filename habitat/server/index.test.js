@@ -392,3 +392,56 @@ test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { 
   ws.close();
   server.close();
 });
+
+test('POST /kill de sesión por rama remueve el worktree (best-effort)', async () => {
+  const seenRemove = [];
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async () => true,
+    killTmuxSession: async () => true,
+  };
+  const git = {
+    worktreeAdd: async () => true,
+    worktreeRemove: async (...a) => { seenRemove.push(a); return true; },
+  };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const store = createStore();
+  store.upsert(newSession('sid1', {
+    name: 'proj-api', project: 'proj-api', tmux: 'proj-api-feature-x', branch: 'feature/x',
+  }));
+  const { server } = createApp({ config: cfg, store, tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'sid1' }),
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seenRemove, [['/home/u/proj-api', '/home/u/habitat-worktrees/proj-api/feature-x']]);
+  server.close();
+});
+
+test('POST /kill de sesión plana (no worktree) no toca el worktree', async () => {
+  const seenRemove = [];
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async () => true,
+    killTmuxSession: async () => true,
+  };
+  const git = {
+    worktreeAdd: async () => true,
+    worktreeRemove: async (...a) => { seenRemove.push(a); return true; },
+  };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const store = createStore();
+  // sesión plana: tmux === project, sin rama de worktree
+  store.upsert(newSession('sid2', { name: 'proj-api', project: 'proj-api', tmux: 'proj-api', branch: 'main' }));
+  const { server } = createApp({ config: cfg, store, tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'sid2' }),
+  });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seenRemove, []);
+  server.close();
+});
