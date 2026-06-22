@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import type { Session, Status } from '../types'
 import { heroIdle, monsterSprite, bossSprite, fmt } from '../sprites'
 import Sprite from './Sprite.vue'
-import StaminaOrb from './StaminaOrb.vue'
 
 const props = withDefaults(defineProps<{ session: Session; height?: number }>(), { height: 56 })
 
@@ -20,6 +19,7 @@ const monsterUrl = computed(() =>
 )
 const monH = computed(() => Math.round(props.height * (monster.value?.isBoss ? 1.25 : 1)))
 const stam = computed(() => Math.max(0, Math.min(100, props.session.stamina ?? 100)))
+const stamColor = computed(() => (stam.value > 50 ? 'green' : stam.value > 20 ? 'yellow' : 'red'))
 
 // Número de daño flotante cuando sube combat.tokens.
 const floats = ref<{ key: number; text: string; big: boolean }[]>([])
@@ -53,7 +53,6 @@ watch(
 
 <template>
   <div class="mini" :style="{ height: height + 'px' }">
-    <div class="stamina-slot"><StaminaOrb :value="stam" /></div>
     <div
       v-if="emoteUrl"
       class="pemote"
@@ -79,6 +78,12 @@ watch(
       :dir="2"
     />
     <div v-for="d in floats" :key="d.key" class="pdmg" :class="{ big: d.big }">-{{ d.text }}</div>
+    <div class="stamina-bar" :title="'STAMINA ' + Math.round(stam) + '%'">
+      <div class="stamina-track">
+        <div class="stamina-fill" :class="stamColor" :style="{ width: stam + '%' }"></div>
+      </div>
+      <span class="stamina-pct">{{ Math.round(stam) }}%</span>
+    </div>
   </div>
 </template>
 
@@ -89,11 +94,26 @@ watch(
   align-items: flex-end;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 4px;
+  padding: 0 4px 11px;
 }
 .fighter { image-rendering: pixelated; background-repeat: no-repeat; }
 .pmon { align-self: flex-end; }
-.stamina-slot { position: absolute; top: -2px; right: 2px; z-index: 3; transform: scale(0.8); transform-origin: top right; }
+.stamina-bar {
+  position: absolute; left: 4px; right: 4px; bottom: 1px; height: 9px;
+  display: flex; align-items: center; gap: 4px; z-index: 3; pointer-events: none;
+}
+.stamina-track {
+  flex: 1; height: 6px; border: 1px solid var(--line); background: #160e07;
+  box-shadow: var(--bevel); border-radius: 2px; overflow: hidden;
+}
+.stamina-fill { height: 100%; transition: width 0.4s steps(8); }
+.stamina-fill.green { background: linear-gradient(90deg, #5f9c3e, var(--green)); box-shadow: var(--glow-green); }
+.stamina-fill.yellow { background: linear-gradient(90deg, #b8902a, var(--gold)); }
+.stamina-fill.red { background: linear-gradient(90deg, #7a2a2a, var(--red)); }
+.stamina-pct {
+  flex: 0 0 auto; font-family: var(--f-ui); font-size: 9px; line-height: 1;
+  color: #d8c39a; text-shadow: 1px 1px 0 #000;
+}
 .pemote {
   position: absolute; left: 0; top: -4px; width: 26px; height: 24px;
   background-repeat: no-repeat; background-size: 26px 24px; image-rendering: pixelated; z-index: 4;

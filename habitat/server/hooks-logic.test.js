@@ -99,14 +99,26 @@ test('Notification -> waiting; StopFailure -> error', () => {
   assert.equal(r.session.status, 'error');
 });
 
-test('PreCompact descansa (stamina baja); Stop con dungeon completo -> done', () => {
+test('PreCompact recalcula stamina desde el contexto real (no la clava en 5)', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact' }, deps(null));
-  assert.equal(r.session.stamina, 5);
+  // contexto al 90% lleno -> stamina ~10 (no un valor mágico fijo)
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
+    deps({ contextTokens: 180000, totalTokens: 180000 }));
+  assert.equal(r.session.stamina, 10); // 100*(1-180000/200000)
+});
+
+test('Stop refresca stamina con el contexto ya compactado y marca done', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
+    deps({ contextTokens: 180000, totalTokens: 180000 }));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'a', status: 'completed' }] } }, deps(null));
-  r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  // tras compactar, el contexto baja al 18% -> stamina sube a 82
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop', transcript_path: '/t' },
+    deps({ contextTokens: 36000, totalTokens: 200000 }));
+  assert.equal(r.session.stamina, 82); // 100*(1-36000/200000)
   assert.equal(r.session.status, 'done');
 });
 
