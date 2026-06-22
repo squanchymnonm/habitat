@@ -9,7 +9,7 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, validBranch } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { CHARACTERS } from './characters.js';
 
@@ -32,7 +32,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd } }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -143,6 +143,16 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
+      // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
+      // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
+      if (config.WORKTREES_DIR && s.project && s.branch && s.tmux && s.tmux !== s.project) {
+        const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
+        if (projectDir) {
+          const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
+          await git.worktreeRemove(projectDir, path);
+        }
+      }
       store.remove(id); // ya persiste a disco
       hub.broadcast({ type: 'remove', id });
       res.writeHead(200).end();
