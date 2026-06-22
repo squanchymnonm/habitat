@@ -1,0 +1,110 @@
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import type { Session, Status } from '../types'
+import { heroIdle, monsterSprite, bossSprite, fmt } from '../sprites'
+import Sprite from './Sprite.vue'
+import StaminaOrb from './StaminaOrb.vue'
+
+const props = withDefaults(defineProps<{ session: Session; height?: number }>(), { height: 56 })
+
+// Emote (globo) que comunica el estado del personaje.
+const EMOTE: Partial<Record<Status, number>> = {
+  waiting: 22, working: 20, done: 29, error: 26, offline: 30,
+}
+const emote = computed(() => EMOTE[props.session.status] ?? null)
+const emoteUrl = computed(() => (emote.value ? `assets/emote/${emote.value}.png` : ''))
+
+const monster = computed(() => props.session.monster ?? null)
+const monsterUrl = computed(() =>
+  monster.value ? (monster.value.isBoss ? bossSprite(monster.value.label) : monsterSprite(monster.value.type)) : '',
+)
+const monH = computed(() => Math.round(props.height * (monster.value?.isBoss ? 1.25 : 1)))
+const stam = computed(() => Math.max(0, Math.min(100, props.session.stamina ?? 100)))
+
+// Número de daño flotante cuando sube combat.tokens.
+const floats = ref<{ key: number; text: string; big: boolean }[]>([])
+let fkey = 0
+let lastTokens = props.session.combat?.tokens ?? 0
+watch(
+  () => props.session.combat?.tokens ?? 0,
+  (tok) => {
+    const dmg = props.session.combat?.lastDamage
+    if (tok > lastTokens && dmg) {
+      const key = ++fkey
+      floats.value.push({ key, text: fmt(dmg), big: !!monster.value?.isBoss })
+      setTimeout(() => (floats.value = floats.value.filter((f) => f.key !== key)), 850)
+    }
+    lastTokens = tok
+  },
+)
+
+// Flinch del héroe en error.
+const flinch = ref(false)
+watch(
+  () => props.session.status,
+  (st) => {
+    if (st === 'error') {
+      flinch.value = true
+      setTimeout(() => (flinch.value = false), 700)
+    }
+  },
+)
+</script>
+
+<template>
+  <div class="mini" :style="{ height: height + 'px' }">
+    <div class="stamina-slot"><StaminaOrb :value="stam" /></div>
+    <div
+      v-if="emoteUrl"
+      class="pemote"
+      :class="{ alert: session.status === 'waiting' }"
+      :style="{ backgroundImage: `url(${emoteUrl})` }"
+    ></div>
+    <Sprite
+      class="fighter phero"
+      :class="{ flinch }"
+      :src="heroIdle(session.name, session.char)"
+      :height="height"
+      mode="static"
+      :frame="monster ? 3 : 0"
+    />
+    <Sprite
+      v-if="monster"
+      :key="monsterUrl"
+      class="fighter pmon"
+      :class="{ boss: monster.isBoss }"
+      :src="monsterUrl"
+      :height="monH"
+      :mode="monster.isBoss ? 'strip' : 'grid'"
+      :dir="2"
+    />
+    <div v-for="d in floats" :key="d.key" class="pdmg" :class="{ big: d.big }">-{{ d.text }}</div>
+  </div>
+</template>
+
+<style scoped>
+.mini {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 4px;
+}
+.fighter { image-rendering: pixelated; background-repeat: no-repeat; }
+.pmon { align-self: flex-end; }
+.stamina-slot { position: absolute; top: -2px; right: 2px; z-index: 3; transform: scale(0.8); transform-origin: top right; }
+.pemote {
+  position: absolute; left: 0; top: -4px; width: 26px; height: 24px;
+  background-repeat: no-repeat; background-size: 26px 24px; image-rendering: pixelated; z-index: 4;
+}
+.pemote.alert { animation: emoteBounce 0.7s steps(2) infinite; }
+@keyframes emoteBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.pdmg {
+  position: absolute; right: 18%; top: 0; font-family: var(--f-ui); font-size: 12px; color: var(--gold);
+  text-shadow: 2px 2px 0 #000; pointer-events: none; white-space: nowrap;
+  animation: bdmgfloat 0.85s ease-out forwards;
+}
+.pdmg.big { font-size: 15px; color: #fff; }
+.phero.flinch { animation: bflinch 0.3s steps(2) 2; }
+</style>

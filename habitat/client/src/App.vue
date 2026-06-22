@@ -2,8 +2,7 @@
 import { onMounted } from 'vue'
 import { useSessions } from './stores/sessions'
 import { startSocket } from './composables/useSocket'
-import SessionGrid from './components/SessionGrid.vue'
-import SessionDrawer from './components/SessionDrawer.vue'
+import HabitatLayout from './components/HabitatLayout.vue'
 import SpawnMenu from './components/SpawnMenu.vue'
 
 const store = useSessions()
@@ -19,7 +18,6 @@ onMounted(startSocket)
     </div>
     <SpawnMenu />
   </header>
-  <main><SessionGrid /></main>
+  <HabitatLayout />
   <footer>SPRITES: NINJA ADVENTURE — PIXEL-BOY / AAA — CC0</footer>
-  <SessionDrawer />
 </template>

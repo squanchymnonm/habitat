@@ -19,6 +19,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
+  #app{display:flex; flex-direction:column; height:100dvh; overflow:hidden}
   body{
     font-family:var(--f-body); color:var(--ink); font-size:15px;
     letter-spacing:0;
@@ -29,9 +30,10 @@
       linear-gradient(160deg, var(--bg), var(--bg2));
     background-attachment:fixed; min-height:100%; image-rendering:pixelated;
   }
-  /* CRT scanlines */
-  body::after{content:""; position:fixed; inset:0; pointer-events:none; z-index:60;
-    background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); opacity:.6}
+  /* CRT scanlines — solo en zonas con .crt (rail, cabecera del detalle). NO en la terminal. */
+  .crt{position:relative}
+  .crt::after{content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); opacity:.5}
 
   header{display:flex; align-items:center; gap:18px; flex-wrap:wrap;
     padding:20px clamp(16px,4vw,40px); border-bottom:3px solid var(--line);
@@ -53,13 +55,17 @@
   button.ctl:active{transform:translate(2px,2px); box-shadow:none}
   button.ctl:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 
-  main{padding:clamp(18px,3.5vw,38px)}
-  .grid{display:grid; gap:24px; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); max-width:1500px; margin:0 auto}
+  /* Lista de pods. Por defecto: 1 columna con scroll vertical (landscape/narrow).
+     En portrait ancho se convierte en tira horizontal (ver bloque de orientación). */
+  .rail{display:flex; flex-direction:column; gap:14px; padding:14px; overflow:auto; height:100%}
+  .rail > .pod{flex:0 0 auto}
 
   .pod{position:relative; border:2px solid var(--line); border-radius:0; background:var(--surface);
-    padding:16px 14px 14px; cursor:pointer; overflow:hidden;
-    box-shadow:var(--bevel), 4px 4px 0 #0b0703; transition:transform .1s, border-color .1s}
-  .pod:hover{transform:translate(-2px,-2px); border-color:var(--gold); box-shadow:var(--bevel), 6px 6px 0 #0b0703, var(--glow-gold)}
+    padding:12px 12px 10px; cursor:pointer; overflow:hidden;
+    box-shadow:var(--bevel), 3px 3px 0 #0b0703; transition:transform .1s, border-color .1s}
+  .pod:hover{transform:translate(-2px,-2px); border-color:var(--gold); box-shadow:var(--bevel), 5px 5px 0 #0b0703, var(--glow-gold)}
+  .pod.selected{border-color:var(--gold); box-shadow:var(--bevel), 5px 5px 0 #0b0703, var(--glow-gold)}
+  .pod.selected .ring{box-shadow:inset 0 0 0 2px var(--gold)}
   .pod:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
   .pod .ring{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 0 2px transparent}
   .pod.working{border-color:var(--teal)}
@@ -73,45 +79,9 @@
   @keyframes needblink{0%,50%{opacity:1}50.01%,100%{opacity:.3}}
   .pod.offline{opacity:.5; filter:saturate(.4)}
 
-  /* ===== ARENA DE COMBATE (en el pod) ===== */
-  .stage{height:180px; position:relative; overflow:hidden; background:radial-gradient(120% 90% at 50% 120%, rgba(224,141,57,.16), transparent 60%), linear-gradient(180deg,#2a1d10,#150d06); border:2px solid var(--line); box-shadow:var(--bevel)}
-  .gfloor{position:absolute; left:6px; right:6px; bottom:34px; height:2px; background:rgba(255,255,255,.07)}
-  .fighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
-  .phero{height:88px; left:9%}
-  .pmon{height:88px; right:9%}
-  .pmon.boss{height:124px; right:5%}
-  .pmon.hit{filter:brightness(3) saturate(0)}
-  .pmon.dying{animation:bdie .5s steps(5) forwards}
-  .phero.flinch{animation:bflinch .3s steps(2) 2}
-  .pcount{position:absolute; top:6px; left:8px; font-family:var(--f-ui); font-size:11px; color:var(--gold); letter-spacing:.3px}
-  .pmonname{position:absolute; bottom:4px; left:0; right:0; text-align:center; font-family:var(--f-body); font-size:15px;
-    color:#d8c39a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 8px}
-  .pdmg{position:absolute; font-family:var(--f-ui); font-size:12px; color:var(--gold); text-shadow:2px 2px 0 #000;
-    pointer-events:none; animation:bdmgfloat .85s ease-out forwards; white-space:nowrap}
-  .pdmg.big{font-size:16px; color:#fff}
-  .pod.offline .stage{filter:grayscale(1) brightness(.85)}
-  .ploot{position:absolute; inset:0; background:radial-gradient(circle at 50% 42%, rgba(92,55,20,.94), rgba(14,9,4,.96)); display:none; flex-direction:column;
-    align-items:center; justify-content:center; gap:3px; text-align:center; padding:10px}
-  .ploot.show{display:flex; animation:bfadein .2s}
-  .ploot .ttl{font-family:var(--f-ui); font-size:12px; color:var(--gold); text-shadow:var(--glow-gold)}
-  .ploot .mn{font-family:var(--f-body); font-size:16px; color:#fff}
-  .ploot .stat{font-family:var(--f-body); font-size:13px; color:#d8c39a} .ploot .stat b{color:var(--coral)}
-  .ploot .lootline{font-family:var(--f-body); font-size:12px; color:var(--green)} .ploot .lootline span{color:var(--dim)}
 
-  .pstam{height:12px; border:2px solid var(--line); background:#160e07; box-shadow:var(--bevel); margin-top:8px; position:relative; overflow:hidden}
-  .pstam > i{display:block; height:100%; width:100%; background:linear-gradient(90deg,#5f9c3e,var(--green)); box-shadow:var(--glow-green); transition:width .4s steps(8)}
-  .pstam .lbl{position:absolute; right:5px; top:0; font-family:var(--f-ui); font-size:11px; color:#fff; mix-blend-mode:difference}
-
-  .bubble{position:absolute; top:6px; right:8px; background:var(--coral); color:#2a1206;
-    font-family:var(--f-ui); font-size:11px; padding:5px 7px; display:none; align-items:center; justify-content:center;
-    border:2px solid var(--line); box-shadow:2px 2px 0 #0b0703; animation:blinkb .5s steps(1) infinite; z-index:3}
-  .pod.waiting .bubble{display:flex}
-  @keyframes blinkb{0%,60%{opacity:1}60.01%,100%{opacity:.4}}
-  .badge{position:absolute; top:8px; right:10px; font-family:var(--f-ui); font-size:13px; display:none; z-index:3}
-  .pod.done .badge.ok{display:block; color:var(--green)} .pod.error .badge.err{display:block; color:var(--red)}
-
-  .meta{margin-top:6px}
-  .name{font-family:var(--f-ui); font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .meta{margin-top:8px}
+  .name{font-family:var(--f-ui); font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
   .chip{font-family:var(--f-ui); font-size:11px; letter-spacing:.4px; text-transform:uppercase; padding:4px 6px; border:1px solid var(--line)}
   .chip.idle{background:#3a2f5e; color:#cfc6ec}
   .chip.working{background:#0d3b39; color:var(--teal); border-color:#1c6b66; text-shadow:var(--glow-teal)}
@@ -119,73 +89,47 @@
   .chip.done{background:#0f3a24; color:var(--green); border-color:#1f7a47; text-shadow:var(--glow-green)}
   .chip.error{background:#451526; color:var(--red); border-color:#8a2840; text-shadow:var(--glow-red)}
   .chip.offline{background:#2c2748; color:var(--dim)}
-  .repo{font-family:var(--f-body); font-size:17px; color:var(--dim); margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .repo{font-family:var(--f-body); font-size:14px; color:var(--dim); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .repo .br{color:var(--gold)}
-  .action{font-family:var(--f-body); font-size:19px; color:#e0cfa6; margin-top:6px; min-height:34px; line-height:1.2}
+  .action{font-family:var(--f-body); font-size:14px; color:#e0cfa6; margin-top:4px; min-height:0; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .pod.waiting .action{color:#ffd0d6}
   .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:8px; letter-spacing:.3px}
-  .empty{grid-column:1/-1; text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:48px 20px; font-family:var(--f-body); font-size:18px}
+  .empty{text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:40px 18px; font-family:var(--f-body); font-size:16px; margin:auto}
   .empty code{color:var(--gold)}
-  footer{max-width:1280px; margin:8px auto 0; padding:0 clamp(18px,3.5vw,38px) 30px; color:#5f5980; font-family:var(--f-ui); font-size:11px; letter-spacing:.3px}
+  footer{flex:0 0 auto; padding:6px clamp(18px,3.5vw,38px); color:#5f5980; font-family:var(--f-ui); font-size:11px; letter-spacing:.3px}
 
-  .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
-  .scrim.open{opacity:1; pointer-events:auto}
-  .drawer{position:fixed; top:0; right:0; height:100%; background:#1a1428; border-left:3px solid var(--line);
-    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; display:flex; flex-direction:column; padding:32px}
-  .drawer.open{transform:none}
-  .dragx{position:absolute; left:0; top:0; width:8px; height:100%; cursor:ew-resize; z-index:22;
-    background:linear-gradient(90deg, rgba(201,143,46,.35), transparent)}
-  .dragx:hover{background:linear-gradient(90deg, rgba(201,143,46,.6), transparent)}
-  .dhead{display:flex; gap:16px; align-items:flex-start}
-  .face{width:140px; height:140px; image-rendering:pixelated; border:3px solid var(--soft); border-radius:0;
-    box-shadow:var(--bevel), var(--glow-purple); background:#160e07; flex:0 0 auto}
-  .dinfo{flex:1; min-width:0}
-  .dname{font-family:var(--f-ui); font-size:18px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px}
-  .closex{background:none; border:0; color:var(--dim); font-family:var(--f-ui); font-size:18px; cursor:pointer; line-height:1}
-  .term{margin-top:18px; background:#160e07; border:2px solid var(--line); box-shadow:var(--bevel);
-    padding:8px; flex:1; min-height:0; overflow:hidden}
-  .term .g{color:var(--green)} .term .t{color:var(--teal)} .term .y{color:var(--gold)} .term .d{color:#8a7350}
-  .dmeta{margin-top:22px}
-  .dmeta .action{font-family:var(--f-body); font-size:21px; color:#e0cfa6; line-height:1.3}
-  .dmeta .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:14px; letter-spacing:.3px}
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
-  /* ===== BATTLE STAGE (drawer) ===== */
-  .hpwrap{margin-top:14px; font-family:var(--f-ui); font-size:11px; color:var(--dim); letter-spacing:.5px}
-  .hpbar{height:14px; border:2px solid var(--line); background:#160e07; box-shadow:var(--bevel); margin-top:4px; position:relative; overflow:hidden}
-  .hpfill{height:100%; width:100%; background:linear-gradient(90deg,#5f9c3e,var(--green)); box-shadow:var(--glow-green); transition:width .4s steps(8)}
-  .hpval{position:absolute; right:5px; top:1px; font-size:11px; color:#fff; mix-blend-mode:difference}
-  .bstage{position:relative; height:180px; margin-top:12px; border:2px solid var(--line); background:radial-gradient(120% 90% at 50% 120%, rgba(224,141,57,.14), transparent 60%), linear-gradient(180deg,#2a1d10,#150d06); box-shadow:var(--bevel); overflow:hidden}
-  .bground{position:absolute; left:0; right:0; bottom:34px; height:2px; background:rgba(255,255,255,.06)}
-  .bground::after{content:"";position:absolute;left:0;right:0;top:2px;height:32px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 6px,transparent 6px 12px)}
-  .bfighter{image-rendering:pixelated; background-repeat:no-repeat; position:absolute; bottom:28px}
-  /* tamaño/animación de sprites los fija animateSprite() por JS (frames reales del PNG) */
-  .bhero{height:80px;left:8%;transition:transform .12s steps(2)}
-  .bmon{height:80px;right:8%}
-  .bmon.boss{height:120px;right:4%}
-  .bmon.hit{filter:brightness(3) saturate(0)}
-  .bmon.dying{animation:bdie .5s steps(5) forwards}
-  @keyframes bidle{0%,49%{background-position:0 0}50%,100%{background-position:-80px 0}}
-  @keyframes bidle2b{0%,49%{background-position:0 0}50%,100%{background-position:-120px 0}}
-  @keyframes bdie{to{opacity:0; transform:translateY(8px) scale(.7)}}
-  .bdmg{position:absolute; font-family:var(--f-ui); font-size:13px; color:var(--gold); text-shadow:2px 2px 0 #000; pointer-events:none; animation:bdmgfloat .85s ease-out forwards; white-space:nowrap}
-  .bdmg.big{font-size:17px; color:#fff}
+  /* Keyframes referenced by MiniArena.vue (scoped) and .dloot — kept after drawer removal. */
   @keyframes bdmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
-  .bmonname{position:absolute; bottom:6px; right:8%; max-width:55%; text-align:center; font-family:var(--f-body); font-size:14px; color:#d8c39a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .bhero.flinch{animation:bflinch .3s steps(2) 2}
   @keyframes bflinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
-  .bbubble{position:absolute; top:12px; left:calc(8% + 84px); background:var(--coral); color:#2a1206; font-family:var(--f-ui); font-size:11px; padding:6px 8px; border:2px solid var(--line); box-shadow:2px 2px 0 #0b0703; display:none}
-  .bstage.needs .bbubble{display:block}
-  .bstage.needs .bmon{opacity:.4}
-  .bloot{position:absolute; inset:0; background:radial-gradient(circle at 50% 42%, rgba(92,55,20,.92), rgba(14,9,4,.95)); display:none; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:14px}
-  .bloot.show{display:flex; animation:bfadein .2s}
   @keyframes bfadein{from{opacity:0}to{opacity:1}}
-  .bloot .ttl{font-family:var(--f-ui); font-size:13px; color:var(--gold); text-shadow:var(--glow-gold)}
-  .bloot .mn{font-family:var(--f-body); font-size:17px; color:#fff}
-  .bloot .stat{font-family:var(--f-body); font-size:15px; color:#d8c39a}
-  .bloot .stat b{color:var(--coral)}
-  .bloot .lootline{font-family:var(--f-body); font-size:14px; color:var(--green); margin-top:2px}
-  .bloot .lootline span{color:var(--dim)}
+
+  /* ===== SHELL MASTER-DETAIL ===== */
+  .hlayout{flex:1; min-height:0; min-width:0}
+  /* Wide (≥900px): grid embebido. */
+  .hlayout.wide{display:grid; height:100%}
+  .hlayout.wide .hrail{min-height:0}
+  .hlayout.wide .hpanelhost{min-height:0; min-width:0}
+  .hlayout.wide .hdiv{background:linear-gradient(90deg, transparent, rgba(201,143,46,.35)); cursor:ew-resize}
+  .hlayout.wide .hdiv:hover{background:linear-gradient(90deg, transparent, rgba(201,143,46,.6))}
+  @media (min-width:900px) and (orientation:landscape){
+    .hlayout.wide{grid-template-columns:var(--rail-w,340px) 6px 1fr; grid-template-rows:100%}
+    .hlayout.wide .hdiv{height:100%}
+  }
+  @media (min-width:900px) and (orientation:portrait){
+    .hlayout.wide{grid-template-rows:minmax(140px,auto) 6px 1fr; grid-template-columns:100%}
+    .hlayout.wide .hrail{flex-direction:row; overflow-x:auto; overflow-y:hidden}
+    .hlayout.wide .hrail > .pod{width:280px}
+    .hlayout.wide .hdiv{width:100%; height:6px; cursor:default; background:linear-gradient(180deg, transparent, rgba(201,143,46,.35))}
+  }
+  /* Narrow (<900px): rail full + detalle overlay deslizante. */
+  .hlayout.narrow{display:block; height:100%; overflow:auto}
+  .hlayout.narrow .hpanelhost{position:fixed; top:0; right:0; height:100dvh; width:min(94vw,760px);
+    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; border-left:3px solid var(--line)}
+  .hlayout.narrow .hpanelhost.open{transform:none}
+  .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
+  .scrim.open{opacity:1; pointer-events:auto}
   /* ===== MENÚ DE NUEVA SESIÓN ===== */
   .spawn{position:relative}
   .spawn-menu{position:absolute; top:calc(100% + 8px); right:0; z-index:10;
@@ -193,10 +137,24 @@
     padding:8px; display:flex; flex-direction:column; gap:6px; min-width:180px}
   .spawn-item{text-align:left; text-transform:none}
   .spawn-err{font-family:var(--f-body); font-size:14px; color:var(--red); padding:4px 2px}
-  .spawn-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 4px;
-  font: inherit;
-}
+  .spawn-input{display:block; width:100%; box-sizing:border-box; margin-bottom:4px; font:inherit}
+
+  /* ===== PANEL DE DETALLE (permanente) ===== */
+  .dpanel{display:flex; flex-direction:column; height:100%; min-height:0; background:#1a1428; position:relative; padding:18px}
+  .dpanel .dhead{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap}
+  .dpanel .face{width:96px; height:96px; image-rendering:pixelated; border:3px solid var(--soft);
+    box-shadow:var(--bevel), var(--glow-purple); background:#160e07; flex:0 0 auto}
+  .dpanel .dinfo{flex:1; min-width:0}
+  .dpanel .dname{font-family:var(--f-ui); font-size:17px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .dpanel .dinfo .action{font-family:var(--f-body); font-size:16px; color:#e0cfa6; line-height:1.3; margin-top:6px}
+  .dpanel .dinfo .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:8px; letter-spacing:.3px}
+  /* Terminal: superficie de trabajo, SIN scanlines, borde sobrio, texto nítido. */
+  .term{margin-top:16px; background:#160e07; border:2px solid var(--line);
+    padding:8px; flex:1; min-height:0; overflow:hidden; image-rendering:auto}
+  .dloot{position:absolute; left:18px; right:18px; top:18px; background:radial-gradient(circle at 50% 42%, rgba(92,55,20,.95), rgba(14,9,4,.97));
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:16px; border:2px solid var(--line); box-shadow:var(--bevel)}
+  .dloot.show{display:flex; animation:bfadein .2s}
+  .dloot .ttl{font-family:var(--f-ui); font-size:13px; color:var(--gold); text-shadow:var(--glow-gold)}
+  .dloot .mn{font-family:var(--f-body); font-size:17px; color:#fff}
+  .dloot .stat{font-family:var(--f-body); font-size:14px; color:#d8c39a} .dloot .stat b{color:var(--coral)}
+  .dloot .lootline{font-family:var(--f-body); font-size:13px; color:var(--green)} .dloot .lootline span{color:var(--dim)}
