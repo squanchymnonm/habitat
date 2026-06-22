@@ -54,7 +54,10 @@
   button.ctl:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 
   main{padding:clamp(18px,3.5vw,38px)}
-  .grid{display:grid; gap:24px; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); max-width:1500px; margin:0 auto}
+  /* Lista de pods. Por defecto: 1 columna con scroll vertical (landscape/narrow).
+     En portrait ancho se convierte en tira horizontal (ver bloque de orientación). */
+  .rail{display:flex; flex-direction:column; gap:14px; padding:14px; overflow:auto; height:100%}
+  .rail > .pod{flex:0 0 auto}
 
   .pod{position:relative; border:2px solid var(--line); border-radius:0; background:var(--surface);
     padding:12px 12px 10px; cursor:pointer; overflow:hidden;
@@ -90,7 +93,7 @@
   .action{font-family:var(--f-body); font-size:14px; color:#e0cfa6; margin-top:4px; min-height:0; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .pod.waiting .action{color:#ffd0d6}
   .since{font-family:var(--f-ui); font-size:11px; color:#8a7350; margin-top:8px; letter-spacing:.3px}
-  .empty{grid-column:1/-1; text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:48px 20px; font-family:var(--f-body); font-size:18px}
+  .empty{text-align:center; color:var(--dim); border:2px dashed var(--soft); padding:40px 18px; font-family:var(--f-body); font-size:16px; margin:auto}
   .empty code{color:var(--gold)}
   footer{max-width:1280px; margin:8px auto 0; padding:0 clamp(18px,3.5vw,38px) 30px; color:#5f5980; font-family:var(--f-ui); font-size:11px; letter-spacing:.3px}
 
