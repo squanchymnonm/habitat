@@ -420,6 +420,45 @@ test('POST /kill de sesión por rama remueve el worktree (best-effort)', async (
   server.close();
 });
 
+test('POST /spawn de proyecto contenedor llama containerWorktreeAdd y abre tmux en wtPath', async () => {
+  const seenTmux = [];
+  const seenContainer = [];
+  const tmux = { listSessions: async () => [], newTmuxSession: async (n, d) => { seenTmux.push([n, d]); return true; } };
+  const git = {
+    findNestedRepos: async () => ['back', 'front'],
+    containerWorktreeAdd: async (...a) => { seenContainer.push(a); return true; },
+  };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x' }),
+  });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.name, 'proj-api-feature-x');
+  assert.deepEqual(seenContainer, [[
+    '/home/u/proj-api', 'feature/x', '/home/u/habitat-worktrees/proj-api/feature-x', ['back', 'front'],
+  ]]);
+  assert.deepEqual(seenTmux, [['proj-api-feature-x', '/home/u/habitat-worktrees/proj-api/feature-x']]);
+  server.close();
+});
+
+test('POST /spawn de contenedor: fallo de containerWorktreeAdd -> 500', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = { findNestedRepos: async () => ['back'], containerWorktreeAdd: async () => false };
+  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feat' }),
+  });
+  assert.equal(r.status, 500);
+  server.close();
+});
+
 test('POST /kill de sesión plana (no worktree) no toca el worktree', async () => {
   const seenRemove = [];
   const tmux = {

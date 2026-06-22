@@ -9,7 +9,7 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, worktreeRemove, validBranch } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { CHARACTERS } from './characters.js';
 
@@ -32,7 +32,8 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, ...gitOverrides };
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -112,11 +113,15 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
           res.writeHead(400).end(); return;
         }
         const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
+        const nested = await git.findNestedRepos(dir);
         const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
         const existing = await tmux.listSessions();
         if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
         if (char) store.setPendingChar(tmuxName, char);
-        if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
+        const ok = nested.length
+          ? await git.containerWorktreeAdd(dir, branch, path, nested) // base por repo (origin/HEAD); se ignora `base`
+          : await git.worktreeAdd(dir, branch, base, path);
+        if (!ok) { res.writeHead(500).end(); return; }
         if (!(await tmux.newTmuxSession(tmuxName, path))) { res.writeHead(500).end(); return; }
         announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
