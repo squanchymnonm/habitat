@@ -5,7 +5,6 @@ import { STATUS_LABEL, type FightResult } from '../types'
 import { faceFor, ago, fmt } from '../sprites'
 import { useTerminal } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
-import MiniArena from './MiniArena.vue'
 
 const store = useSessions()
 const { canSpawn, kill } = useProjects()
@@ -41,7 +40,6 @@ defineExpose({ fit })
     <template v-if="store.selected">
       <div class="dhead crt">
         <img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" />
-        <MiniArena class="dmini" :session="store.selected" :height="64" />
         <div class="dinfo">
           <div class="dname">
             {{ store.selected.name }}
@@ -70,5 +68,4 @@ defineExpose({ fit })
   font-family: var(--f-ui); font-size: 11px; padding: 6px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
 }
 .killsession:hover { background: #7a2a2a; }
-.dmini { flex: 0 0 auto; width: 120px; }
 </style>

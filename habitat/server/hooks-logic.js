@@ -133,13 +133,18 @@ export function applyEvent(store, payload, deps) {
     }
     case 'PreCompact': {
       s._resting = true;
-      s.stamina = 5;
+      // No clavar un valor mágico: la stamina = contexto restante real. Al compactar
+      // el contexto está casi lleno, así que naturalmente queda baja, y se recupera
+      // sola en el próximo evento cuando el contexto compactado baja.
+      recomputeStamina();
       setStatus(s, 'working', 'descansando (compactando)', now);
       break;
     }
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
+      // refrescar stamina al cerrar el turno (refleja el contexto ya compactado)
+      recomputeStamina();
       s.monster = null;
       break;
     }
