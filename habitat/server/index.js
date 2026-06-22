@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
+import { createSettings } from './settings.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
@@ -32,7 +33,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
+export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -96,6 +97,23 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/settings') {
+      if (!authorize(req, res)) return;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(settingsStore.get()));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/settings') {
+      if (!authorize(req, res)) return;
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      if (!settingsStore.set(body)) { res.writeHead(400).end(); return; }
+      const settings = settingsStore.get();
+      hub.broadcast({ type: 'settings', settings });
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(settings));
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/spawn') {
       if (!authorize(req, res)) return;
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
@@ -106,6 +124,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
       const char = body && body.char;
       if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
+      const { permissionMode } = settingsStore.get(); // setting global: aplica a toda sesión nueva
       const branch = body && body.branch;
       if (branch != null && branch !== '') {
         if (typeof branch !== 'string' || !validBranch(branch)) {
@@ -117,7 +136,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
         if (char) store.setPendingChar(tmuxName, char);
         if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
-        if (!(await tmux.newTmuxSession(tmuxName, path))) { res.writeHead(500).end(); return; }
+        if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
         announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
         return;
@@ -126,7 +145,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const existing = await tmux.listSessions();
       if (existing.includes(name)) { res.writeHead(409).end(); return; }
       if (char) store.setPendingChar(name, char);
-      const ok = await tmux.newTmuxSession(name, dir);
+      const ok = await tmux.newTmuxSession(name, dir, undefined, { permissionMode });
       if (!ok) { res.writeHead(500).end(); return; }
       announcePending(name, { name, project: name, char });
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
@@ -183,7 +202,8 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
 // arranque real
 if (import.meta.url === `file://${process.argv[1]}`) {
   const store = createStore({ persistPath: config.STATE_PATH });
-  const { server } = createApp({ config, store });
+  const settingsStore = createSettings({ persistPath: config.SETTINGS_PATH });
+  const { server } = createApp({ config, store, settingsStore });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
   });
