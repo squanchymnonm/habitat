@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { WebSocket } from 'ws';
 import { createStore, newSession } from './state.js';
-import { attachTerm } from './term.js';
+import { attachTerm, attachArgs } from './term.js';
 
 function listen(server) {
   return new Promise((res) => server.listen(0, '127.0.0.1', () => res(server.address().port)));
@@ -79,4 +79,11 @@ test('attachTerm: id desconocido cierra con 1008', async () => {
   assert.equal(code, 1008);
 
   hub.close(); server.close();
+});
+
+test('attachArgs encadena set-option mouse on antes del attach', () => {
+  assert.deepEqual(
+    attachArgs('api'),
+    ['set-option', '-t', 'api', 'mouse', 'on', ';', 'attach-session', '-t', 'api'],
+  );
 });

@@ -3,13 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
-import { createStore } from './state.js';
+import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
 import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
+import { worktreeAdd, worktreeRemove, validBranch } from './git.js';
+import { worktreePaths, worktreeName } from './worktree.js';
 import { CHARACTERS } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -31,7 +33,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession } }) {
+export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -42,6 +44,22 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
   }
 
   let hub;
+  // Pod provisional: la sesión tmux ya existe pero claude todavía no disparó SessionStart
+  // (típicamente esperando el prompt "do you trust this folder?" en un worktree nuevo).
+  // Mostramos el pod ya, con su terminal apuntando al tmux, para que aceptes desde ahí.
+  // SessionStart luego lo adopta (lo reemplaza por la sesión real).
+  function announcePending(tmuxName, fields) {
+    const s = newSession(`pending:${tmuxName}`, {
+      tmux: tmuxName,
+      status: 'waiting',
+      action: 'aceptá la confianza en la terminal',
+      ...fields,
+    });
+    store.upsert(s);
+    store.persist();
+    if (hub) hub.broadcast({ type: 'session', session: snapOf(s) });
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
@@ -50,11 +68,13 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
-        const { session, fightResult } = applyEvent(store, payload, {
+        const { session, fightResult, removed } = applyEvent(store, payload, {
           readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+          worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
         if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+        if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
@@ -104,13 +124,30 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
       const char = body && body.char;
       if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
+      const { permissionMode } = settingsStore.get(); // setting global: aplica a toda sesión nueva
+      const branch = body && body.branch;
+      if (branch != null && branch !== '') {
+        if (typeof branch !== 'string' || !validBranch(branch)) {
+          res.writeHead(400).end(); return;
+        }
+        const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
+        const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
+        const existing = await tmux.listSessions();
+        if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
+        if (char) store.setPendingChar(tmuxName, char);
+        if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
+        if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
+        announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
+        return;
+      }
       const name = basename(dir);
       const existing = await tmux.listSessions();
       if (existing.includes(name)) { res.writeHead(409).end(); return; }
       if (char) store.setPendingChar(name, char);
-      const { permissionMode } = settingsStore.get();
       const ok = await tmux.newTmuxSession(name, dir, undefined, { permissionMode });
       if (!ok) { res.writeHead(500).end(); return; }
+      announcePending(name, { name, project: name, char });
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
       return;
     }
@@ -125,6 +162,16 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
+      // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
+      // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
+      if (config.WORKTREES_DIR && s.project && s.branch && s.tmux && s.tmux !== s.project) {
+        const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
+        if (projectDir) {
+          const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
+          await git.worktreeRemove(projectDir, path);
+        }
+      }
       store.remove(id); // ya persiste a disco
       hub.broadcast({ type: 'remove', id });
       res.writeHead(200).end();

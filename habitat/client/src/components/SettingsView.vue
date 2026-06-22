@@ -31,7 +31,7 @@ function onChange(e: Event) {
 </template>
 
 <style scoped>
-.settings { max-width: 560px; }
+.settings { max-width: 560px; padding: clamp(18px, 3.5vw, 38px); }
 .settings h2 { font-family: var(--f-logo); margin: 0 0 18px; }
 .row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .row label { font-family: var(--f-ui); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
