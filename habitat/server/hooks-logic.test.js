@@ -263,12 +263,13 @@ test('/clear reusa el pod (misma tmux), lo rekeyea y recarga stamina; no deja po
     deps({ contextTokens: 160000, totalTokens: 5000 }));
   // /clear: SessionEnd (reason clear) de la vieja + SessionStart (source clear) de la nueva, mismo cwd
   applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
-  const { session } = applyEvent(store, {
+  const { session, removed } = applyEvent(store, {
     session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
   }, deps(null));
 
   assert.equal(store.all().length, 1, 'un solo pod, sin caídos');
   assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(removed, 's1', 'avisa al front que borre la card del id viejo (rekey -> remove)');
   assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
   assert.equal(session.name, 'api', 'mismo proyecto/tmux');
   assert.notEqual(session.status, 'offline');
@@ -284,12 +285,13 @@ test('/clear bajo worktree reusa el pod (match por tmux, no por basename)', () =
     { ...deps(null), worktreeName: wt });
   // /clear sobre el MISMO worktree: nuevo session_id, source clear
   applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
-  const { session } = applyEvent(store, {
+  const { session, removed } = applyEvent(store, {
     session_id: 's2', cwd, source: 'clear', hook_event_name: 'SessionStart',
   }, { ...deps(null), worktreeName: wt });
 
   assert.equal(store.all().length, 1, 'un solo pod, sin duplicado');
   assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(removed, 's1', 'avisa al front que borre la card del id viejo (rekey -> remove)');
   assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
   assert.equal(session.tmux, 'rpg-feature-x', 'misma tmux');
 });
