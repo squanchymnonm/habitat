@@ -104,7 +104,7 @@ test('worktreeAdd no secuestra una rama en uso en otra ruta -> false', async () 
 test('worktreeRemove ejecuta git worktree remove y devuelve true', async () => {
   const calls = [];
   const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
-  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', exec), true);
+  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', {}, exec), true);
   assert.deepEqual(calls.at(-1), [
     'git', '-C', '/proj', 'worktree', 'remove', '/wt/proj/feat',
   ]);
@@ -113,11 +113,20 @@ test('worktreeRemove ejecuta git worktree remove y devuelve true', async () => {
 test('worktreeRemove rechaza path con prefijo - (flag smuggling) sin ejecutar', async () => {
   let called = false;
   const exec = async () => { called = true; return ''; };
-  assert.equal(await worktreeRemove('/proj', '-rf', exec), false);
+  assert.equal(await worktreeRemove('/proj', '-rf', {}, exec), false);
   assert.equal(called, false);
 });
 
 test('worktreeRemove ante fallo de git (worktree sucio) devuelve false', async () => {
   const exec = async () => { throw new Error('contains modified or untracked files'); };
-  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', exec), false);
+  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', {}, exec), false);
+});
+
+test('worktreeRemove con force:true agrega --force', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  assert.equal(await worktreeRemove('/proj', '/wt/proj/feat', { force: true }, exec), true);
+  assert.deepEqual(calls.at(-1), [
+    'git', '-C', '/proj', 'worktree', 'remove', '--force', '/wt/proj/feat',
+  ]);
 });

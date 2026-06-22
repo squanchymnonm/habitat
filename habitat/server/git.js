@@ -60,13 +60,17 @@ export async function worktreeAdd(projectDir, branch, base, path, exec = default
   }
 }
 
-// Quita el worktree al cerrar la sesión. Sin --force a propósito: si el worktree
-// tiene cambios sin commitear git rechaza el remove y lo dejamos en disco (no
-// destruimos trabajo); worktreeAdd lo reutilizará en el próximo spawn de esa rama.
-export async function worktreeRemove(projectDir, path, exec = defaultExec) {
+// Quita el worktree al cerrar la sesión. Sin --force a propósito (default): si el worktree
+// tiene cambios sin commitear git rechaza el remove y lo dejamos en disco (no destruimos
+// trabajo); worktreeAdd lo reutilizará en el próximo spawn de esa rama. El rollback del
+// spawn (worktrees recién creados, sin trabajo) sí pasa { force: true }.
+export async function worktreeRemove(projectDir, path, { force = false } = {}, exec = defaultExec) {
   if (String(path).startsWith('-')) return false;
   try {
-    await exec('git', ['-C', projectDir, 'worktree', 'remove', path]);
+    const args = ['-C', projectDir, 'worktree', 'remove'];
+    if (force) args.push('--force');
+    args.push(path);
+    await exec('git', args);
     return true;
   } catch {
     return false;
