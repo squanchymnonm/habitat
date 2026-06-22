@@ -8,9 +8,10 @@ import { readUsage } from './transcript.js';
 import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
-import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession } from './tmux.js';
+import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { worktreeAdd, validBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
+import { CHARACTERS } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -31,7 +32,7 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, tmux = { listSessions, newTmuxSession }, git = { worktreeAdd } }) {
+export function createApp({ config, store, tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd } }) {
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -54,8 +55,9 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
           readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
-        hub.broadcast({ type: 'session', session: snapOf(session) });
+        if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
+        store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
       return;
@@ -85,6 +87,8 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const dir = body && body.dir;
       if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
       if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      const char = body && body.char;
+      if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
       const branch = body && body.branch;
       if (branch != null && branch !== '') {
         if (typeof branch !== 'string' || !validBranch(branch)) {
@@ -94,6 +98,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
         const existing = await tmux.listSessions();
         if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
+        if (char) store.setPendingChar(tmuxName, char);
         if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
         if (!(await tmux.newTmuxSession(tmuxName, path))) { res.writeHead(500).end(); return; }
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
@@ -102,9 +107,26 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       const name = basename(dir);
       const existing = await tmux.listSessions();
       if (existing.includes(name)) { res.writeHead(409).end(); return; }
+      if (char) store.setPendingChar(name, char);
       const ok = await tmux.newTmuxSession(name, dir);
       if (!ok) { res.writeHead(500).end(); return; }
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/kill') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const id = body && body.id;
+      if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
+      const s = store.get(id);
+      if (!s) { res.writeHead(404).end(); return; }
+      await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      store.remove(id); // ya persiste a disco
+      hub.broadcast({ type: 'remove', id });
+      res.writeHead(200).end();
       return;
     }
 
@@ -131,7 +153,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
 
 // arranque real
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const store = createStore();
+  const store = createStore({ persistPath: config.STATE_PATH });
   const { server } = createApp({ config, store });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);

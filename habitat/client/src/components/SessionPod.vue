@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useSessions } from '../stores/sessions'
+import { useProjects } from '../composables/useProjects'
 import { STATUS_LABEL, type Session, type Status, type FightResult } from '../types'
 import { heroIdle, monsterSprite, bossSprite, fmt, ago } from '../sprites'
 import Sprite from './Sprite.vue'
@@ -8,6 +9,12 @@ import StaminaOrb from './StaminaOrb.vue'
 
 const props = defineProps<{ session: Session }>()
 const store = useSessions()
+const { canSpawn, kill } = useProjects()
+function requestClose() {
+  if (confirm(`¿Cerrar la sesión "${props.session.name}"? Se perderá el trabajo en curso.`)) {
+    kill(props.session.id)
+  }
+}
 
 // Emote (globo de diálogo) que comunica el estado del personaje.
 const EMOTE: Partial<Record<Status, number>> = {
@@ -88,6 +95,7 @@ function select() {
     <div class="ring"></div>
     <div class="badge ok">✓</div>
     <div class="badge err">!</div>
+    <button v-if="canSpawn" class="killx" aria-label="cerrar sesión" @click.stop="requestClose">×</button>
     <div class="stage">
       <div class="pcount" v-if="counter">{{ counter }}</div>
       <div class="stamina-slot"><StaminaOrb :value="stam" /></div>
@@ -101,7 +109,7 @@ function select() {
       <Sprite
         class="fighter phero"
         :class="{ flinch }"
-        :src="heroIdle(session.name)"
+        :src="heroIdle(session.name, session.char)"
         :height="88"
         mode="static"
         :frame="monster ? 3 : 0"
@@ -166,6 +174,27 @@ function select() {
   50% {
     transform: translateY(-6px);
   }
+}
+.killx {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #5a1f1f;
+  border: 1px solid #a44;
+  color: #f9c;
+  font-size: 13px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 5;
+}
+.pod:hover .killx,
+.pod:focus-within .killx {
+  opacity: 1;
 }
 .chest {
   width: 64px;

@@ -33,6 +33,13 @@ function ensureMonster(s) {
 export function applyEvent(store, payload, deps) {
   const { readUsage, maxContext, now } = deps;
   const ev = payload.hook_event_name;
+
+  // SessionEnd de una sesión que ya no existe (p.ej. la matamos desde la GUI): no la
+  // recreamos sólo para marcarla offline. ensure() crearía un pod zombie.
+  if (ev === 'SessionEnd' && !store.get(payload.session_id)) {
+    return { session: null, fightResult: null };
+  }
+
   const s = ensure(store, payload);
   let fightResult = null;
 
@@ -55,6 +62,8 @@ export function applyEvent(store, payload, deps) {
         s.project = s.name;
         if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
       }
+      const pendingChar = store.takePendingChar(s.tmux || s.name);
+      if (pendingChar) s.char = pendingChar;
       setStatus(s, 'idle', 'sesión iniciada', now);
       s.monster = null;
       break;
