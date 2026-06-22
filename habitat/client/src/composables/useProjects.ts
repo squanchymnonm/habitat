@@ -29,22 +29,23 @@ export function useProjects() {
     }
   }
 
-  async function spawn(dir: string): Promise<boolean> {
+  async function spawn(dir: string, branch: string, base: string): Promise<boolean> {
     error.value = ''
     try {
       const res = await fetch('/spawn', {
         method: 'POST',
         headers: { ...authHeaders(), 'content-type': 'application/json' },
-        body: JSON.stringify({ dir }),
+        body: JSON.stringify({ dir, branch, base }),
       })
       if (res.ok) return true
       error.value =
-        res.status === 409 ? 'ya hay una sesión para ese proyecto'
+        res.status === 409 ? 'ya hay un agente en esa rama'
+        : res.status === 400 ? 'nombre de rama inválido'
         : res.status === 403 ? 'no permitido'
-        : 'no se pudo crear la sesión'
+        : 'no se pudo crear el agente'
       return false
     } catch {
-      error.value = 'no se pudo crear la sesión'
+      error.value = 'no se pudo crear el agente'
       return false
     }
   }
