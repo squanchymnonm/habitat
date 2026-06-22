@@ -154,3 +154,30 @@ test('Stop a idle y SessionEnd limpian el monstruo', () => {
   r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
   assert.equal(r.session.monster, null);
 });
+
+test('SessionStart consume pending char y lo asigna a s.char (one-shot)', () => {
+  const store = createStore();
+  store.setPendingChar('proj-api', 'Knight');
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj-api', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.char, 'Knight');
+  assert.equal(store.takePendingChar('proj-api'), undefined); // ya fue consumido
+});
+
+test('SessionStart sin pending char deja char undefined', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj-api', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.char, undefined);
+});
+
+test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 'ghost', hook_event_name: 'SessionEnd',
+  }, deps(null));
+  assert.equal(session, null);
+  assert.equal(store.get('ghost'), undefined);
+});

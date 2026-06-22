@@ -4,8 +4,17 @@ import { useSessions } from '../stores/sessions'
 import { STATUS_LABEL } from '../types'
 import { faceFor, ago } from '../sprites'
 import { useTerminal } from '../composables/useTerminal'
+import { useProjects } from '../composables/useProjects'
 
 const store = useSessions()
+const { canSpawn, kill } = useProjects()
+function closeSession() {
+  const s = store.selected
+  if (!s) return
+  if (confirm(`¿Cerrar la sesión "${s.name}"? Se perderá el trabajo en curso.`)) {
+    kill(s.id)
+  }
+}
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
 const { fit } = useTerminal(termEl, selectedId)
@@ -47,7 +56,7 @@ defineExpose({ fit })
     <div class="dragx" @mousedown="startResize"></div>
     <template v-if="store.selected">
       <div class="dhead">
-        <img class="face" :src="faceFor(store.selected.name)" alt="" />
+        <img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" />
         <div class="dinfo">
           <div class="dname">
             {{ store.selected.name }}
@@ -60,8 +69,25 @@ defineExpose({ fit })
       <div class="dmeta">
         <div class="action">{{ store.selected.action }}</div>
         <div class="since">ACTIVA HACE {{ ago(store.selected.since) }}</div>
+        <button v-if="canSpawn" class="killsession" @click="closeSession">✕ CERRAR SESIÓN</button>
       </div>
       <div ref="termEl" class="term" aria-label="terminal de la sesión"></div>
     </template>
   </aside>
 </template>
+
+<style scoped>
+.killsession {
+  margin-top: 8px;
+  background: #5a1f1f;
+  border: 1px solid #a44;
+  color: #f9c;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.killsession:hover {
+  background: #7a2a2a;
+}
+</style>
