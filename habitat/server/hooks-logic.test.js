@@ -187,6 +187,24 @@ test('SessionStart sin worktreeName mantiene basename y sin s.tmux', () => {
   assert.equal(session.tmux, undefined);
 });
 
+test('SessionStart con payload.tmux (sesión manual en tmux) setea s.tmux', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart', tmux: 'mi-sesion',
+  }, deps(null));
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.tmux, 'mi-sesion');
+});
+
+test('SessionStart bajo worktree ignora payload.tmux (gana el worktree)', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd, hook_event_name: 'SessionStart', tmux: 'otra',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
 test('SessionStart bajo worktree consume pending char por s.tmux', () => {
   const store = createStore();
   store.setPendingChar('rpg-feature-x', 'Knight');
