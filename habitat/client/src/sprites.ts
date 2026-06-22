@@ -28,12 +28,16 @@ export function faceFor(name: string, char?: string): string {
   return `assets/char/${resolveChar(name, char)}/face.png`
 }
 
+// Por ahora solo existe el idle procedural (bob de respiración) para los 16
+// personajes; las acciones (work/waiting/done/error) están diferidas hasta tener
+// arte generado por IA. Mientras tanto todos los estados usan el idle. Cuando se
+// agregue anim_work.png/etc., re-apuntar cada estado a su archivo.
 export const STATUS_ANIM: Record<Status, string> = {
   idle: 'anim_idle',
-  working: 'anim_work',
-  waiting: 'anim_waiting',
-  done: 'anim_done',
-  error: 'anim_error',
+  working: 'anim_idle',
+  waiting: 'anim_idle',
+  done: 'anim_idle',
+  error: 'anim_idle',
   offline: 'anim_idle',
 }
 

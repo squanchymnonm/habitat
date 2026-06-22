@@ -14,6 +14,7 @@ export function buildAnimateRequest({ description, action, refBase64 }) {
   return {
     image_size: { width: 64, height: 64 },
     description,
+    negative_description: 'background, scenery, ground, landscape, frame, border, shadow',
     action,
     view: 'high top-down',
     direction: 'south',
