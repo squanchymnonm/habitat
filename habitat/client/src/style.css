@@ -144,7 +144,7 @@
 
   /* ===== PANEL DE DETALLE (permanente) ===== */
   .dpanel{display:flex; flex-direction:column; height:100%; min-height:0; background:#1a1428; position:relative; padding:18px}
-  .dpanel .dhead{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap}
+  .dpanel .dhead{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; padding:12px; border-radius:8px}
   .dpanel .face{width:96px; height:96px; image-rendering:pixelated; border:3px solid var(--soft);
     box-shadow:var(--bevel), var(--glow-purple); background:#160e07; flex:0 0 auto}
   .dpanel .dinfo{flex:1; min-width:0}

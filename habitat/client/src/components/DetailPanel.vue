@@ -7,10 +7,14 @@ import { useTerminal } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
 
 const store = useSessions()
-const { canSpawn, kill } = useProjects()
+const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
 const { fit } = useTerminal(termEl, selectedId)
+const headTint = computed(() => {
+  const c = store.selected ? colorForProject(store.selected.project) : ''
+  return c ? { background: `color-mix(in srgb, ${c} 14%, var(--surface))` } : {}
+})
 
 function closeSession() {
   const s = store.selected
@@ -38,7 +42,7 @@ defineExpose({ fit })
 <template>
   <div class="dpanel">
     <template v-if="store.selected">
-      <div class="dhead crt">
+      <div class="dhead crt" :style="headTint">
         <img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" />
         <div class="dinfo">
           <div class="dname">
