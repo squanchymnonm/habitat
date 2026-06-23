@@ -148,7 +148,11 @@ test('GET /projects lista la whitelist cuando está habilitado', async () => {
   const r = await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth });
   const body = await r.json();
   assert.equal(body.canSpawn, true);
-  assert.deepEqual(body.projects, [{ name: 'proj-api', dir: '/home/u/proj-api' }]);
+  assert.equal(body.projects.length, 1);
+  assert.equal(body.projects[0].dir, '/home/u/proj-api');
+  assert.equal(body.projects[0].name, 'proj-api');
+  assert.ok(typeof body.projects[0].color === 'string' && body.projects[0].color.startsWith('#'));
+  assert.deepEqual(body.projects[0].chars, []);
   server.close();
 });
 

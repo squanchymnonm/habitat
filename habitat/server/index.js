@@ -5,6 +5,7 @@ import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
+import { createProjects } from './projects.js';
 import { readUsage } from './transcript.js';
 import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
@@ -33,8 +34,9 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, ...gitOverrides };
+  const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -111,9 +113,9 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
 
     if (req.method === 'GET' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
-      const projects = (config.PROJECTS || []).map((dir) => ({ name: basename(dir), dir }));
-      const canSpawn = !!(config.ALLOW_SPAWN && projects.length > 0);
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects }));
+      const list = projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+      const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects: list }));
       return;
     }
 
@@ -245,7 +247,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
   const store = createStore({ persistPath: config.STATE_PATH });
   const settingsStore = createSettings({ persistPath: config.SETTINGS_PATH });
-  const { server } = createApp({ config, store, settingsStore });
+  const projectsStore = createProjects({ persistPath: config.PROJECTS_STATE, seed: config.PROJECTS });
+  const { server } = createApp({ config, store, settingsStore, projectsStore });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
   });
