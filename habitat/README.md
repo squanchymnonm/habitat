@@ -12,6 +12,31 @@ Monitor pixel-art de sesiones de Claude Code. Ver `docs/superpowers/specs/2026-0
     HABITAT_TOKEN=<tu-token> npm start
     # GUI en http://127.0.0.1:8377/?token=<tu-token>  (bind loopback; exponer solo por VPN)
 
+## Producción bajo systemd (IMPORTANTE: no matar las sesiones al reiniciar)
+
+El server crea las sesiones con `tmux new-session -d`, así que el **daemon de tmux queda
+como descendiente del proceso del server**. Si el server corre como servicio systemd con el
+`KillMode` por defecto (`control-group`), al **parar/reiniciar el servicio systemd manda
+SIGTERM a TODO el cgroup** — incluido el server tmux. Resultado: cada deploy o crash-restart
+**desconecta todas las sesiones a la vez** (las terminales mueren y los `claude` reciben SIGHUP).
+
+Para evitarlo, el unit DEBE usar `KillMode=process` (systemd señaliza sólo al proceso node;
+el server tmux sobrevive al restart):
+
+    [Service]
+    KillMode=process        # <-- crítico: que el restart no se lleve puesto el tmux server
+    Restart=on-failure
+    ExecStart=/usr/bin/node server/index.js
+
+Tras editar el unit: `systemctl --user daemon-reload && systemctl --user restart habitat`.
+
+Complementos ya en el código que refuerzan esto:
+- **Socket tmux dedicado** (`-L habitat`, configurable con `HABITAT_TMUX_SOCKET`): aísla las
+  sesiones del panel del tmux personal del usuario. El server sólo lista/mata lo suyo.
+- **El server no muere por un PTY roto**: las ops sobre el PTY van con `try/catch` y hay un
+  `uncaughtException`/`unhandledRejection` global. Una terminal muerta ya no tumba el server
+  (que, con el cgroup, equivalía a tumbar todas las sesiones).
+
 ## Desarrollo del front (HMR)
     cd habitat && HABITAT_TOKEN=<tu-token> npm start   # backend en :8377
     cd habitat/client && npm run dev                 # Vite en :5173, proxea /ws y /preview al backend

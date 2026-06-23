@@ -213,6 +213,17 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
 
 // arranque real
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // Red de seguridad: una excepción no capturada (p.ej. un PTY que muere en pleno
+  // write/resize -> EBADF) NO debe tumbar el proceso. Si cayera, systemd lo reinicia y
+  // —por KillMode=control-group— ese restart se llevaría puesto el server tmux y TODAS
+  // las sesiones. Preferimos loguear y seguir vivos: el panel es un monitor, no vale la
+  // pena morir por una terminal rota.
+  process.on('uncaughtException', (err) => {
+    console.error('[habitat] uncaughtException (ignorada, el server sigue):', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[habitat] unhandledRejection (ignorada, el server sigue):', reason);
+  });
   const store = createStore({ persistPath: config.STATE_PATH });
   const settingsStore = createSettings({ persistPath: config.SETTINGS_PATH });
   const { server } = createApp({ config, store, settingsStore });
