@@ -1,10 +1,31 @@
 #!/usr/bin/env bash
 # Lee el JSON del hook por stdin y lo reenvía al servicio hábitat.
 # Requiere HABITAT_TOKEN y (opcional) HABITAT_URL en el entorno.
+#
+# Sólo reporta sesiones que corren DENTRO de tmux: el panel interactúa con cada
+# sesión vía `tmux attach` (terminal) y `tmux send-keys` (chat), así que una
+# sesión que no vive en tmux no sería manejable desde el panel y no tiene sentido
+# mostrarla como pod. Si hay tmux, inyectamos su nombre en el payload ("tmux":...)
+# para que el server lo guarde en s.tmux y el attach funcione.
+#
 # Diseñado para NUNCA bloquear Claude Code: siempre sale 0.
 URL="${HABITAT_URL:-http://127.0.0.1:8377/hooks}"
 TOKEN="${HABITAT_TOKEN:-}"
 payload="$(cat || true)"
+
+# Sin tmux -> no reportamos nada (no aparece pod).
+[ -n "$TMUX" ] || exit 0
+tmux_name="$(tmux display-message -p '#S' 2>/dev/null || true)"
+[ -n "$tmux_name" ] || exit 0
+
+# Inyectar "tmux":"<name>" justo después de la primera llave del JSON (sin jq).
+# Escapamos backslash y comilla para no romper el JSON.
+esc="${tmux_name//\\/\\\\}"
+esc="${esc//\"/\\\"}"
+case "$payload" in
+  '{'*) payload="{\"tmux\":\"$esc\",${payload#?}" ;;
+esac
+
 curl -fsS -m 3 -X POST "$URL" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${TOKEN}" \

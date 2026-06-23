@@ -1,0 +1,53 @@
+name: deploy-prod
+
+# Auto-deploy de Habitat: al mergear un PR a main (push), la máquina de
+# producción (runner self-hosted, label habitat-prod) actualiza el código,
+# reinstala dependencias, rebuildea el front y reinicia el servicio.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # permite disparo manual desde la UI / gh
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false   # nunca cortar un deploy a la mitad
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, habitat-prod]
+    steps:
+      - name: Deploy a producción
+        # Sin actions/checkout a propósito: operamos directo sobre la
+        # instancia productiva en disco, no sobre el checkout del runner.
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
+          PROD=/home/mnonm/HabitatProdu
+          echo "==> Actualizando $PROD a origin/main"
+          cd "$PROD"
+          # Un branch local llamado 'origin/main' (refs/heads/origin/main) sombrea a la
+          # rama remota (refs/remotes/origin/main) por las reglas de desambiguación de git
+          # y haría que 'origin/main' apunte al commit equivocado. Lo borramos si existe.
+          git rev-parse --verify --quiet refs/heads/origin/main && git branch -D origin/main || true
+          git fetch --prune origin main
+          # Reseteamos a FETCH_HEAD (lo recién fetcheado de origin main): ref inequívoco,
+          # inmune a tags/branches locales con nombres colisionantes.
+          git checkout -B main FETCH_HEAD
+          git reset --hard FETCH_HEAD
+          echo "    HEAD ahora en: $(git rev-parse --short HEAD)"
+
+          echo "==> npm install (server)"
+          cd "$PROD/habitat"
+          npm install --no-audit --no-fund
+
+          echo "==> npm install + build (front)"
+          cd "$PROD/habitat/client"
+          npm install --no-audit --no-fund
+          npm run build
+
+          echo "==> Reiniciando servicio habitat"
+          systemctl --user restart habitat
+          sleep 2
+          systemctl --user is-active habitat
+          echo "==> Deploy OK"

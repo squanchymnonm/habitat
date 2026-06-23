@@ -1,5 +1,6 @@
 import { useSessions } from '../stores/sessions'
 import type { ServerMessage, ClientMessage } from '../types'
+import { applyServerSettings } from './useSettings'
 
 // Socket único a nivel de app. Bidireccional: recibe estado y permite enviar (chat, fase 2).
 let ws: WebSocket | null = null
@@ -16,6 +17,7 @@ function connect() {
     else if (msg.type === 'session') store.upsert(msg.session)
     else if (msg.type === 'remove') store.remove(msg.id)
     else if (msg.type === 'fightResult') store.fight(msg.id, msg.result)
+    else if (msg.type === 'settings') applyServerSettings(msg.settings)
   }
   ws.onclose = () => setTimeout(connect, 1500) // reconexión
 }

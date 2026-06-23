@@ -6,9 +6,18 @@ const defaultExec = async (file, args) => (await run(file, args)).stdout;
 // stdio: silenciar stderr (ej. "fatal: not a git repository") — el catch ya maneja el fallo.
 const defaultSyncExec = (file, args) => execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 
+// Socket tmux DEDICADO para hábitat. Todas las invocaciones van con `-L <socket>` para
+// aislar las sesiones del panel del tmux por defecto del usuario (y de cualquier `tmux`
+// suelto que corra un agente fuera de una sesión). Así `listSessions`/`killTmuxSession`
+// nunca tocan sesiones ajenas, y un re-spawn no pisa el tmux personal del usuario.
+// Configurable por si se quiere otro socket (o el default, con '').
+export const TMUX_SOCKET = process.env.HABITAT_TMUX_SOCKET ?? 'habitat';
+// Prefijo de args: `-L <socket>` antepuesto a cada comando (vacío si socket = '').
+export const tmuxArgs = (...args) => (TMUX_SOCKET ? ['-L', TMUX_SOCKET, ...args] : [...args]);
+
 export async function capturePane(name, lines, exec = defaultExec) {
   try {
-    const out = await exec('tmux', ['capture-pane', '-p', '-t', name]);
+    const out = await exec('tmux', tmuxArgs('capture-pane', '-p', '-t', name));
     const arr = String(out).replace(/\n+$/, '').split('\n');
     return arr.slice(-lines).join('\n');
   } catch {
@@ -18,7 +27,7 @@ export async function capturePane(name, lines, exec = defaultExec) {
 
 export async function listSessions(exec = defaultExec) {
   try {
-    const out = await exec('tmux', ['ls', '-F', '#{session_name}']);
+    const out = await exec('tmux', tmuxArgs('ls', '-F', '#{session_name}'));
     return String(out).split('\n').map((l) => l.trim()).filter(Boolean);
   } catch {
     return [];
@@ -30,8 +39,8 @@ export async function sendKeys(name, text, exec = defaultExec) {
   const t = String(text || '').trim();
   if (!t) return false;
   try {
-    await exec('tmux', ['send-keys', '-t', name, '-l', t]);
-    await exec('tmux', ['send-keys', '-t', name, 'Enter']);
+    await exec('tmux', tmuxArgs('send-keys', '-t', name, '-l', t));
+    await exec('tmux', tmuxArgs('send-keys', '-t', name, 'Enter'));
     return true;
   } catch {
     return false;
@@ -49,11 +58,13 @@ export function gitBranch(cwd, exec = defaultSyncExec) {
 }
 
 // Crea una sesión tmux detached en `dir` y lanza claude dentro (vía shell de login,
-// para heredar PATH/rc y disparar los hooks de ~/.claude/settings.json).
-export async function newTmuxSession(name, dir, exec = defaultExec) {
+// para heredar PATH/rc y disparar los hooks de ~/.claude/settings.json). El
+// permissionMode (setting global) define el flag: 'default'/ausente => claude pelado.
+export async function newTmuxSession(name, dir, exec = defaultExec, { permissionMode } = {}) {
   try {
-    await exec('tmux', ['new-session', '-d', '-s', name, '-c', dir]);
-    await sendKeys(name, 'claude', exec);
+    await exec('tmux', tmuxArgs('new-session', '-d', '-s', name, '-c', dir));
+    const flag = permissionMode && permissionMode !== 'default' ? ` --permission-mode ${permissionMode}` : '';
+    await sendKeys(name, `claude${flag}`, exec);
     return true;
   } catch {
     return false;
@@ -64,7 +75,7 @@ export async function newTmuxSession(name, dir, exec = defaultExec) {
 // existe, exec tira y devolvemos false, pero el endpoint igual limpia el pod.
 export async function killTmuxSession(name, exec = defaultExec) {
   try {
-    await exec('tmux', ['kill-session', '-t', name]);
+    await exec('tmux', tmuxArgs('kill-session', '-t', name));
     return true;
   } catch {
     return false;

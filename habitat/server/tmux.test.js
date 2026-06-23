@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturePane, listSessions, sendKeys, gitBranch, newTmuxSession, killTmuxSession } from './tmux.js';
+import { capturePane, listSessions, sendKeys, gitBranch, newTmuxSession, killTmuxSession, tmuxArgs, TMUX_SOCKET } from './tmux.js';
 
 test('capturePane devuelve las últimas N líneas', async () => {
   const exec = async () => 'l1\nl2\nl3\nl4\nl5\n';
@@ -28,8 +28,8 @@ test('sendKeys manda el texto literal y luego Enter', async () => {
   const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
   const ok = await sendKeys('api', 'npm test', exec);
   assert.equal(ok, true);
-  assert.deepEqual(calls[0], ['tmux', 'send-keys', '-t', 'api', '-l', 'npm test']);
-  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'api', 'Enter']);
+  assert.deepEqual(calls[0], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'api', '-l', 'npm test']);
+  assert.deepEqual(calls[1], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'api', 'Enter']);
 });
 
 test('sendKeys ante error devuelve false', async () => {
@@ -58,15 +58,28 @@ test('gitBranch ante error devuelve cadena vacía', () => {
   assert.equal(gitBranch('/x', exec), '');
 });
 
-test('newTmuxSession crea sesión detached en dir y lanza claude', async () => {
+test('newTmuxSession sin opts lanza claude pelado', async () => {
   const calls = [];
   const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
   const ok = await newTmuxSession('proj', '/home/u/proj', exec);
   assert.equal(ok, true);
-  assert.deepEqual(calls[0], ['tmux', 'new-session', '-d', '-s', 'proj', '-c', '/home/u/proj']);
-  // luego send-keys del comando claude + Enter (vía sendKeys)
-  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'proj', '-l', 'claude']);
-  assert.deepEqual(calls[2], ['tmux', 'send-keys', '-t', 'proj', 'Enter']);
+  assert.deepEqual(calls[0], ['tmux', '-L', 'habitat', 'new-session', '-d', '-s', 'proj', '-c', '/home/u/proj']);
+  assert.deepEqual(calls[1], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'proj', '-l', 'claude']);
+  assert.deepEqual(calls[2], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'proj', 'Enter']);
+});
+
+test('newTmuxSession con permissionMode agrega el flag', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  await newTmuxSession('proj', '/home/u/proj', exec, { permissionMode: 'acceptEdits' });
+  assert.deepEqual(calls[1], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'proj', '-l', 'claude --permission-mode acceptEdits']);
+});
+
+test('newTmuxSession con modo default lanza claude pelado', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  await newTmuxSession('proj', '/home/u/proj', exec, { permissionMode: 'default' });
+  assert.deepEqual(calls[1], ['tmux', '-L', 'habitat', 'send-keys', '-t', 'proj', '-l', 'claude']);
 });
 
 test('newTmuxSession ante error de new-session devuelve false', async () => {
@@ -79,10 +92,17 @@ test('killTmuxSession arma kill-session -t name', async () => {
   const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
   const ok = await killTmuxSession('proj', exec);
   assert.equal(ok, true);
-  assert.deepEqual(calls[0], ['tmux', 'kill-session', '-t', 'proj']);
+  assert.deepEqual(calls[0], ['tmux', '-L', 'habitat', 'kill-session', '-t', 'proj']);
 });
 
 test('killTmuxSession ante error devuelve false', async () => {
   const exec = async () => { throw new Error('no session'); };
   assert.equal(await killTmuxSession('proj', exec), false);
+});
+
+test('tmuxArgs antepone el socket dedicado -L <socket> a cada comando', () => {
+  // Aísla las sesiones del panel del tmux default del usuario; el server sólo ve/mata lo suyo.
+  assert.equal(TMUX_SOCKET, 'habitat'); // default sin HABITAT_TMUX_SOCKET
+  assert.deepEqual(tmuxArgs('ls', '-F', '#{session_name}'), ['-L', 'habitat', 'ls', '-F', '#{session_name}']);
+  assert.deepEqual(tmuxArgs('kill-session', '-t', 'x'), ['-L', 'habitat', 'kill-session', '-t', 'x']);
 });

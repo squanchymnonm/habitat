@@ -6,7 +6,7 @@ const store = useSessions()
 </script>
 
 <template>
-  <div class="grid">
+  <div class="rail">
     <div v-if="!store.list.length" class="empty">
       No hay sesiones abiertas.<br />
       Arrancá una con <code>mono &lt;proyecto&gt;</code> en el server.

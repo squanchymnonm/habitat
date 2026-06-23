@@ -67,6 +67,20 @@ cp "$SRC/Items/Treasure/BigTreasureChest.png" "$DST/ui/chest.png"
 cp "$SRC/Items/Treasure/GoldCoin.png" "$DST/ui/coin.png"
 for i in $(seq 1 30); do cp "$SRC/Ui/Emote/emote$i.png" "$DST/emote/$i.png"; done
 
+# --- Animaciones de avatar generadas (canónicas en assets-src, fuera del pack) ---
+ANIM_SRC="$ROOT/habitat/assets-src/char"
+if [ -d "$ANIM_SRC" ]; then
+  for cdir in "$ANIM_SRC"/*/; do
+    c="$(basename "$cdir")"
+    [ -d "$DST/char/$c" ] || continue
+    for f in "$cdir"anim_*.png; do
+      [ -f "$f" ] || continue
+      cp "$f" "$DST/char/$c/"
+      copied=$((copied+1))
+    done
+  done
+fi
+
 echo "---"
 echo "copiados: $copied · saltados: $skipped"
 echo "chars: $(ls "$DST/char" | wc -l) · monsters: $(ls "$DST/monster" | wc -l) · bosses: $(ls "$DST/boss" | wc -l) · ui: $(ls "$DST/ui" | wc -l) · emotes: $(ls "$DST/emote" | wc -l)"
