@@ -9,6 +9,7 @@ import { createApp } from './index.js';
 import { createSettings } from './settings.js';
 import { PALETTE } from './palette.js';
 import { createProjects } from './projects.js';
+import { NAMES } from './characters.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -246,7 +247,26 @@ test('POST /spawn autogenera nombre cuando no se provee', async () => {
   });
   const body = await r.json();
   assert.equal(r.status, 200);
-  assert.equal(body.name, 'proj-api-mario');
+  assert.ok(NAMES.some((n) => body.name === `proj-api-${n}`), `${body.name} debería ser proj-api-<nombre de NAMES>`);
+  server.close();
+});
+
+test('POST /spawn autogenera nombre único global (no repite entre proyectos)', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = fakeGit();
+  const store = createStore();
+  // Sembrar TODOS los nombres base en otro proyecto distinto.
+  NAMES.forEach((n, i) => store.upsert(newSession(`seed-${i}`, { name: n, project: 'proj-other' })));
+  const { server } = createApp({ config: spawnConfig(), store, tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api' }),
+  });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  // Como TODOS los nombres base ya están usados (en otro proyecto), debe caer al fallback sufijado.
+  assert.match(body.name, /^proj-api-[a-z0-9]+-\d+$/);
   server.close();
 });
 
