@@ -10,7 +10,7 @@ import { applyEvent } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, worktreeRemove, validBranch } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { CHARACTERS } from './characters.js';
 
@@ -33,7 +33,8 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git = { worktreeAdd, worktreeRemove } }) {
+export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, ...gitOverrides };
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -131,11 +132,15 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
           res.writeHead(400).end(); return;
         }
         const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
+        const nested = await git.findNestedRepos(dir);
         const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
         const existing = await tmux.listSessions();
         if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
         if (char) store.setPendingChar(tmuxName, char);
-        if (!(await git.worktreeAdd(dir, branch, base, path))) { res.writeHead(500).end(); return; }
+        const ok = nested.length
+          ? await git.containerWorktreeAdd(dir, branch, path, nested) // base por repo (origin/HEAD); se ignora `base`
+          : await git.worktreeAdd(dir, branch, base, path);
+        if (!ok) { res.writeHead(500).end(); return; }
         if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
         announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
@@ -169,6 +174,13 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
         const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
         if (projectDir) {
           const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
+          const nested = await git.findNestedRepos(projectDir);
+          // Contenedor: remover primero los hijos (sin force: si hay cambios sin commitear git
+          // rechaza y se deja en disco), luego el padre. Si un hijo queda, el padre tampoco se
+          // borra (su carpeta no queda vacía) -> el conjunto sobrevive y un re-spawn lo reutiliza.
+          for (const name of nested) {
+            await git.worktreeRemove(join(projectDir, name), join(path, name));
+          }
           await git.worktreeRemove(projectDir, path);
         }
       }
