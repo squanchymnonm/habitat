@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useProjects } from '../composables/useProjects'
 import { CHARACTERS, faceFor } from '../sprites'
 
@@ -7,6 +7,8 @@ const { canSpawn, projects, error, spawn } = useProjects()
 const open = ref(false)
 const step = ref<'proj' | 'detail'>('proj')
 const pickedDir = ref('')
+const pickedChars = ref<string[]>([])
+const allowedChars = computed(() => (pickedChars.value.length ? pickedChars.value : CHARACTERS))
 const busy = ref(false)
 const branch = ref('')
 const base = ref('main')
@@ -18,6 +20,7 @@ function toggle() {
 }
 function pickProject(dir: string) {
   pickedDir.value = dir
+  pickedChars.value = projects.value.find((p) => p.dir === dir)?.chars ?? []
   branch.value = ''
   base.value = 'main'
   step.value = 'detail'
@@ -52,7 +55,7 @@ async function create(char?: string) {
           :disabled="busy"
           @click="pickProject(p.dir)"
         >
-          {{ p.name }}
+          <span class="proj-dot" :style="{ background: p.color }"></span>{{ p.name }}
         </button>
       </template>
 
@@ -63,7 +66,7 @@ async function create(char?: string) {
         <input class="spawn-input" v-model="base" placeholder="base" :disabled="busy" />
         <div class="spawn-chars">
           <button
-            v-for="c in CHARACTERS"
+            v-for="c in allowedChars"
             :key="c"
             class="spawn-char"
             :disabled="busy || !branch.trim()"
@@ -106,5 +109,13 @@ async function create(char?: string) {
 }
 .spawn-auto {
   grid-column: span 4;
+}
+.proj-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 </style>
