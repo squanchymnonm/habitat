@@ -10,9 +10,9 @@ import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
-import { CHARACTERS } from './characters.js';
+import { CHARACTERS, autoName } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -34,7 +34,7 @@ function readBody(req) {
 }
 
 export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
-  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, ...gitOverrides };
+  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -145,34 +145,31 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       const char = body && body.char;
       if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
       const { permissionMode } = settingsStore.get(); // setting global: aplica a toda sesión nueva
-      const branch = body && body.branch;
-      if (branch != null && branch !== '') {
-        if (typeof branch !== 'string' || !validBranch(branch)) {
-          res.writeHead(400).end(); return;
-        }
-        const base = (typeof body.base === 'string' && body.base) ? body.base : 'main';
-        const nested = await git.findNestedRepos(dir);
-        const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, basename(dir), branch);
-        const existing = await tmux.listSessions();
-        if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
-        if (char) store.setPendingChar(tmuxName, char);
-        const ok = nested.length
-          ? await git.containerWorktreeAdd(dir, branch, path, nested) // base por repo (origin/HEAD); se ignora `base`
-          : await git.worktreeAdd(dir, branch, base, path);
-        if (!ok) { res.writeHead(500).end(); return; }
-        if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
-        announcePending(tmuxName, { name: basename(dir), project: basename(dir), branch, char });
-        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
-        return;
+
+      const projectName = basename(dir);
+      // Nombre de personaje: provisto o autogenerado (evitando los ya usados en el proyecto).
+      let name = body && body.name;
+      if (name == null || name === '') {
+        const used = store.all().filter((s) => s.project === projectName).map((s) => s.name);
+        name = autoName(used);
+      } else if (typeof name !== 'string' || !validBranch(name)) {
+        res.writeHead(400).end(); return;
       }
-      const name = basename(dir);
+
+      const nested = await git.findNestedRepos(dir);
+      const { path, tmux: tmuxName } = worktreePaths(config.WORKTREES_DIR, projectName, name);
       const existing = await tmux.listSessions();
-      if (existing.includes(name)) { res.writeHead(409).end(); return; }
-      if (char) store.setPendingChar(name, char);
-      const ok = await tmux.newTmuxSession(name, dir, undefined, { permissionMode });
+      if (existing.includes(tmuxName)) { res.writeHead(409).end(); return; }
+      if (char) store.setPendingChar(tmuxName, char);
+      // base = rama default del repo (origin/HEAD), resuelta automáticamente.
+      const base = await git.remoteDefaultBranch(dir);
+      const ok = nested.length
+        ? await git.containerWorktreeAdd(dir, name, path, nested) // base por repo (origin/HEAD)
+        : await git.worktreeAdd(dir, name, base, path);
       if (!ok) { res.writeHead(500).end(); return; }
-      announcePending(name, { name, project: name, char });
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name }));
+      if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
+      announcePending(tmuxName, { name, project: projectName, branch: name, char });
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
       return;
     }
 
