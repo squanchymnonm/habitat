@@ -4,9 +4,10 @@
 export type Status = 'idle' | 'working' | 'waiting' | 'done' | 'error' | 'offline'
 
 export interface Monster {
-  type: string // hash del texto del todo (variedad de sprite)
+  type: string // hash del label (quest) o aleatorio (turno): elige el sprite
   isBoss: boolean
   label: string
+  source?: 'todo' | 'turn' // 'todo': monstruo de quest; 'turn': monstruo de turno (uso interno del server)
 }
 
 export interface Quest {

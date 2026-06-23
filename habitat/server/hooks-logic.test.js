@@ -376,3 +376,58 @@ test('staminaFromStatus: sin context_window o sin used_percentage -> null', () =
   assert.equal(staminaFromStatus({ context_window: {} }), null);
   assert.equal(staminaFromStatus({ context_window: { used_percentage: 'x' } }), null);
 });
+
+test('dos UserPromptSubmit seguidos dan monstruos de turno distintos', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  const a = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  assert.equal(a.session.monster.source, 'turn');
+  const t1 = a.session.monster.type;
+  const b = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  assert.notEqual(b.session.monster.type, t1, 'cada turno trae un monstruo distinto');
+});
+
+test('Stop tras pelea real (monstruo de turno) emite loot y limpia el monstruo', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Edit', transcript_path: '/t',
+    tool_input: { file_path: 'src/Auth.php' } }, deps({ contextTokens: 10, totalTokens: 3000 }));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  assert.ok(r.fightResult, 'debe soltar loot');
+  assert.equal(r.fightResult.result.hp, 3000);
+  assert.equal(r.fightResult.result.hits, 1);
+  assert.deepEqual(r.fightResult.result.loot, ['src/Auth.php']);
+  assert.equal(r.session.monster, null, 'el monstruo de turno muere');
+});
+
+test('Stop sin pelea (turno trivial) no emite loot', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  assert.equal(r.fightResult, null, 'turno sin tool uses no suelta loot');
+  assert.equal(r.session.monster, null);
+});
+
+test('el monstruo de quest sobrevive al Stop', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
+    tool_input: { todos: [{ content: 'tarea larga', status: 'in_progress' }] } }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  assert.ok(r.session.monster, 'la quest sigue viva entre turnos');
+  assert.equal(r.session.monster.label, 'tarea larga');
+  assert.equal(r.session.monster.source, 'todo');
+});
+
+test('UserPromptSubmit no pisa un monstruo de quest activo', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
+    tool_input: { todos: [{ content: 'arreglar auth', status: 'in_progress' }] } }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
+  assert.equal(r.session.monster.source, 'todo');
+  assert.equal(r.session.monster.label, 'arreglar auth');
+});
