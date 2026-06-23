@@ -3,12 +3,19 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+// Args de tmux para attachear a la sesión con el modo mouse activado, de modo que la
+// rueda del mouse entre a copy-mode y scrollee el historial. El ';' se pasa como argumento
+// literal: tmux lo trata como separador de comandos (invocado sin shell). Exportada para test.
+export function attachArgs(target) {
+  return ['set-option', '-t', target, 'mouse', 'on', ';', 'attach-session', '-t', target];
+}
+
 // Factory por defecto: PTY real que attachea a la sesión tmux por nombre.
 // Relies on tmux's default client-sizing behavior (does not set window-size option).
 function defaultSpawnPty(target, { cols, rows }) {
   // import perezoso: node-pty es binario nativo; sólo se carga al usar la terminal real.
   const pty = require('node-pty');
-  return pty.spawn('tmux', ['attach-session', '-t', target], {
+  return pty.spawn('tmux', attachArgs(target), {
     name: 'xterm-color',
     cols: cols || 80,
     rows: rows || 24,

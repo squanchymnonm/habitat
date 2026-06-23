@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore } from './state.js';
+import { createStore, newSession } from './state.js';
 import { applyEvent } from './hooks-logic.js';
 
 const deps = (usage) => ({
@@ -99,14 +99,26 @@ test('Notification -> waiting; StopFailure -> error', () => {
   assert.equal(r.session.status, 'error');
 });
 
-test('PreCompact descansa (stamina baja); Stop con dungeon completo -> done', () => {
+test('PreCompact recalcula stamina desde el contexto real (no la clava en 5)', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact' }, deps(null));
-  assert.equal(r.session.stamina, 5);
+  // contexto al 90% lleno -> stamina ~10 (no un valor mágico fijo)
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
+    deps({ contextTokens: 180000, totalTokens: 180000 }));
+  assert.equal(r.session.stamina, 10); // 100*(1-180000/200000)
+});
+
+test('Stop refresca stamina con el contexto ya compactado y marca done', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
+    deps({ contextTokens: 180000, totalTokens: 180000 }));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'a', status: 'completed' }] } }, deps(null));
-  r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
+  // tras compactar, el contexto baja al 18% -> stamina sube a 82
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop', transcript_path: '/t' },
+    deps({ contextTokens: 36000, totalTokens: 200000 }));
+  assert.equal(r.session.stamina, 82); // 100*(1-36000/200000)
   assert.equal(r.session.status, 'done');
 });
 
@@ -155,6 +167,76 @@ test('Stop a idle y SessionEnd limpian el monstruo', () => {
   assert.equal(r.session.monster, null);
 });
 
+test('SessionStart bajo worktree setea s.tmux y project derivados', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd, hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.project, 'rpg');
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
+test('SessionStart sin worktreeName mantiene basename y sin s.tmux', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.tmux, undefined);
+});
+
+test('SessionStart con payload.tmux (sesión manual en tmux) setea s.tmux', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart', tmux: 'mi-sesion',
+  }, deps(null));
+  assert.equal(session.name, 'rpg');
+  assert.equal(session.tmux, 'mi-sesion');
+});
+
+test('SessionStart bajo worktree ignora payload.tmux (gana el worktree)', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd, hook_event_name: 'SessionStart', tmux: 'otra',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
+test('SessionStart bajo worktree consume pending char por s.tmux', () => {
+  const store = createStore();
+  store.setPendingChar('rpg-feature-x', 'Knight');
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd, hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(session.char, 'Knight');
+  assert.equal(store.takePendingChar('rpg-feature-x'), undefined);
+});
+
+test('SessionStart adopta el pod provisional con mismo tmux (lo quita y lo reporta)', () => {
+  const store = createStore();
+  store.upsert(newSession('pending:rpg-feature-x', { tmux: 'rpg-feature-x', status: 'waiting' }));
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const { session, removed } = applyEvent(store, {
+    session_id: 'real-1', cwd, hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
+  assert.equal(removed, 'pending:rpg-feature-x');
+  assert.equal(store.get('pending:rpg-feature-x'), undefined);
+  assert.equal(session.id, 'real-1');
+  assert.equal(session.tmux, 'rpg-feature-x');
+});
+
+test('SessionStart sin pod provisional no reporta removed', () => {
+  const store = createStore();
+  const { removed } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/rpg', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(removed, null);
+});
+
 test('SessionStart consume pending char y lo asigna a s.char (one-shot)', () => {
   const store = createStore();
   store.setPendingChar('proj-api', 'Knight');
@@ -171,6 +253,102 @@ test('SessionStart sin pending char deja char undefined', () => {
     session_id: 's1', cwd: '/home/u/proj-api', hook_event_name: 'SessionStart',
   }, deps(null));
   assert.equal(session.char, undefined);
+});
+
+test('/clear reusa el pod (misma tmux), lo rekeyea y recarga stamina; no deja pod caído', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  // desgaste: stamina baja (100*(1-160000/200000)=20)
+  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash', transcript_path: '/t' },
+    deps({ contextTokens: 160000, totalTokens: 5000 }));
+  // /clear: SessionEnd (reason clear) de la vieja + SessionStart (source clear) de la nueva, mismo cwd
+  applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  const { session, removed } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+
+  assert.equal(store.all().length, 1, 'un solo pod, sin caídos');
+  assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(removed, 's1', 'avisa al front que borre la card del id viejo (rekey -> remove)');
+  assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
+  assert.equal(session.name, 'api', 'mismo proyecto/tmux');
+  assert.notEqual(session.status, 'offline');
+  assert.equal(session.status, 'idle');
+  assert.equal(session.stamina, 100, 'stamina recargada');
+});
+
+test('/clear bajo worktree reusa el pod (match por tmux, no por basename)', () => {
+  const store = createStore();
+  const cwd = '/home/u/habitat-worktrees/rpg/feature-x';
+  const wt = () => ({ project: 'rpg', tmux: 'rpg-feature-x' });
+  applyEvent(store, { session_id: 's1', cwd, hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wt });
+  // /clear sobre el MISMO worktree: nuevo session_id, source clear
+  applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  const { session, removed } = applyEvent(store, {
+    session_id: 's2', cwd, source: 'clear', hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: wt });
+
+  assert.equal(store.all().length, 1, 'un solo pod, sin duplicado');
+  assert.equal(store.get('s1'), undefined, 'el id viejo ya no existe');
+  assert.equal(removed, 's1', 'avisa al front que borre la card del id viejo (rekey -> remove)');
+  assert.equal(session.id, 's2', 'rekeyeado al nuevo session_id');
+  assert.equal(session.tmux, 'rpg-feature-x', 'misma tmux');
+});
+
+test('/clear no roba el pod de OTRO worktree del mismo proyecto', () => {
+  const store = createStore();
+  const wtA = () => ({ project: 'rpg', tmux: 'rpg-feature-a' });
+  const wtB = () => ({ project: 'rpg', tmux: 'rpg-feature-b' });
+  applyEvent(store, { session_id: 'a1', cwd: '/home/u/habitat-worktrees/rpg/feature-a', hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wtA });
+  applyEvent(store, { session_id: 'b1', cwd: '/home/u/habitat-worktrees/rpg/feature-b', hook_event_name: 'SessionStart' },
+    { ...deps(null), worktreeName: wtB });
+  // /clear en el worktree B
+  applyEvent(store, { session_id: 'b1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  applyEvent(store, {
+    session_id: 'b2', cwd: '/home/u/habitat-worktrees/rpg/feature-b', source: 'clear', hook_event_name: 'SessionStart',
+  }, { ...deps(null), worktreeName: wtB });
+
+  assert.equal(store.all().length, 2, 'cada worktree conserva su pod');
+  assert.notEqual(store.get('a1'), undefined, 'el pod del worktree A sigue intacto');
+  assert.equal(store.get('b1'), undefined, 'el id viejo de B se rekeyeó');
+  assert.notEqual(store.get('b2'), undefined, 'el pod de B reusado con el id nuevo');
+});
+
+test('/clear funciona aunque SessionStart llegue antes que SessionEnd', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
+  // orden invertido
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+
+  assert.equal(store.all().length, 1);
+  assert.equal(session.id, 's2');
+  assert.equal(store.get('s1'), undefined);
+  assert.equal(r.session, null, 'el SessionEnd del id viejo es no-op');
+});
+
+test('SessionEnd con reason clear no marca el pod offline', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
+  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd', reason: 'clear' }, deps(null));
+  assert.equal(r.session, null);
+  // el pod sigue vivo, no offline
+  assert.notEqual(store.get('s1'), undefined);
+  assert.notEqual(store.get('s1').status, 'offline');
+});
+
+test('/clear sin pod previo (p.ej. tras reinicio) crea un pod limpio, no falla', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's2', cwd: '/home/u/api', source: 'clear', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.id, 's2');
+  assert.equal(session.name, 'api');
+  assert.equal(session.status, 'idle');
 });
 
 test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {

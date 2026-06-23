@@ -30,18 +30,84 @@ function ensureMonster(s) {
   }
 }
 
+// Resuelve la identidad del pod (name + tmux) desde el cwd igual que el SessionStart
+// normal: bajo worktree manda el worktree (project + tmux derivados), si no el basename.
+// La tmux manual (payload.tmux) sólo aplica fuera de un worktree.
+function resolveIdentity(payload, deps) {
+  let name = payload.cwd ? basename(payload.cwd) : null;
+  let tmux = null;
+  if (payload.cwd && deps.worktreeName) {
+    const wt = deps.worktreeName(payload.cwd);
+    if (wt) {
+      name = wt.project;
+      tmux = wt.tmux;
+    }
+  }
+  if (!tmux && payload.tmux) tmux = payload.tmux;
+  return { name, tmux };
+}
+
+// El pod vivo de una tmux: la tmux es la clave única real (dos worktrees del mismo
+// proyecto comparten name pero tienen tmux distinta). Matcheamos por tmux cuando la
+// hay; si no, caemos al name. Devolvemos el más reciente si hubiera duplicados.
+function findPodByTmux(store, { name, tmux }, exceptId) {
+  const matches = store.all().filter((s) => {
+    if (s.id === exceptId) return false;
+    return tmux ? s.tmux === tmux : s.name === name && !s.tmux;
+  });
+  if (!matches.length) return null;
+  return matches.sort((a, b) => (b.since || 0) - (a.since || 0))[0];
+}
+
 export function applyEvent(store, payload, deps) {
   const { readUsage, maxContext, now } = deps;
   const ev = payload.hook_event_name;
 
+  // /clear cierra la sesión vieja y abre una nueva (otro session_id) sobre la MISMA
+  // tmux. No queremos un pod "caído" + uno nuevo (cerrar el caído mataría la tmux
+  // compartida, y con ella la sesión nueva): reusamos el pod existente, lo rekeyeamos
+  // al id nuevo y le recargamos la stamina (clear vacía el contexto).
+  if (ev === 'SessionStart' && payload.source === 'clear' && payload.cwd) {
+    const { name, tmux } = resolveIdentity(payload, deps);
+    const prev = findPodByTmux(store, { name, tmux }, payload.session_id);
+    if (prev) {
+      const oldId = prev.id;
+      store.remove(prev.id);
+      prev.id = payload.session_id;
+      prev.name = name;
+      if (tmux) prev.tmux = tmux;
+      prev.stamina = 100;
+      prev.monster = null;
+      prev.combat = { hits: 0, tokens: 0 };
+      prev._lastTotal = 0;
+      prev._touched = new Set();
+      const pendingChar = store.takePendingChar(tmux || name);
+      if (pendingChar) prev.char = pendingChar;
+      if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
+      setStatus(prev, 'idle', 'memoria despejada', now);
+      store.upsert(prev);
+      // El rekey cambió el id del pod (viejo -> nuevo). El front trackea las cards por id,
+      // así que hay que avisarle que borre la del id viejo; si no, queda colgada y se ve
+      // como un pod duplicado (la nueva se agrega, la vieja nunca se saca).
+      return { session: prev, fightResult: null, removed: oldId };
+    }
+  }
+
+  // SessionEnd con reason 'clear' no es un cierre real: viene seguido de un
+  // SessionStart que reusa el pod. No lo marcamos offline.
+  if (ev === 'SessionEnd' && payload.reason === 'clear') {
+    return { session: null, fightResult: null };
+  }
+
   // SessionEnd de una sesión que ya no existe (p.ej. la matamos desde la GUI): no la
   // recreamos sólo para marcarla offline. ensure() crearía un pod zombie.
   if (ev === 'SessionEnd' && !store.get(payload.session_id)) {
-    return { session: null, fightResult: null };
+    return { session: null, fightResult: null, removed: null };
   }
 
   const s = ensure(store, payload);
   let fightResult = null;
+  let removed = null;
 
   const recomputeStamina = () => {
     if (!payload.transcript_path) return;
@@ -52,12 +118,29 @@ export function applyEvent(store, payload, deps) {
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
-        s.name = basename(payload.cwd);
+        const wt = deps.worktreeName ? deps.worktreeName(payload.cwd) : null;
+        if (wt) {
+          s.name = wt.project;
+          s.tmux = wt.tmux;
+        } else {
+          s.name = basename(payload.cwd);
+        }
         s.project = s.name;
         if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
       }
-      const pendingChar = store.takePendingChar(s.name);
+      // Sesión lanzada a mano dentro de tmux: el hook reporta el nombre de la tmux para
+      // que el panel pueda attachear terminal/chat. El worktree (arriba) tiene prioridad.
+      if (!s.tmux && payload.tmux) s.tmux = payload.tmux;
+      const pendingChar = store.takePendingChar(s.tmux || s.name);
       if (pendingChar) s.char = pendingChar;
+      // /spawn creó un pod provisional `pending:<tmux>` (para que aceptes la confianza
+      // desde su terminal). Ahora que arrancó la sesión real, lo adoptamos: lo quitamos
+      // para no dejar un pod duplicado.
+      const provId = `pending:${s.tmux || s.name}`;
+      if (payload.session_id !== provId && store.get(provId)) {
+        store.remove(provId);
+        removed = provId;
+      }
       setStatus(s, 'idle', 'sesión iniciada', now);
       s.monster = null;
       break;
@@ -79,13 +162,18 @@ export function applyEvent(store, payload, deps) {
     }
     case 'PreCompact': {
       s._resting = true;
-      s.stamina = 5;
+      // No clavar un valor mágico: la stamina = contexto restante real. Al compactar
+      // el contexto está casi lleno, así que naturalmente queda baja, y se recupera
+      // sola en el próximo evento cuando el contexto compactado baja.
+      recomputeStamina();
       setStatus(s, 'working', 'descansando (compactando)', now);
       break;
     }
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
+      // refrescar stamina al cerrar el turno (refleja el contexto ya compactado)
+      recomputeStamina();
       s.monster = null;
       break;
     }
@@ -106,7 +194,7 @@ export function applyEvent(store, payload, deps) {
     default:
       break;
   }
-  return { session: s, fightResult };
+  return { session: s, fightResult, removed };
 }
 
 function handleTodoWrite(s, payload, now) {
