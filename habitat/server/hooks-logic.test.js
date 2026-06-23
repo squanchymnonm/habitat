@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from './state.js';
-import { applyEvent } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 
 const deps = (usage) => ({
   readUsage: () => usage,
@@ -180,4 +180,24 @@ test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {
   }, deps(null));
   assert.equal(session, null);
   assert.equal(store.get('ghost'), undefined);
+});
+
+test('staminaFromStatus: used 4% -> stamina 96', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 4 } }), 96);
+});
+
+test('staminaFromStatus: used 25% -> stamina 75', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 25 } }), 75);
+});
+
+test('staminaFromStatus: redondea y clampa', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 4.6 } }), 95);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 120 } }), 0);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: -10 } }), 100);
+});
+
+test('staminaFromStatus: sin context_window o sin used_percentage -> null', () => {
+  assert.equal(staminaFromStatus({}), null);
+  assert.equal(staminaFromStatus({ context_window: {} }), null);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 'x' } }), null);
 });

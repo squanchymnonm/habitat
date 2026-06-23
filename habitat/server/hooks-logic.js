@@ -7,6 +7,12 @@ function staminaFromContext(ctx, max) {
   return Math.max(0, Math.round(100 * (1 - ctx / max)));
 }
 
+export function staminaFromStatus(body) {
+  const used = body && body.context_window && body.context_window.used_percentage;
+  if (typeof used !== 'number' || !Number.isFinite(used)) return null;
+  return Math.max(0, Math.min(100, Math.round(100 - used)));
+}
+
 function ensure(store, payload) {
   let s = store.get(payload.session_id);
   if (!s) {
