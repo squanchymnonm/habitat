@@ -243,9 +243,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       const dir = body && body.dir;
       if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
-      if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      if (!projects.has(dir)) { res.writeHead(403).end(); return; }
       const char = body && body.char;
       if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
+      const allowed = (projects.list().find((p) => p.dir === dir) || {}).chars || [];
+      if (char != null && allowed.length && !allowed.includes(char)) { res.writeHead(400).end(); return; }
       const { permissionMode } = settingsStore.get(); // setting global: aplica a toda sesión nueva
       const branch = body && body.branch;
       if (branch != null && branch !== '') {
@@ -292,7 +294,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
       // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
       if (config.WORKTREES_DIR && s.project && s.branch && s.tmux && s.tmux !== s.project) {
-        const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
+        const projectDir = (projects.list().find((p) => basename(p.dir) === s.project) || {}).dir;
         if (projectDir) {
           const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
           const nested = await git.findNestedRepos(projectDir);

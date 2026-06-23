@@ -8,6 +8,7 @@ import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
 import { createSettings } from './settings.js';
 import { PALETTE } from './palette.js';
+import { createProjects } from './projects.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -784,5 +785,35 @@ test('POST /projects sin ALLOW_SPAWN -> 403', async () => {
     body: JSON.stringify({ dir: '/x', color: PALETTE[0] }),
   });
   assert.equal(r.status, 403);
+  server.close();
+});
+
+test('POST /spawn con char fuera de la allowlist del proyecto -> 400', async () => {
+  const projectsStore = createProjects();
+  projectsStore.add({ dir: '/home/u/proj-api', color: PALETTE[0], chars: ['Knight'] });
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Monk' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /spawn con char dentro de la allowlist -> 200', async () => {
+  const projectsStore = createProjects();
+  projectsStore.add({ dir: '/home/u/proj-api', color: PALETTE[0], chars: ['Knight'] });
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Knight' }),
+  });
+  assert.equal(r.status, 200);
   server.close();
 });
