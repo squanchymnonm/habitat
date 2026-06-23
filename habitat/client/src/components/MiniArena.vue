@@ -8,8 +8,7 @@ import { useSessions } from '../stores/sessions'
 const props = withDefaults(defineProps<{ session: Session; height?: number }>(), { height: 56 })
 
 const store = useSessions()
-// poses transitorias: jab en cada golpe; saltito al ganar
-const jabbing = ref(false)
+// pose transitoria: saltito al ganar
 const celebrating = ref(false)
 
 // Emote (globo) que comunica el estado del personaje.
@@ -39,8 +38,6 @@ watch(
       const key = ++fkey
       floats.value.push({ key, text: fmt(dmg), big: !!monster.value?.isBoss })
       setTimeout(() => (floats.value = floats.value.filter((f) => f.key !== key)), 850)
-      jabbing.value = true
-      setTimeout(() => (jabbing.value = false), 180)
     }
     lastTokens = tok
   },
@@ -74,7 +71,6 @@ const pose = computed(() =>
   heroPoseFor({
     status: props.session.status,
     inCombat: !!monster.value,
-    jabbing: jabbing.value,
     celebrating: celebrating.value,
   }),
 )
