@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { Session, Status } from '../types'
-import { heroIdle, monsterSprite, bossSprite, fmt } from '../sprites'
+import { heroSprite, heroPoseFor, POSE_RENDER, monsterSprite, bossSprite, fmt } from '../sprites'
 import Sprite from './Sprite.vue'
+import { useSessions } from '../stores/sessions'
 
 const props = withDefaults(defineProps<{ session: Session; height?: number }>(), { height: 56 })
+
+const store = useSessions()
+// poses transitorias: jab en cada golpe; saltito al ganar
+const jabbing = ref(false)
+const celebrating = ref(false)
 
 // Emote (globo) que comunica el estado del personaje.
 const EMOTE: Partial<Record<Status, number>> = {
@@ -33,6 +39,8 @@ watch(
       const key = ++fkey
       floats.value.push({ key, text: fmt(dmg), big: !!monster.value?.isBoss })
       setTimeout(() => (floats.value = floats.value.filter((f) => f.key !== key)), 850)
+      jabbing.value = true
+      setTimeout(() => (jabbing.value = false), 180)
     }
     lastTokens = tok
   },
@@ -49,6 +57,29 @@ watch(
     }
   },
 )
+
+// Saltito de victoria cuando esta sesión vence a su monstruo.
+watch(
+  () => store.lastFight,
+  (lf) => {
+    if (lf && lf.id === props.session.id) {
+      celebrating.value = true
+      setTimeout(() => (celebrating.value = false), 1200)
+    }
+  },
+)
+
+// pose final del héroe: precedencia estado+combate (ver sprites.heroPoseFor)
+const pose = computed(() =>
+  heroPoseFor({
+    status: props.session.status,
+    inCombat: !!monster.value,
+    jabbing: jabbing.value,
+    celebrating: celebrating.value,
+  }),
+)
+const render = computed(() => POSE_RENDER[pose.value])
+const heroSrc = computed(() => heroSprite(props.session.name, props.session.char, pose.value))
 </script>
 
 <template>
@@ -62,10 +93,11 @@ watch(
     <Sprite
       class="fighter phero"
       :class="{ flinch }"
-      :src="heroIdle(session.name, session.char)"
+      :src="heroSrc"
       :height="height"
-      mode="static"
-      :frame="monster ? 3 : 0"
+      :mode="render.mode"
+      :frame="render.frame ?? 0"
+      :duration="render.duration ?? 900"
     />
     <Sprite
       v-if="monster"

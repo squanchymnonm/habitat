@@ -28,21 +28,44 @@ export function faceFor(name: string, char?: string): string {
   return `assets/char/${resolveChar(name, char)}/face.png`
 }
 
-// Por ahora solo existe el idle procedural (bob de respiración) para los 16
-// personajes; las acciones (work/waiting/done/error) están diferidas hasta tener
-// arte generado por IA. Mientras tanto todos los estados usan el idle. Cuando se
-// agregue anim_work.png/etc., re-apuntar cada estado a su archivo.
-export const STATUS_ANIM: Record<Status, string> = {
-  idle: 'anim_idle',
-  working: 'anim_idle',
-  waiting: 'anim_idle',
-  done: 'anim_idle',
-  error: 'anim_idle',
-  offline: 'anim_idle',
+export type Pose = 'rest' | 'walk' | 'jump' | 'item' | 'dead' | 'combat'
+
+export interface PoseRender {
+  file: string
+  mode: 'static' | 'grid' | 'strip'
+  frame?: number
+  duration?: number
 }
 
-export function heroAnim(name: string, char: string | undefined, status: Status): string {
-  return `assets/char/${resolveChar(name, char)}/${STATUS_ANIM[status]}.png`
+// Cómo renderiza cada pose en <Sprite>. file = nombre del .png en assets/char/<char>/.
+export const POSE_RENDER: Record<Pose, PoseRender> = {
+  rest: { file: 'anim_idle', mode: 'strip', duration: 1600 },
+  walk: { file: 'walk', mode: 'grid', duration: 600 },
+  jump: { file: 'jump', mode: 'static', frame: 0 },
+  item: { file: 'item', mode: 'static', frame: 0 },
+  dead: { file: 'dead', mode: 'static', frame: 0 },
+  combat: { file: 'idle', mode: 'static', frame: 3 },
+}
+
+export function heroSprite(name: string, char: string | undefined, pose: Pose): string {
+  return `assets/char/${resolveChar(name, char)}/${POSE_RENDER[pose].file}.png`
+}
+
+export interface HeroPoseInput {
+  status: Status
+  inCombat: boolean
+  jabbing: boolean
+  celebrating: boolean
+}
+
+// Precedencia estado+combate -> pose. Pura y testeable.
+export function heroPoseFor(s: HeroPoseInput): Pose {
+  if (s.celebrating) return 'jump'
+  if (s.status === 'offline') return 'dead'
+  if (s.inCombat) return s.jabbing ? 'item' : 'combat'
+  if (s.status === 'working') return 'walk'
+  if (s.status === 'done') return 'jump'
+  return 'rest'
 }
 
 export function monsterSprite(type: string): string {
