@@ -733,6 +733,25 @@ test('POST /projects agrega una carpeta del root y la lista la incluye', async (
   }
 });
 
+test('POST /projects acepta dir relativo al root', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-rel'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir: 'proj-rel', color: PALETTE[0] }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).name, 'proj-rel');
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('POST /projects con dir fuera del root -> 400', async () => {
   const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
   try {

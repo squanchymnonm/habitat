@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSettings } from '../composables/useSettings'
 import type { PermissionMode } from '../types'
+import ProjectsManager from './ProjectsManager.vue'
 
 const { permissionMode, error, saving, save } = useSettings()
 
@@ -28,6 +29,7 @@ function onChange(e: Event) {
     <p class="desc">{{ MODES.find((m) => m.value === permissionMode)?.desc }}</p>
     <p class="err" v-if="error">{{ error }}</p>
   </section>
+  <ProjectsManager />
 </template>
 
 <style scoped>

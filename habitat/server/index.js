@@ -182,7 +182,10 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
       let body;
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
-      const dir = body && body.dir;
+      let dir = body && body.dir;
+      if (typeof dir === 'string' && dir && !dir.startsWith(sep)) {
+        dir = resolve(config.PROJECTS_ROOT || '', dir); // el cliente manda rel respecto del root
+      }
       if (!(await dirWithinRoot(dir))) { res.writeHead(400).end(); return; }
       const r = projects.add({ dir, label: body.label, color: body.color, chars: body.chars });
       if (!r.ok) { res.writeHead(r.error === 'duplicado' ? 409 : 400).end(); return; }
