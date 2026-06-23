@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useProjects } from '../composables/useProjects'
 import { CHARACTERS, faceFor } from '../sprites'
 
@@ -7,6 +7,8 @@ const { canSpawn, projects, error, spawn } = useProjects()
 const open = ref(false)
 const step = ref<'proj' | 'detail'>('proj')
 const pickedDir = ref('')
+const pickedChars = ref<string[]>([])
+const allowedChars = computed(() => (pickedChars.value.length ? pickedChars.value : CHARACTERS))
 const busy = ref(false)
 const name = ref('')
 const pickedChar = ref<string | undefined>(undefined)
@@ -14,6 +16,7 @@ const pickedChar = ref<string | undefined>(undefined)
 function reset() {
   step.value = 'proj'
   pickedDir.value = ''
+  pickedChars.value = []
   name.value = ''
   pickedChar.value = undefined
 }
@@ -23,6 +26,7 @@ function toggle() {
 }
 function pickProject(dir: string) {
   pickedDir.value = dir
+  pickedChars.value = projects.value.find((p) => p.dir === dir)?.chars ?? []
   step.value = 'detail'
 }
 function back() {
@@ -56,7 +60,7 @@ async function create() {
           :disabled="busy"
           @click="pickProject(p.dir)"
         >
-          {{ p.name }}
+          <span class="proj-dot" :style="{ background: p.color }"></span>{{ p.name }}
         </button>
       </template>
 
@@ -72,7 +76,7 @@ async function create() {
         />
         <div class="spawn-chars">
           <button
-            v-for="c in CHARACTERS"
+            v-for="c in allowedChars"
             :key="c"
             class="spawn-char"
             :class="{ sel: pickedChar === c }"
@@ -119,6 +123,14 @@ async function create() {
 }
 .spawn-auto {
   grid-column: span 4;
+}
+.proj-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 .spawn-name {
   width: 100%;

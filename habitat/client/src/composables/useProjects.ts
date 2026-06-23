@@ -1,44 +1,106 @@
 import { ref } from 'vue'
+import type { Project } from '../types'
 
-// Token de la query, igual que usePreview/useSocket.
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
 const authHeaders = (): Record<string, string> => {
   const t = token()
   return t ? { authorization: `Bearer ${t}` } : {}
 }
+const jsonHeaders = () => ({ ...authHeaders(), 'content-type': 'application/json' })
 
-export interface Project {
-  name: string
-  dir: string
+export interface BrowseEntry { name: string; rel: string; isRepo: boolean; added: boolean }
+export interface BrowseResult {
+  root: string; rel: string
+  breadcrumbs: { name: string; rel: string }[]
+  entries: BrowseEntry[]
 }
 
-// Estado compartido a nivel de módulo (singleton, como useSocket): /projects se
-// pide una sola vez y canSpawn/kill se comparten entre SpawnMenu, pods y drawer.
 const canSpawn = ref(false)
+const canManage = ref(false)
 const projects = ref<Project[]>([])
 const error = ref('')
 let loaded = false
+
+const basenameOf = (dir: string) => dir.split('/').filter(Boolean).pop() ?? dir
 
 async function load() {
   try {
     const res = await fetch('/projects', { headers: authHeaders() })
     if (!res.ok) return
-    const data = (await res.json()) as { canSpawn: boolean; projects: Project[] }
+    const data = (await res.json()) as { canSpawn: boolean; canManage?: boolean; projects: Project[] }
     canSpawn.value = data.canSpawn
+    canManage.value = !!data.canManage
     projects.value = data.projects
   } catch {
     /* sin red: el botón simplemente no aparece */
   }
 }
 
+// Aplica un broadcast del server (otra pestaña/cambio de proyectos). No dispara load().
+export function applyServerProjects(list: Project[]) {
+  projects.value = list
+  canSpawn.value = canSpawn.value || list.length > 0
+}
+
+async function browse(path = ''): Promise<BrowseResult | null> {
+  try {
+    const q = path ? `?path=${encodeURIComponent(path)}` : ''
+    const res = await fetch(`/projects/browse${q}`, { headers: authHeaders() })
+    if (!res.ok) return null
+    return (await res.json()) as BrowseResult
+  } catch {
+    return null
+  }
+}
+
+async function addProject(p: { dir: string; label?: string; color: string; chars?: string[] }): Promise<boolean> {
+  error.value = ''
+  try {
+    const res = await fetch('/projects', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(p) })
+    if (res.ok) { await load(); return true }
+    error.value = res.status === 409 ? 'ese proyecto ya está agregado' : 'no se pudo agregar el proyecto'
+    return false
+  } catch {
+    error.value = 'no se pudo agregar el proyecto'
+    return false
+  }
+}
+
+async function updateProject(p: { dir: string; label?: string; color?: string; chars?: string[] }): Promise<boolean> {
+  error.value = ''
+  try {
+    const res = await fetch('/projects', { method: 'PATCH', headers: jsonHeaders(), body: JSON.stringify(p) })
+    if (res.ok) { await load(); return true }
+    error.value = 'no se pudo editar el proyecto'
+    return false
+  } catch {
+    error.value = 'no se pudo editar el proyecto'
+    return false
+  }
+}
+
+async function removeProject(dir: string): Promise<boolean> {
+  error.value = ''
+  try {
+    const res = await fetch('/projects', { method: 'DELETE', headers: jsonHeaders(), body: JSON.stringify({ dir }) })
+    if (res.ok) { await load(); return true }
+    error.value = 'no se pudo quitar el proyecto'
+    return false
+  } catch {
+    error.value = 'no se pudo quitar el proyecto'
+    return false
+  }
+}
+
+function colorForProject(name: string): string {
+  const p = projects.value.find((p) => basenameOf(p.dir) === name || p.name === name)
+  return p?.color ?? ''
+}
+
 async function spawn(dir: string, name: string, char?: string): Promise<boolean> {
   error.value = ''
   try {
-    const res = await fetch('/spawn', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({ dir, name, char }),
-    })
+    const res = await fetch('/spawn', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ dir, name, char }) })
     if (res.ok) return true
     error.value =
       res.status === 409 ? 'ya existe un personaje con ese nombre'
@@ -52,15 +114,9 @@ async function spawn(dir: string, name: string, char?: string): Promise<boolean>
   }
 }
 
-// Cierra una sesión: el server mata el proceso y quita el pod; el pod desaparece
-// solo al llegar el broadcast `remove` por WS (no removemos localmente).
 async function kill(id: string): Promise<boolean> {
   try {
-    const res = await fetch('/kill', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    const res = await fetch('/kill', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ id }) })
     return res.ok
   } catch {
     return false
@@ -72,5 +128,5 @@ export function useProjects() {
     loaded = true
     load()
   }
-  return { canSpawn, projects, error, spawn, kill }
+  return { canSpawn, canManage, projects, error, spawn, kill, browse, addProject, updateProject, removeProject, colorForProject }
 }
