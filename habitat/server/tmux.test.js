@@ -58,15 +58,28 @@ test('gitBranch ante error devuelve cadena vacía', () => {
   assert.equal(gitBranch('/x', exec), '');
 });
 
-test('newTmuxSession crea sesión detached en dir y lanza claude', async () => {
+test('newTmuxSession sin opts lanza claude pelado', async () => {
   const calls = [];
   const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
   const ok = await newTmuxSession('proj', '/home/u/proj', exec);
   assert.equal(ok, true);
   assert.deepEqual(calls[0], ['tmux', 'new-session', '-d', '-s', 'proj', '-c', '/home/u/proj']);
-  // luego send-keys del comando claude + Enter (vía sendKeys)
   assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'proj', '-l', 'claude']);
   assert.deepEqual(calls[2], ['tmux', 'send-keys', '-t', 'proj', 'Enter']);
+});
+
+test('newTmuxSession con permissionMode agrega el flag', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  await newTmuxSession('proj', '/home/u/proj', exec, { permissionMode: 'acceptEdits' });
+  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'proj', '-l', 'claude --permission-mode acceptEdits']);
+});
+
+test('newTmuxSession con modo default lanza claude pelado', async () => {
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args]); return ''; };
+  await newTmuxSession('proj', '/home/u/proj', exec, { permissionMode: 'default' });
+  assert.deepEqual(calls[1], ['tmux', 'send-keys', '-t', 'proj', '-l', 'claude']);
 });
 
 test('newTmuxSession ante error de new-session devuelve false', async () => {

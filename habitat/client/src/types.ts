@@ -44,12 +44,19 @@ export interface FightResult {
   loot: string[]
 }
 
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+
+export interface Settings {
+  permissionMode: PermissionMode
+}
+
 // server -> client
 export type ServerMessage =
   | { type: 'snapshot'; sessions: Session[] }
   | { type: 'session'; session: Session }
   | { type: 'remove'; id: string }
   | { type: 'fightResult'; id: string; result: FightResult }
+  | { type: 'settings'; settings: Settings }
 
 // client -> server (fase 2: chat por send-keys)
 export type ClientMessage = { type: 'chat'; id: string; text: string }

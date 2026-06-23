@@ -18,4 +18,5 @@ export default {
   PROJECTS: list(process.env.HABITAT_PROJECTS),
   WORKTREES_DIR: process.env.HABITAT_WORKTREES_DIR || join(homedir(), 'habitat-worktrees'),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
+  SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
 };
