@@ -11,8 +11,10 @@ describe('findLinks', () => {
   })
 
   it('detecta http://localhost con esquema', () => {
-    const [m] = findLinks('server en http://localhost:5173/')
+    const line = 'server en http://localhost:5173/'
+    const [m] = findLinks(line)
     expect(m.url).toBe('http://localhost:5173/')
+    expect(line.slice(m.start, m.end)).toBe('http://localhost:5173/')
   })
 
   it('detecta localhost:PORT sin esquema y normaliza a http://', () => {
@@ -23,13 +25,17 @@ describe('findLinks', () => {
   })
 
   it('detecta 127.0.0.1 con path', () => {
-    const [m] = findLinks('ping 127.0.0.1:8080/health')
+    const line = 'ping 127.0.0.1:8080/health'
+    const [m] = findLinks(line)
     expect(m.url).toBe('http://127.0.0.1:8080/health')
+    expect(line.slice(m.start, m.end)).toBe('127.0.0.1:8080/health')
   })
 
   it('detecta 0.0.0.0:PORT sin esquema', () => {
-    const [m] = findLinks('listening on 0.0.0.0:4000')
+    const line = 'listening on 0.0.0.0:4000'
+    const [m] = findLinks(line)
     expect(m.url).toBe('http://0.0.0.0:4000')
+    expect(line.slice(m.start, m.end)).toBe('0.0.0.0:4000')
   })
 
   it('una línea sin links devuelve []', () => {
@@ -46,5 +52,24 @@ describe('findLinks', () => {
   it('detecta múltiples links en orden', () => {
     const ms = findLinks('a https://uno.com b localhost:3000 c')
     expect(ms.map((m) => m.url)).toEqual(['https://uno.com', 'http://localhost:3000'])
+  })
+
+  it('excluye brackets de la URL', () => {
+    const line = 'see https://ejemplo.com/x[0]'
+    const [m] = findLinks(line)
+    expect(m.url).toBe('https://ejemplo.com/x')
+    expect(line.slice(m.start, m.end)).toBe('https://ejemplo.com/x')
+  })
+
+  it('rechaza puertos inválidos (> 65535)', () => {
+    const ms = findLinks('open localhost:99999')
+    expect(ms).toEqual([])
+  })
+
+  it('acepta puerto límite válido (65535)', () => {
+    const line = 'open localhost:65535'
+    const [m] = findLinks(line)
+    expect(m.url).toBe('http://localhost:65535')
+    expect(line.slice(m.start, m.end)).toBe('localhost:65535')
   })
 })
