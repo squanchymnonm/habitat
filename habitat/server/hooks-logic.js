@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { newSession, questFromTodos, monsterFromTodos, hashType } from './state.js';
+import { newSession, questFromTodos, monsterFromTodos, randomMonster } from './state.js';
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
@@ -27,9 +27,7 @@ function setStatus(s, status, action, now) {
 }
 
 function ensureMonster(s) {
-  if (!s.monster) {
-    s.monster = { type: hashType(s.name || s.id), isBoss: false, label: s.action || 'trabajando' };
-  }
+  if (!s.monster) s.monster = randomMonster(s.action || 'trabajando');
 }
 
 // Resuelve la identidad del pod (name + tmux) desde el cwd igual que el SessionStart
@@ -143,7 +141,13 @@ export function applyEvent(store, payload, deps) {
     case 'UserPromptSubmit': {
       s._resting = false;
       setStatus(s, 'working', 'procesando tu pedido', now);
-      ensureMonster(s);
+      // Sin quest activa, cada prompt trae un monstruo de turno nuevo (aleatorio) y
+      // arranca un combate limpio. Con quest activa la dejamos correr entre turnos.
+      if (s.monster?.source !== 'todo') {
+        s.monster = randomMonster(payload.prompt ? String(payload.prompt).slice(0, 80) : 'enemigo');
+        s.combat = { hits: 0, tokens: 0 };
+        s._touched = new Set();
+      }
       break;
     }
     case 'Notification': {
@@ -156,14 +160,28 @@ export function applyEvent(store, payload, deps) {
     }
     case 'PreCompact': {
       s._resting = true;
-      // La stamina la maneja el statusLine (/status); acá no la tocamos.
+      // La stamina la maneja el statusLine (POST /status): refleja el % real de context
+      // window por sesión. Acá sólo marcamos el estado "descansando"; el próximo evento
+      // de statusLine actualiza el orbe con el contexto ya compactado.
       setStatus(s, 'working', 'descansando (compactando)', now);
       break;
     }
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
-      s.monster = null;
+      // El monstruo de turno muere al cerrar el turno; si peleó (hubo daño o golpes)
+      // suelta loot. El de quest sobrevive entre turnos hasta completarse el todo.
+      if (s.monster && s.monster.source === 'turn') {
+        if (s.combat.tokens > 0 || s.combat.hits > 0) {
+          const loot = s._touched && s._touched.size ? [...s._touched] : [s.monster.label];
+          fightResult = { id: s.id, result: {
+            monster: s.monster.label, hp: s.combat.tokens, hits: s.combat.hits, loot,
+          } };
+        }
+        s.monster = null;
+        s.combat = { hits: 0, tokens: 0 };
+        s._touched = new Set();
+      }
       break;
     }
     case 'SessionEnd': {

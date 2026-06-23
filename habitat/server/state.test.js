@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rmSync, existsSync } from 'node:fs';
-import { newSession, createStore, hashType, monsterFromTodos, questFromTodos } from './state.js';
+import { newSession, createStore, hashType, monsterFromTodos, questFromTodos, randomMonster } from './state.js';
 
 function tmpStatePath(tag) {
   return join(tmpdir(), `habitat-state-${process.pid}-${tag}.json`);
@@ -151,4 +151,23 @@ test('pending char: set y take (one-shot)', () => {
 test('pending char: take de inexistente -> undefined', () => {
   const store = createStore();
   assert.equal(store.takePendingChar('nope'), undefined);
+});
+
+test('monsterFromTodos marca source todo', () => {
+  const m = monsterFromTodos([{ content: 'modelo', status: 'in_progress' }]);
+  assert.equal(m.source, 'todo');
+});
+
+test('randomMonster es de turno, no boss, con type aleatorio', () => {
+  const a = randomMonster('arreglar login');
+  assert.equal(a.source, 'turn');
+  assert.equal(a.isBoss, false);
+  assert.equal(a.label, 'arreglar login');
+  assert.equal(typeof a.type, 'string');
+  const b = randomMonster('arreglar login');
+  assert.notEqual(a.type, b.type, 'dos llamadas dan types distintos');
+});
+
+test('randomMonster sin label usa string vacío', () => {
+  assert.equal(randomMonster().label, '');
 });
