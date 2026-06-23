@@ -34,14 +34,11 @@ function ensureMonster(s) {
 // normal: bajo worktree manda el worktree (project + tmux derivados), si no el basename.
 // La tmux manual (payload.tmux) sólo aplica fuera de un worktree.
 function resolveIdentity(payload, deps) {
-  let name = payload.cwd ? basename(payload.cwd) : null;
+  const name = payload.cwd ? basename(payload.cwd) : null;
   let tmux = null;
   if (payload.cwd && deps.worktreeName) {
     const wt = deps.worktreeName(payload.cwd);
-    if (wt) {
-      name = wt.project;
-      tmux = wt.tmux;
-    }
+    if (wt) tmux = wt.tmux;
   }
   if (!tmux && payload.tmux) tmux = payload.tmux;
   return { name, tmux };
@@ -112,14 +109,16 @@ export function applyEvent(store, payload, deps) {
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
+        // El nombre del pod es el personaje (leaf del worktree). El proyecto real sale
+        // del worktree (su carpeta padre); fuera de un worktree, proyecto = name.
+        s.name = basename(payload.cwd);
         const wt = deps.worktreeName ? deps.worktreeName(payload.cwd) : null;
         if (wt) {
-          s.name = wt.project;
+          s.project = wt.project;
           s.tmux = wt.tmux;
         } else {
-          s.name = basename(payload.cwd);
+          s.project = s.name;
         }
-        s.project = s.name;
         if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
       }
       // Sesión lanzada a mano dentro de tmux: el hook reporta el nombre de la tmux para
