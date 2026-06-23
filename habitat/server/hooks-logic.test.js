@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, newSession } from './state.js';
 import { applyEvent, staminaFromStatus } from './hooks-logic.js';
+import { worktreeName } from './worktree.js';
 
 const deps = (usage) => ({
   readUsage: () => usage,
@@ -170,7 +171,7 @@ test('SessionStart bajo worktree setea s.tmux y project derivados', () => {
   const { session } = applyEvent(store, {
     session_id: 's1', cwd, hook_event_name: 'SessionStart',
   }, { ...deps(null), worktreeName: () => ({ project: 'rpg', tmux: 'rpg-feature-x' }) });
-  assert.equal(session.name, 'rpg');
+  assert.equal(session.name, 'feature-x');
   assert.equal(session.project, 'rpg');
   assert.equal(session.tmux, 'rpg-feature-x');
 });
@@ -355,6 +356,18 @@ test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {
   }, deps(null));
   assert.equal(session, null);
   assert.equal(store.get('ghost'), undefined);
+});
+
+test('SessionStart bajo worktree: name=personaje (leaf), project=proyecto, tmux derivado', () => {
+  const store = createStore();
+  const WT = '/home/u/habitat-worktrees';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: `${WT}/RPG-Agents/bob`, hook_event_name: 'SessionStart',
+  }, { ...deps(null), gitBranch: () => 'bob', worktreeName: (cwd) => worktreeName(WT, cwd) });
+  assert.equal(session.name, 'bob');
+  assert.equal(session.project, 'RPG-Agents');
+  assert.equal(session.tmux, 'RPG-Agents-bob');
+  assert.equal(session.branch, 'bob');
 });
 
 test('staminaFromStatus: used 4% -> stamina 96', () => {
