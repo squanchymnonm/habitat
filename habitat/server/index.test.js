@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
 import { createSettings } from './settings.js';
@@ -658,4 +661,48 @@ test('POST /kill de sesión plana (no worktree) no toca el worktree', async () =
   assert.equal(r.status, 200);
   assert.deepEqual(seenRemove, []);
   server.close();
+});
+
+test('GET /projects/browse deshabilitado (sin ALLOW_SPAWN) -> 403', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects/browse`, { headers: auth });
+  assert.equal(r.status, 403);
+  server.close();
+});
+
+test('GET /projects/browse lista subcarpetas del root y marca isRepo', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-a'));
+  mkdirSync(join(root, 'proj-a', '.git'));
+  mkdirSync(join(root, 'proj-b'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/browse`, { headers: auth });
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    const names = body.entries.map((e) => e.name).sort();
+    assert.deepEqual(names, ['proj-a', 'proj-b']);
+    assert.equal(body.entries.find((e) => e.name === 'proj-a').isRepo, true);
+    assert.equal(body.entries.find((e) => e.name === 'proj-b').isRepo, false);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('GET /projects/browse con path=.. -> 400 (no escapa del root)', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/browse?path=..`, { headers: auth });
+    assert.equal(r.status, 400);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

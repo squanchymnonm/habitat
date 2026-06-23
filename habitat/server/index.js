@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, realpath } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize, sep, basename } from 'node:path';
+import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
+import { existsSync } from 'node:fs';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
@@ -116,6 +117,45 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const list = projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
       const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects: list }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/projects/browse') {
+      if (!authorize(req, res)) return;
+      const root = config.PROJECTS_ROOT;
+      if (!config.ALLOW_SPAWN || !root) { res.writeHead(403).end(); return; }
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolve(root, rel);
+      // Guard sintáctico: el target no puede salirse del root.
+      if (target !== root && !target.startsWith(root + sep)) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try {
+        realTarget = await realpath(target);
+        realRoot = await realpath(root);
+      } catch { res.writeHead(404).end(); return; }
+      // Guard contra symlinks que escapen del root.
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = dirents
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+        .map((d) => {
+          const childAbs = join(realTarget, d.name);
+          const childRel = relative(realRoot, childAbs);
+          return {
+            name: d.name,
+            rel: childRel,
+            isRepo: existsSync(join(childAbs, '.git')),
+            added: projects.has(childAbs),
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
       return;
     }
 
