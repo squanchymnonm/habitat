@@ -27,7 +27,7 @@ export function createProjects({ persistPath, seed = [] } = {}) {
             dir: p.dir,
             label: typeof p.label === 'string' && p.label ? p.label : basename(p.dir),
             color: validColor(p.color) ? p.color : pickColor(p.dir),
-            chars: validChars(p.chars) ? p.chars : [],
+            chars: validChars(p.chars) ? [...p.chars] : [],
           }));
       } else {
         items = seed.map(seedRecord); // archivo presente pero no es array: re-sembramos
