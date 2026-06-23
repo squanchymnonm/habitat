@@ -36,7 +36,14 @@ export function monsterFromTodos(todos = []) {
   const idx = todos.findIndex((t) => t.status === 'in_progress');
   if (idx === -1) return null;
   const label = todos[idx].content || todos[idx].activeForm || '';
-  return { type: hashType(label), isBoss: idx === todos.length - 1, label };
+  return { type: hashType(label), isBoss: idx === todos.length - 1, label, source: 'todo' };
+}
+
+// Monstruo "de turno": el que aparece cuando la sesión no usa todos. Sprite aleatorio
+// (el cliente mapea cualquier `type` a un sprite vía hash), nunca boss. Nace en
+// UserPromptSubmit y muere en Stop.
+export function randomMonster(label = '') {
+  return { type: 't' + Math.random().toString(36).slice(2, 8), isBoss: false, label, source: 'turn' };
 }
 
 // El store vive en memoria, pero opcionalmente se respalda en disco para que un
