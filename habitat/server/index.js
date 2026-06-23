@@ -5,7 +5,7 @@ import { dirname, join, extname, normalize, sep, basename } from 'node:path';
 import config from './config.js';
 import { createStore } from './state.js';
 import { readUsage } from './transcript.js';
-import { applyEvent } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
@@ -56,6 +56,25 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
+      res.writeHead(204).end();
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/status') {
+      if (!authorize(req, res)) return;
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const id = body && body.session_id;
+      if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
+      const s = store.get(id);
+      if (s) {
+        const stamina = staminaFromStatus(body);
+        if (stamina != null) {
+          s.stamina = stamina;
+          hub.broadcast({ type: 'session', session: snapOf(s) });
+          store.persist();
+        }
+      }
       res.writeHead(204).end();
       return;
     }

@@ -36,6 +36,79 @@ test('POST /hooks con token crea la sesión en el store', async () => {
   server.close();
 });
 
+test('POST /status sin token -> 401', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/status`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ session_id: 's1', context_window: { used_percentage: 4 } }),
+  });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /status sin session_id -> 400', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/status`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ context_window: { used_percentage: 4 } }),
+  });
+  assert.equal(res.status, 400);
+  server.close();
+});
+
+test('POST /status sesión inexistente -> 204 y no crea pod', async () => {
+  const store = createStore();
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/status`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ session_id: 'nope', context_window: { used_percentage: 4 } }),
+  });
+  assert.equal(res.status, 204);
+  assert.equal(store.get('nope'), undefined);
+  server.close();
+});
+
+test('POST /status setea stamina = 100 - used_percentage y difunde session', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'api' }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); }); // snapshot inicial
+  const sessionMsg = new Promise((r) => ws.on('message', (d) => {
+    const m = JSON.parse(d.toString());
+    if (m.type === 'session') r(m);
+  }));
+  const res = await fetch(`http://127.0.0.1:${port}/status`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ session_id: 's1', context_window: { used_percentage: 4 } }),
+  });
+  assert.equal(res.status, 204);
+  const m = await sessionMsg;
+  assert.equal(m.session.id, 's1');
+  assert.equal(m.session.stamina, 96);
+  assert.equal(store.get('s1').stamina, 96);
+  ws.close();
+  server.close();
+});
+
+test('POST /status sin context_window -> 204 y no cambia stamina', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'api', stamina: 42 }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/status`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ session_id: 's1' }),
+  });
+  assert.equal(res.status, 204);
+  assert.equal(store.get('s1').stamina, 42);
+  server.close();
+});
+
 test('GET /preview sin token -> 401', async () => {
   const store = createStore();
   const { server } = createApp({ config, store });
