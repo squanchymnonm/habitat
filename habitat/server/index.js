@@ -80,13 +80,19 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
-        const { session, fightResult, removed } = applyEvent(store, payload, {
+        const { session, fightResult, removed, rekey } = applyEvent(store, payload, {
           readUsage, gitBranch, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
-        if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
+        if (rekey) {
+          // /clear cambia el id del pod: lo mandamos como rekey atómico para que el front
+          // lo reemplace en su lugar y conserve la selección (sin push al final ni perder foco).
+          hub.broadcast({ type: 'rekey', from: rekey.from, to: rekey.to, session: snapOf(session) });
+        } else {
+          if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
+          if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
+        }
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
-        if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();

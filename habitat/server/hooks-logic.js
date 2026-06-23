@@ -86,7 +86,7 @@ export function applyEvent(store, payload, deps) {
       // El rekey cambió el id del pod (viejo -> nuevo). El front trackea las cards por id,
       // así que hay que avisarle que borre la del id viejo; si no, queda colgada y se ve
       // como un pod duplicado (la nueva se agrega, la vieja nunca se saca).
-      return { session: prev, fightResult: null, removed: oldId };
+      return { session: prev, fightResult: null, rekey: { from: oldId, to: prev.id } };
     }
   }
 
