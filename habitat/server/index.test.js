@@ -134,7 +134,13 @@ test('GET path traversal -> no 200', async () => {
   server.close();
 });
 
-const spawnConfig = (over) => ({ ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'], ...over });
+const spawnConfig = (over) => ({ ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'], WORKTREES_DIR: '/home/u/habitat-worktrees', ...over });
+const fakeGit = (over = {}) => ({
+  findNestedRepos: async () => [],
+  remoteDefaultBranch: async () => 'origin/main',
+  worktreeAdd: async () => true,
+  ...over,
+});
 const auth = { authorization: 'Bearer secret' };
 
 test('GET /projects refleja canSpawn (off)', async () => {
@@ -207,25 +213,32 @@ test('POST /spawn body inválido -> 400', async () => {
   server.close();
 });
 
-test('POST /spawn colisión -> 409', async () => {
-  const tmux = { listSessions: async () => ['proj-api'], newTmuxSession: async () => true };
-  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux });
-  const port = await listen(server);
-  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
-    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api' }),
-  });
-  assert.equal(r.status, 409);
-  server.close();
-});
-
-test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
-  const seen = [];
+test('POST /spawn OK worktree -> 200 con name; invoca worktreeAdd y newTmuxSession', async () => {
+  const seenGit = [];
+  const seenTmux = [];
   const tmux = {
     listSessions: async () => [],
-    newTmuxSession: async (name, dir) => { seen.push([name, dir]); return true; },
+    newTmuxSession: async (n, d) => { seenTmux.push([n, d]); return true; },
   };
-  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux });
+  const git = fakeGit({ worktreeAdd: async (...a) => { seenGit.push(a); return true; } });
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'bob' }),
+  });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.name, 'proj-api-bob');
+  assert.deepEqual(seenGit, [['/home/u/proj-api', 'bob', 'origin/main', '/home/u/habitat-worktrees/proj-api/bob']]);
+  assert.deepEqual(seenTmux, [['proj-api-bob', '/home/u/habitat-worktrees/proj-api/bob']]);
+  server.close();
+});
+
+test('POST /spawn autogenera nombre cuando no se provee', async () => {
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
@@ -233,103 +246,79 @@ test('POST /spawn OK -> 200 con name; invoca newTmuxSession', async () => {
   });
   const body = await r.json();
   assert.equal(r.status, 200);
-  assert.equal(body.name, 'proj-api');
-  assert.deepEqual(seen, [['proj-api', '/home/u/proj-api']]);
+  assert.equal(body.name, 'proj-api-mario');
   server.close();
 });
 
-test('POST /spawn con branch crea worktree y tmux <proyecto>-<rama>', async () => {
-  const seenTmux = [];
-  const seenGit = [];
-  const tmux = { listSessions: async () => [], newTmuxSession: async (n, d) => { seenTmux.push([n, d]); return true; } };
-  const git = { worktreeAdd: async (...a) => { seenGit.push(a); return true; } };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
-  const port = await listen(server);
-  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
-    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x', base: 'main' }),
-  });
-  const body = await r.json();
-  assert.equal(r.status, 200);
-  assert.equal(body.name, 'proj-api-feature-x');
-  assert.deepEqual(seenGit, [['/home/u/proj-api', 'feature/x', 'main', '/home/u/habitat-worktrees/proj-api/feature-x']]);
-  assert.deepEqual(seenTmux, [['proj-api-feature-x', '/home/u/habitat-worktrees/proj-api/feature-x']]);
-  server.close();
-});
-
-test('POST /spawn con branch crea pod provisional pending:<tmux> en el store', async () => {
+test('POST /spawn crea pod provisional con name, project, branch y char', async () => {
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => true };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
+  const git = fakeGit();
   const store = createStore();
-  const { server } = createApp({ config: cfg, store, tmux, git });
+  const { server } = createApp({ config: spawnConfig(), store, tmux, git });
   const port = await listen(server);
   await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x', char: 'Knight' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'bob', char: 'Knight' }),
   });
-  const prov = store.get('pending:proj-api-feature-x');
+  const prov = store.get('pending:proj-api-bob');
   assert.ok(prov, 'debe existir el pod provisional');
-  assert.equal(prov.tmux, 'proj-api-feature-x');
-  assert.equal(prov.branch, 'feature/x');
+  assert.equal(prov.tmux, 'proj-api-bob');
+  assert.equal(prov.name, 'bob');
+  assert.equal(prov.project, 'proj-api');
+  assert.equal(prov.branch, 'bob');
   assert.equal(prov.status, 'waiting');
   assert.equal(prov.char, 'Knight');
   server.close();
 });
 
-test('POST /spawn con branch usa base=main por default', async () => {
+test('POST /spawn base = default branch (no usa body.base)', async () => {
   const seenGit = [];
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async (...a) => { seenGit.push(a); return true; } };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const git = fakeGit({ worktreeAdd: async (...a) => { seenGit.push(a); return true; } });
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'fix' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'fix', base: 'ignored' }),
   });
-  assert.equal(seenGit[0][2], 'main');
+  assert.equal(seenGit[0][2], 'origin/main');
   server.close();
 });
 
-test('POST /spawn branch inválida -> 400', async () => {
+test('POST /spawn nombre inválido -> 400', async () => {
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => true };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: '../evil' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: '../evil' }),
   });
   assert.equal(r.status, 400);
   server.close();
 });
 
-test('POST /spawn branch con prefijo - (flag smuggling) -> 400', async () => {
+test('POST /spawn nombre con prefijo - (flag smuggling) -> 400', async () => {
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => true };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: '--force' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: '--force' }),
   });
   assert.equal(r.status, 400);
   server.close();
 });
 
-test('POST /spawn colisión de tmux de worktree -> 409', async () => {
-  const tmux = { listSessions: async () => ['proj-api-feature-x'], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => true };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+test('POST /spawn colisión -> 409', async () => {
+  const tmux = { listSessions: async () => ['proj-api-bob'], newTmuxSession: async () => true };
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'bob' }),
   });
   assert.equal(r.status, 409);
   server.close();
@@ -337,56 +326,42 @@ test('POST /spawn colisión de tmux de worktree -> 409', async () => {
 
 test('POST /spawn fallo de worktreeAdd -> 500', async () => {
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => false };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const git = fakeGit({ worktreeAdd: async () => false });
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feat' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'feat' }),
   });
   assert.equal(r.status, 500);
   server.close();
 });
 
-test('POST /spawn con branch + char válido -> setPendingChar(tmuxName) y 200', async () => {
+test('POST /spawn con name + char válido -> setPendingChar(tmuxName) y 200', async () => {
   const store = createStore();
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { worktreeAdd: async () => true };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store, tmux, git });
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store, tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x', char: 'Knight' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'bob', char: 'Knight' }),
   });
   assert.equal(r.status, 200);
-  assert.equal(store.takePendingChar('proj-api-feature-x'), 'Knight');
+  assert.equal(store.takePendingChar('proj-api-bob'), 'Knight');
   server.close();
 });
 
 test('POST /spawn con char inválido -> 400', async () => {
-  const { server } = createApp({ config: spawnConfig(), store: createStore() });
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
     body: JSON.stringify({ dir: '/home/u/proj-api', char: 'NoExiste' }),
   });
   assert.equal(r.status, 400);
-  server.close();
-});
-
-test('POST /spawn con char válido -> setPendingChar(name, char) y 200', async () => {
-  const store = createStore();
-  const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const { server } = createApp({ config: spawnConfig(), store, tmux });
-  const port = await listen(server);
-  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
-    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Knight' }),
-  });
-  assert.equal(r.status, 200);
-  assert.equal(store.takePendingChar('proj-api'), 'Knight');
   server.close();
 });
 
@@ -548,14 +523,15 @@ test('POST /spawn pasa el permissionMode de settings a newTmuxSession', async ()
     listSessions: async () => [],
     newTmuxSession: async (name, dir, _exec, opts) => { seen.push([name, dir, opts]); return true; },
   };
-  const { server } = createApp({ config: spawnConfig(), store: createStore(), settingsStore, tmux });
+  const git = fakeGit();
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), settingsStore, tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'mario' }),
   });
   assert.equal(r.status, 200);
-  assert.deepEqual(seen, [['proj-api', '/home/u/proj-api', { permissionMode: 'plan' }]]);
+  assert.deepEqual(seen, [['proj-api-mario', '/home/u/habitat-worktrees/proj-api/mario', { permissionMode: 'plan' }]]);
   server.close();
 });
 
@@ -590,36 +566,34 @@ test('POST /spawn de proyecto contenedor llama containerWorktreeAdd y abre tmux 
   const seenTmux = [];
   const seenContainer = [];
   const tmux = { listSessions: async () => [], newTmuxSession: async (n, d) => { seenTmux.push([n, d]); return true; } };
-  const git = {
+  const git = fakeGit({
     findNestedRepos: async () => ['back', 'front'],
     containerWorktreeAdd: async (...a) => { seenContainer.push(a); return true; },
-  };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  });
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feature/x' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'bob' }),
   });
   const body = await r.json();
   assert.equal(r.status, 200);
-  assert.equal(body.name, 'proj-api-feature-x');
+  assert.equal(body.name, 'proj-api-bob');
   assert.deepEqual(seenContainer, [[
-    '/home/u/proj-api', 'feature/x', '/home/u/habitat-worktrees/proj-api/feature-x', ['back', 'front'],
+    '/home/u/proj-api', 'bob', '/home/u/habitat-worktrees/proj-api/bob', ['back', 'front'],
   ]]);
-  assert.deepEqual(seenTmux, [['proj-api-feature-x', '/home/u/habitat-worktrees/proj-api/feature-x']]);
+  assert.deepEqual(seenTmux, [['proj-api-bob', '/home/u/habitat-worktrees/proj-api/bob']]);
   server.close();
 });
 
 test('POST /spawn de contenedor: fallo de containerWorktreeAdd -> 500', async () => {
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true };
-  const git = { findNestedRepos: async () => ['back'], containerWorktreeAdd: async () => false };
-  const cfg = spawnConfig({ WORKTREES_DIR: '/home/u/habitat-worktrees' });
-  const { server } = createApp({ config: cfg, store: createStore(), tmux, git });
+  const git = fakeGit({ findNestedRepos: async () => ['back'], containerWorktreeAdd: async () => false });
+  const { server } = createApp({ config: spawnConfig(), store: createStore(), tmux, git });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ dir: '/home/u/proj-api', branch: 'feat' }),
+    body: JSON.stringify({ dir: '/home/u/proj-api', name: 'feat' }),
   });
   assert.equal(r.status, 500);
   server.close();
@@ -839,8 +813,8 @@ test('POST /spawn con char dentro de la allowlist -> 200', async () => {
   const projectsStore = createProjects();
   projectsStore.add({ dir: '/home/u/proj-api', color: PALETTE[0], chars: ['Knight'] });
   const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
-  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [] };
-  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux });
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [], WORKTREES_DIR: '/home/u/habitat-worktrees' };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux, git: fakeGit() });
   const port = await listen(server);
   const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
     method: 'POST', headers: { ...auth, 'content-type': 'application/json' },

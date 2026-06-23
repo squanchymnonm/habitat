@@ -97,19 +97,19 @@ function colorForProject(name: string): string {
   return p?.color ?? ''
 }
 
-async function spawn(dir: string, branch: string, base: string, char?: string): Promise<boolean> {
+async function spawn(dir: string, name: string, char?: string): Promise<boolean> {
   error.value = ''
   try {
-    const res = await fetch('/spawn', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ dir, branch, base, char }) })
+    const res = await fetch('/spawn', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ dir, name, char }) })
     if (res.ok) return true
     error.value =
-      res.status === 409 ? 'ya hay un agente en esa rama'
-      : res.status === 400 ? 'datos inválidos'
+      res.status === 409 ? 'ya existe un personaje con ese nombre'
+      : res.status === 400 ? 'nombre inválido'
       : res.status === 403 ? 'no permitido'
-      : 'no se pudo crear el agente'
+      : 'no se pudo crear la sesión'
     return false
   } catch {
-    error.value = 'no se pudo crear el agente'
+    error.value = 'no se pudo crear la sesión'
     return false
   }
 }
