@@ -150,7 +150,7 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       // Nombre de personaje: provisto o autogenerado (evitando los ya usados en el proyecto).
       let name = body && body.name;
       if (name == null || name === '') {
-        const used = store.all().filter((s) => s.project === projectName).map((s) => s.name);
+        const used = store.all().map((s) => s.name);
         name = autoName(used);
       } else if (typeof name !== 'string' || !validBranch(name)) {
         res.writeHead(400).end(); return;
