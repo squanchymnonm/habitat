@@ -161,6 +161,19 @@ test('GET /projects lista la whitelist cuando está habilitado', async () => {
   server.close();
 });
 
+test('GET /projects canManage=true con lista vacía cuando ALLOW_SPAWN y PROJECTS_ROOT están configurados', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: '/some/projects/root', PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.canManage, true);
+  assert.equal(body.canSpawn, false);
+  assert.equal(body.projects.length, 0);
+  server.close();
+});
+
 test('POST /spawn deshabilitado -> 403', async () => {
   const { server } = createApp({ config, store: createStore() });
   const port = await listen(server);

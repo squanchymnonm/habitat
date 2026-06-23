@@ -124,7 +124,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (!authorize(req, res)) return;
       const list = projectsForClient();
       const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects: list }));
+      const canManage = !!(config.ALLOW_SPAWN && config.PROJECTS_ROOT);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, projects: list }));
       return;
     }
 

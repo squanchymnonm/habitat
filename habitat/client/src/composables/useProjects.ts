@@ -16,6 +16,7 @@ export interface BrowseResult {
 }
 
 const canSpawn = ref(false)
+const canManage = ref(false)
 const projects = ref<Project[]>([])
 const error = ref('')
 let loaded = false
@@ -26,8 +27,9 @@ async function load() {
   try {
     const res = await fetch('/projects', { headers: authHeaders() })
     if (!res.ok) return
-    const data = (await res.json()) as { canSpawn: boolean; projects: Project[] }
+    const data = (await res.json()) as { canSpawn: boolean; canManage?: boolean; projects: Project[] }
     canSpawn.value = data.canSpawn
+    canManage.value = !!data.canManage
     projects.value = data.projects
   } catch {
     /* sin red: el botón simplemente no aparece */
@@ -126,5 +128,5 @@ export function useProjects() {
     loaded = true
     load()
   }
-  return { canSpawn, projects, error, spawn, kill, browse, addProject, updateProject, removeProject, colorForProject }
+  return { canSpawn, canManage, projects, error, spawn, kill, browse, addProject, updateProject, removeProject, colorForProject }
 }

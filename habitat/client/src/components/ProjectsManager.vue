@@ -4,7 +4,7 @@ import { useProjects, type BrowseResult } from '../composables/useProjects'
 import { PALETTE } from '../palette'
 import { CHARACTERS } from '../sprites'
 
-const { projects, canSpawn, error, browse, addProject, updateProject, removeProject } = useProjects()
+const { projects, canManage, error, browse, addProject, updateProject, removeProject } = useProjects()
 
 // --- alta con navegador de carpetas ---
 const browsing = ref(false)
@@ -61,7 +61,7 @@ async function remove(dir: string, name: string) {
 <template>
   <section class="projects">
     <h3>PROYECTOS</h3>
-    <p class="hint" v-if="!canSpawn">Spawn deshabilitado: configurá HABITAT_ALLOW_SPAWN para gestionar proyectos.</p>
+    <p class="hint" v-if="!canManage">Gestión deshabilitada: configurá HABITAT_ALLOW_SPAWN y HABITAT_PROJECTS_ROOT.</p>
 
     <ul class="plist">
       <li v-for="p in projects" :key="p.dir" class="pitem">
@@ -83,7 +83,7 @@ async function remove(dir: string, name: string) {
       </li>
     </ul>
 
-    <button v-if="canSpawn && !browsing" class="ctl" @click="openBrowser">+ Agregar proyecto</button>
+    <button v-if="canManage && !browsing" class="ctl" @click="openBrowser">+ Agregar proyecto</button>
 
     <div v-if="browsing" class="browser">
       <div class="crumbs">
