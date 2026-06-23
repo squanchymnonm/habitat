@@ -6,8 +6,6 @@ test('config tiene defaults sensatos', async () => {
   assert.equal(typeof config.PORT, 'number');
   assert.equal(typeof config.BIND, 'string');
   assert.equal(typeof config.PREVIEW_LINES, 'number');
-  assert.equal(typeof config.MAX_CONTEXT, 'number');
-  assert.ok(config.MAX_CONTEXT > 0);
   assert.equal(config.BIND, '127.0.0.1'); // loopback por default (Ley 1)
 });
 

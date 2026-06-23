@@ -50,7 +50,7 @@ export function createApp({ config, store, tmux = { listSessions, newTmuxSession
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
         const { session, fightResult } = applyEvent(store, payload, {
-          readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+          readUsage, gitBranch, now: () => Date.now(),
         });
         if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });

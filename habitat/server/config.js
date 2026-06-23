@@ -12,7 +12,6 @@ export default {
   BIND: process.env.HABITAT_BIND || '127.0.0.1',
   TOKEN: process.env.HABITAT_TOKEN || '',
   PREVIEW_LINES: num(process.env.HABITAT_PREVIEW_LINES, 30),
-  MAX_CONTEXT: num(process.env.HABITAT_MAX_CONTEXT, 200000),
   ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
   PROJECTS: list(process.env.HABITAT_PROJECTS),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
