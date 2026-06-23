@@ -83,3 +83,23 @@ Exportar `HABITAT_TOKEN` (y `HABITAT_URL` si el server no está en el default) e
 > de cada evento y el nombre de campos (`tool_name`, `tool_input.todos`, `transcript_path`).
 > `StopFailure` puede no existir como evento separado según versión — en ese caso el error
 > llega como `Stop` con un campo de fallo; ajustar `hooks-logic.js` si difiere.
+
+## StatusLine (stamina real)
+
+La stamina del orbe = `100 − context_window.used_percentage` que Claude Code
+calcula por sesión contra la ventana real (200k o 1M). Para alimentarla, apuntar
+`statusLine.command` en `~/.claude/settings.json` al wrapper de habitat, que
+postea a `/status` y delega en el renderer del statusline existente:
+
+    {
+      "statusLine": {
+        "type": "command",
+        "command": "bash /ruta/a/habitat/hook/habitat-statusline"
+      }
+    }
+
+- Exportar `HABITAT_TOKEN` (y `HABITAT_URL_STATUS` si el server no está en el
+  default `http://127.0.0.1:8377/status`) en el entorno.
+- `HABITAT_STATUSLINE_DELEGATE` controla el renderer al que se delega; por
+  default `bash $HOME/.claude/statusline-command.sh` (el del plugin
+  `statusline@claude-statusline`). El wrapper NO edita ese archivo.

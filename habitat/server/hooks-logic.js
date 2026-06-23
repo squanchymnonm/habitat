@@ -3,8 +3,10 @@ import { newSession, questFromTodos, monsterFromTodos, hashType } from './state.
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
-function staminaFromContext(ctx, max) {
-  return Math.max(0, Math.round(100 * (1 - ctx / max)));
+export function staminaFromStatus(body) {
+  const used = body && body.context_window && body.context_window.used_percentage;
+  if (typeof used !== 'number' || !Number.isFinite(used)) return null;
+  return Math.max(0, Math.min(100, Math.round(100 - used)));
 }
 
 function ensure(store, payload) {
@@ -60,7 +62,7 @@ function findPodByTmux(store, { name, tmux }, exceptId) {
 }
 
 export function applyEvent(store, payload, deps) {
-  const { readUsage, maxContext, now } = deps;
+  const { readUsage, now } = deps;
   const ev = payload.hook_event_name;
 
   // /clear cierra la sesión vieja y abre una nueva (otro session_id) sobre la MISMA
@@ -109,12 +111,6 @@ export function applyEvent(store, payload, deps) {
   let fightResult = null;
   let removed = null;
 
-  const recomputeStamina = () => {
-    if (!payload.transcript_path) return;
-    const u = readUsage(payload.transcript_path);
-    if (u) s.stamina = staminaFromContext(u.contextTokens, maxContext);
-  };
-
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
@@ -148,7 +144,6 @@ export function applyEvent(store, payload, deps) {
     case 'UserPromptSubmit': {
       s._resting = false;
       setStatus(s, 'working', 'procesando tu pedido', now);
-      recomputeStamina();
       ensureMonster(s);
       break;
     }
@@ -226,7 +221,7 @@ function handleTodoWrite(s, payload, now) {
 }
 
 function handleHit(s, payload, deps) {
-  const { readUsage, maxContext, now } = deps;
+  const { readUsage, now } = deps;
   setStatus(s, 'working', payload.tool_name || 'trabajando', now);
   if (EDIT_TOOLS.has(payload.tool_name) && payload.tool_input && payload.tool_input.file_path) {
     s._touched.add(payload.tool_input.file_path);
@@ -241,7 +236,6 @@ function handleHit(s, payload, deps) {
       s.combat.lastDamage = damage;
       s._lastTotal = u.totalTokens;
       s._resting = false;
-      s.stamina = staminaFromContext(u.contextTokens, maxContext);
     }
   }
 }

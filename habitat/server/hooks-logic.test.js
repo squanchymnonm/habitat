@@ -1,11 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, newSession } from './state.js';
-import { applyEvent } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 
 const deps = (usage) => ({
   readUsage: () => usage,
-  maxContext: 200000,
   now: () => 1000,
 });
 
@@ -43,7 +42,7 @@ test('TodoWrite setea quest y monster', () => {
   assert.equal(session.monster.isBoss, false);
 });
 
-test('golpe acumula daño = delta de totalTokens y baja stamina', () => {
+test('golpe acumula daño = delta de totalTokens', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
@@ -54,13 +53,11 @@ test('golpe acumula daño = delta de totalTokens y baja stamina', () => {
   assert.equal(r.session.combat.hits, 1);
   assert.equal(r.session.combat.tokens, 1000);
   assert.equal(r.session.combat.lastDamage, 1000);
-  assert.equal(r.session.stamina, 80); // 100*(1-40000/200000)
   // segundo golpe: total 1500 -> damage 500
   r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Read', transcript_path: '/t' },
     deps({ contextTokens: 50000, totalTokens: 1500 }));
   assert.equal(r.session.combat.tokens, 1500);
   assert.equal(r.session.combat.lastDamage, 500);
-  assert.equal(r.session.stamina, 75);
 });
 
 test('Write/Edit acumula loot en _touched', () => {
@@ -99,27 +96,27 @@ test('Notification -> waiting; StopFailure -> error', () => {
   assert.equal(r.session.status, 'error');
 });
 
-test('PreCompact recalcula stamina desde el contexto real (no la clava en 5)', () => {
+test('PreCompact marca descanso sin tocar la stamina (la maneja el statusLine)', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  // contexto al 90% lleno -> stamina ~10 (no un valor mágico fijo)
+  store.get('s1').stamina = 42;
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
     deps({ contextTokens: 180000, totalTokens: 180000 }));
-  assert.equal(r.session.stamina, 10); // 100*(1-180000/200000)
+  assert.equal(r.session._resting, true);
+  assert.equal(r.session.status, 'working');
+  assert.equal(r.session.stamina, 42); // intacta: el orbe lo actualiza POST /status
 });
 
-test('Stop refresca stamina con el contexto ya compactado y marca done', () => {
+test('Stop marca done sin tocar la stamina', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreCompact', transcript_path: '/t' },
-    deps({ contextTokens: 180000, totalTokens: 180000 }));
+  store.get('s1').stamina = 42;
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'a', status: 'completed' }] } }, deps(null));
-  // tras compactar, el contexto baja al 18% -> stamina sube a 82
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop', transcript_path: '/t' },
     deps({ contextTokens: 36000, totalTokens: 200000 }));
-  assert.equal(r.session.stamina, 82); // 100*(1-36000/200000)
   assert.equal(r.session.status, 'done');
+  assert.equal(r.session.stamina, 42); // intacta
 });
 
 test('SessionEnd -> offline', () => {
@@ -358,4 +355,24 @@ test('SessionEnd sobre sesión inexistente no la crea (no-op)', () => {
   }, deps(null));
   assert.equal(session, null);
   assert.equal(store.get('ghost'), undefined);
+});
+
+test('staminaFromStatus: used 4% -> stamina 96', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 4 } }), 96);
+});
+
+test('staminaFromStatus: used 25% -> stamina 75', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 25 } }), 75);
+});
+
+test('staminaFromStatus: redondea y clampa', () => {
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 4.6 } }), 95);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 120 } }), 0);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: -10 } }), 100);
+});
+
+test('staminaFromStatus: sin context_window o sin used_percentage -> null', () => {
+  assert.equal(staminaFromStatus({}), null);
+  assert.equal(staminaFromStatus({ context_window: {} }), null);
+  assert.equal(staminaFromStatus({ context_window: { used_percentage: 'x' } }), null);
 });

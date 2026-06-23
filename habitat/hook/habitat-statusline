@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Lee el JSON del statusLine por stdin, lo reenvía al servicio hábitat (POST /status)
+# y delega en el renderer del statusline (plugin) para la salida en terminal.
+# Diseñado para NUNCA bloquear Claude Code: el POST va en background y siempre sale 0.
+URL="${HABITAT_URL_STATUS:-http://127.0.0.1:8377/status}"
+TOKEN="${HABITAT_TOKEN:-}"
+DELEGATE="${HABITAT_STATUSLINE_DELEGATE:-bash $HOME/.claude/statusline-command.sh}"
+payload="$(cat || true)"
+printf '%s' "$payload" | curl -fsS -m 3 -X POST "$URL" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  --data-binary @- >/dev/null 2>&1 &
+printf '%s' "$payload" | $DELEGATE
+exit 0

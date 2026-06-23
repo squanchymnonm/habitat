@@ -6,7 +6,7 @@ import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
 import { readUsage } from './transcript.js';
-import { applyEvent } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
@@ -70,7 +70,7 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
         const { session, fightResult, removed } = applyEvent(store, payload, {
-          readUsage, gitBranch, maxContext: config.MAX_CONTEXT, now: () => Date.now(),
+          readUsage, gitBranch, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
         if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
@@ -78,6 +78,25 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
         if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
+      res.writeHead(204).end();
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/status') {
+      if (!authorize(req, res)) return;
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const id = body && body.session_id;
+      if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
+      const s = store.get(id);
+      if (s) {
+        const stamina = staminaFromStatus(body);
+        if (stamina != null) {
+          s.stamina = stamina;
+          hub.broadcast({ type: 'session', session: snapOf(s) });
+          store.persist();
+        }
+      }
       res.writeHead(204).end();
       return;
     }
