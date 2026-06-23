@@ -5,7 +5,6 @@ import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 
 const deps = (usage) => ({
   readUsage: () => usage,
-  maxContext: 200000,
   now: () => 1000,
 });
 
@@ -43,7 +42,7 @@ test('TodoWrite setea quest y monster', () => {
   assert.equal(session.monster.isBoss, false);
 });
 
-test('golpe acumula daño = delta de totalTokens y baja stamina', () => {
+test('golpe acumula daño = delta de totalTokens', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
@@ -54,13 +53,11 @@ test('golpe acumula daño = delta de totalTokens y baja stamina', () => {
   assert.equal(r.session.combat.hits, 1);
   assert.equal(r.session.combat.tokens, 1000);
   assert.equal(r.session.combat.lastDamage, 1000);
-  assert.equal(r.session.stamina, 80); // 100*(1-40000/200000)
   // segundo golpe: total 1500 -> damage 500
   r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Read', transcript_path: '/t' },
     deps({ contextTokens: 50000, totalTokens: 1500 }));
   assert.equal(r.session.combat.tokens, 1500);
   assert.equal(r.session.combat.lastDamage, 500);
-  assert.equal(r.session.stamina, 75);
 });
 
 test('Write/Edit acumula loot en _touched', () => {
