@@ -1,0 +1,50 @@
+import { describe, it, expect } from 'vitest'
+import { findLinks } from './terminalLinks'
+
+describe('findLinks', () => {
+  it('detecta una URL https y conserva texto y rango', () => {
+    const line = 'abrí https://ejemplo.com ya'
+    const [m, ...rest] = findLinks(line)
+    expect(rest).toHaveLength(0)
+    expect(m.url).toBe('https://ejemplo.com')
+    expect(line.slice(m.start, m.end)).toBe('https://ejemplo.com')
+  })
+
+  it('detecta http://localhost con esquema', () => {
+    const [m] = findLinks('server en http://localhost:5173/')
+    expect(m.url).toBe('http://localhost:5173/')
+  })
+
+  it('detecta localhost:PORT sin esquema y normaliza a http://', () => {
+    const line = 'corriendo en localhost:3000'
+    const [m] = findLinks(line)
+    expect(m.url).toBe('http://localhost:3000')
+    expect(line.slice(m.start, m.end)).toBe('localhost:3000')
+  })
+
+  it('detecta 127.0.0.1 con path', () => {
+    const [m] = findLinks('ping 127.0.0.1:8080/health')
+    expect(m.url).toBe('http://127.0.0.1:8080/health')
+  })
+
+  it('detecta 0.0.0.0:PORT sin esquema', () => {
+    const [m] = findLinks('listening on 0.0.0.0:4000')
+    expect(m.url).toBe('http://0.0.0.0:4000')
+  })
+
+  it('una línea sin links devuelve []', () => {
+    expect(findLinks('no hay nada acá, solo texto.')).toEqual([])
+  })
+
+  it('recorta puntuación final colgada', () => {
+    const line = 'visitá https://ejemplo.com.'
+    const [m] = findLinks(line)
+    expect(m.url).toBe('https://ejemplo.com')
+    expect(line.slice(m.start, m.end)).toBe('https://ejemplo.com')
+  })
+
+  it('detecta múltiples links en orden', () => {
+    const ms = findLinks('a https://uno.com b localhost:3000 c')
+    expect(ms.map((m) => m.url)).toEqual(['https://uno.com', 'http://localhost:3000'])
+  })
+})
