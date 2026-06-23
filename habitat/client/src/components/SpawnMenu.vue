@@ -8,40 +8,44 @@ const open = ref(false)
 const step = ref<'proj' | 'detail'>('proj')
 const pickedDir = ref('')
 const busy = ref(false)
-const branch = ref('')
-const base = ref('main')
+const name = ref('')
+const pickedChar = ref<string | undefined>(undefined)
 
-function toggle() {
-  open.value = !open.value
+function reset() {
   step.value = 'proj'
   pickedDir.value = ''
+  name.value = ''
+  pickedChar.value = undefined
+}
+function toggle() {
+  open.value = !open.value
+  reset()
 }
 function pickProject(dir: string) {
   pickedDir.value = dir
-  branch.value = ''
-  base.value = 'main'
   step.value = 'detail'
 }
 function back() {
-  step.value = 'proj'
-  pickedDir.value = ''
+  reset()
 }
-async function create(char?: string) {
-  if (!pickedDir.value || !branch.value.trim()) return
+function selectChar(c: string) {
+  pickedChar.value = pickedChar.value === c ? undefined : c
+}
+async function create() {
+  if (!pickedDir.value) return
   busy.value = true
-  const ok = await spawn(pickedDir.value, branch.value.trim(), base.value.trim() || 'main', char)
+  const ok = await spawn(pickedDir.value, name.value.trim(), pickedChar.value)
   busy.value = false
   if (ok) {
     open.value = false
-    step.value = 'proj'
-    pickedDir.value = ''
+    reset()
   }
 }
 </script>
 
 <template>
   <div class="spawn" v-if="canSpawn">
-    <button class="ctl" @click="toggle" :disabled="busy">+ NUEVO AGENTE</button>
+    <button class="ctl" @click="toggle" :disabled="busy">+ NUEVA SESIÓN</button>
     <div class="spawn-menu" v-if="open">
       <!-- Paso 1: elegir proyecto -->
       <template v-if="step === 'proj'">
@@ -56,24 +60,33 @@ async function create(char?: string) {
         </button>
       </template>
 
-      <!-- Paso 2: rama + base + personaje -->
+      <!-- Paso 2: nombre + sprite -->
       <template v-else>
         <button class="ctl spawn-back" :disabled="busy" @click="back">← volver</button>
-        <input class="spawn-input" v-model="branch" placeholder="rama (ej. feature/x)" :disabled="busy" />
-        <input class="spawn-input" v-model="base" placeholder="base" :disabled="busy" />
+        <input
+          class="spawn-input spawn-name"
+          v-model="name"
+          :disabled="busy"
+          placeholder="nombre (vacío = al azar)"
+          @keyup.enter="create"
+        />
         <div class="spawn-chars">
           <button
             v-for="c in CHARACTERS"
             :key="c"
             class="spawn-char"
-            :disabled="busy || !branch.trim()"
+            :class="{ sel: pickedChar === c }"
+            :disabled="busy"
             :title="c"
-            @click="create(c)"
+            @click="selectChar(c)"
           >
             <img :src="faceFor('', c)" alt="" />
           </button>
-          <button class="ctl spawn-auto" :disabled="busy || !branch.trim()" @click="create()">Auto</button>
+          <button class="ctl spawn-auto" :class="{ sel: !pickedChar }" :disabled="busy" @click="pickedChar = undefined">
+            Auto
+          </button>
         </div>
+        <button class="ctl spawn-create" :disabled="busy" @click="create">Crear</button>
       </template>
 
       <div class="spawn-err" v-if="error">{{ error }}</div>
@@ -107,4 +120,12 @@ async function create(char?: string) {
 .spawn-auto {
   grid-column: span 4;
 }
+.spawn-name {
+  width: 100%;
+  margin-top: 6px;
+  box-sizing: border-box;
+}
+.spawn-char.sel { border-color: #e7c14a; }
+.spawn-auto.sel { border-color: #e7c14a; }
+.spawn-create { margin-top: 6px; width: 100%; }
 </style>
