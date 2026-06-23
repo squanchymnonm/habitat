@@ -17,14 +17,14 @@ export const NAMES = [
   'eivor', 'kassandra', 'bayek', 'doomguy', 'scorpion', 'jin', 'kazuya', 'cole',
 ];
 
-// Primer nombre de NAMES no presente en `used`. Si están todos, sufija -2, -3, ...
+// Nombre aleatorio de NAMES no presente en `used`. Si están todos, sufija -2, -3, …
 export function autoName(used = []) {
   const set = new Set(used);
-  for (const n of NAMES) if (!set.has(n)) return n;
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const free = NAMES.filter((n) => !set.has(n));
+  if (free.length) return pick(free);
   for (let i = 2; ; i++) {
-    for (const n of NAMES) {
-      const cand = `${n}-${i}`;
-      if (!set.has(cand)) return cand;
-    }
+    const freeSuffixed = NAMES.map((n) => `${n}-${i}`).filter((c) => !set.has(c));
+    if (freeSuffixed.length) return pick(freeSuffixed);
   }
 }
