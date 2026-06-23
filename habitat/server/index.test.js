@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
 import { createSettings } from './settings.js';
+import { PALETTE } from './palette.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -705,4 +706,83 @@ test('GET /projects/browse con path=.. -> 400 (no escapa del root)', async () =>
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('POST /projects agrega una carpeta del root y la lista la incluye', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-c'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const dir = join(root, 'proj-c');
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir, color: PALETTE[0], chars: ['Knight'] }),
+    });
+    assert.equal(r.status, 200);
+    const rec = await r.json();
+    assert.equal(rec.name, 'proj-c');
+    assert.equal(rec.color, PALETTE[0]);
+    const list = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.ok(list.projects.some((p) => p.dir === dir));
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('POST /projects con dir fuera del root -> 400', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir: '/etc', color: PALETTE[0] }),
+    });
+    assert.equal(r.status, 400);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('DELETE /projects quita de la lista', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'DELETE', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api' }),
+  });
+  assert.equal(r.status, 200);
+  const list = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+  assert.equal(list.projects.length, 0);
+  server.close();
+});
+
+test('PATCH /projects edita el color', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'PATCH', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', color: PALETTE[5] }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).color, PALETTE[5]);
+  server.close();
+});
+
+test('POST /projects sin ALLOW_SPAWN -> 403', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/x', color: PALETTE[0] }),
+  });
+  assert.equal(r.status, 403);
+  server.close();
 });

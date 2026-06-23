@@ -64,6 +64,14 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
     if (hub) hub.broadcast({ type: 'session', session: snapOf(s) });
   }
 
+  // Lista de proyectos en el shape que consume el cliente (name = label).
+  function projectsForClient() {
+    return projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+  }
+  function broadcastProjects() {
+    if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
@@ -114,7 +122,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
 
     if (req.method === 'GET' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
-      const list = projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+      const list = projectsForClient();
       const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects: list }));
       return;
@@ -156,6 +164,58 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    // dir absoluto, existente y contenido en PROJECTS_ROOT (para alta).
+    async function dirWithinRoot(dir) {
+      const root = config.PROJECTS_ROOT;
+      if (!root || typeof dir !== 'string' || !dir) return false;
+      let real, realRoot;
+      try { real = await realpath(dir); realRoot = await realpath(root); }
+      catch { return false; }
+      return real === realRoot || real.startsWith(realRoot + sep);
+    }
+
+    if (req.method === 'POST' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const dir = body && body.dir;
+      if (!(await dirWithinRoot(dir))) { res.writeHead(400).end(); return; }
+      const r = projects.add({ dir, label: body.label, color: body.color, chars: body.chars });
+      if (!r.ok) { res.writeHead(r.error === 'duplicado' ? 409 : 400).end(); return; }
+      broadcastProjects();
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      return;
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
+      if (!projects.has(body.dir)) { res.writeHead(404).end(); return; }
+      const r = projects.update({ dir: body.dir, label: body.label, color: body.color, chars: body.chars });
+      if (!r.ok) { res.writeHead(400).end(); return; }
+      broadcastProjects();
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      return;
+    }
+
+    if (req.method === 'DELETE' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
+      if (!projects.remove(body.dir)) { res.writeHead(404).end(); return; }
+      broadcastProjects();
+      res.writeHead(200).end();
       return;
     }
 
