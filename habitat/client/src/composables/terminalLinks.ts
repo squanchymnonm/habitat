@@ -40,3 +40,30 @@ export function findLinks(lineText: string): LinkMatch[] {
   }
   return out
 }
+
+import type { Terminal, ILinkProvider, ILink } from '@xterm/xterm'
+
+// Provider de links para xterm v6: por cada línea pedida, mapea findLinks() a ILink[].
+// La activación abre el link solo con Ctrl/Cmd+click (el click simple va a la terminal).
+export function createLinkProvider(term: Terminal, openLink: (url: string) => void): ILinkProvider {
+  return {
+    provideLinks(bufferLineNumber, callback) {
+      const line = term.buffer.active.getLine(bufferLineNumber - 1)
+      const text = line ? line.translateToString() : ''
+      const matches = findLinks(text)
+      if (matches.length === 0) { callback(undefined); return }
+      const links: ILink[] = matches.map((m) => ({
+        // xterm: coordenadas 1-based; range.end.x es inclusivo.
+        range: {
+          start: { x: m.start + 1, y: bufferLineNumber },
+          end: { x: m.end, y: bufferLineNumber },
+        },
+        text: m.url,
+        activate(event: MouseEvent, url: string) {
+          if (event.ctrlKey || event.metaKey) openLink(url)
+        },
+      }))
+      callback(links)
+    },
+  }
+}

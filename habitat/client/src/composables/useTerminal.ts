@@ -1,6 +1,7 @@
 import { watch, onUnmounted, type Ref } from 'vue'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type IDisposable } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { createLinkProvider } from './terminalLinks'
 import '@xterm/xterm/css/xterm.css'
 
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
@@ -11,9 +12,11 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   let term: Terminal | null = null
   let fitAddon: FitAddon | null = null
   let ws: WebSocket | null = null
+  let linkProvider: IDisposable | null = null
 
   function teardown() {
     if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
+    if (linkProvider) { linkProvider.dispose(); linkProvider = null }
     if (term) { term.dispose(); term = null }
     fitAddon = null
   }
@@ -41,6 +44,27 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     term.loadAddon(fitAddon)
     term.open(el)
     fitAddon.fit()
+    linkProvider = term.registerLinkProvider(
+      createLinkProvider(term, (url) => window.open(url, '_blank', 'noopener,noreferrer')),
+    )
+
+    // Copiar/pegar: tmux corre con `mouse on`, así que arrastrar va a tmux y la rueda
+    // scrollea su copy-mode. Para seleccionar en xterm hay que mantener Shift al arrastrar
+    // (xterm fuerza su selección nativa). Acá cableamos Ctrl+Shift+C/V sobre esa selección;
+    // devolver false evita que xterm mande la tecla al pty. usa e.code para ser agnóstico al layout.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey) return true
+      if (e.code === 'KeyC') {
+        const sel = term?.getSelection()
+        if (sel) navigator.clipboard?.writeText(sel)
+        return false
+      }
+      if (e.code === 'KeyV') {
+        navigator.clipboard?.readText().then((t) => t && term?.paste(t))
+        return false
+      }
+      return true
+    })
 
     const tok = token()
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
