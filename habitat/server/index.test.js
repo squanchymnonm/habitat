@@ -225,7 +225,7 @@ test('POST /spawn autogenera nombre cuando no se provee', async () => {
   });
   const body = await r.json();
   assert.equal(r.status, 200);
-  assert.match(body.name, /^proj-api-[a-z0-9-]+$/);
+  assert.ok(NAMES.some((n) => body.name === `proj-api-${n}`), `${body.name} debería ser proj-api-<nombre de NAMES>`);
   server.close();
 });
 
