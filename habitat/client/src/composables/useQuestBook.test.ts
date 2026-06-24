@@ -21,7 +21,7 @@ describe('useQuestBook', () => {
     const qb = useQuestBook()
     await qb.load('s1')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/questbook?id=s1')
+    expect(fetchMock).toHaveBeenCalledWith('/questbook?id=s1', expect.any(Object))
     expect(qb.book.value?.synopsis).toBe('x')
     expect(qb.loading.value).toBe(false)
     expect(qb.error.value).toBe('')
