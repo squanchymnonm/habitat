@@ -126,6 +126,15 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/questbook') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id'));
+      if (!s) { res.writeHead(404).end(); return; }
+      const book = s._questbook || { synopsis: '', quests: [], events: [] };
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(book));
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
       const list = projectsForClient();
