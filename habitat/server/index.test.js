@@ -890,3 +890,38 @@ test('POST /sessions/order con body inválido -> 400', async () => {
   assert.equal(res.status, 400);
   server.close();
 });
+
+test('GET /questbook devuelve el libro de la sesión', async () => {
+  const store = createStore();
+  const s = newSession('qb1', { name: 'luigi' });
+  s._questbook = { synopsis: 'objetivo', quests: [{ id: 'a', title: 'a', status: 'completed' }], events: [] };
+  store.upsert(s);
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/questbook?id=qb1`, { headers: { ...auth } });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.synopsis, 'objetivo');
+  assert.equal(body.quests[0].id, 'a');
+  server.close();
+});
+
+test('GET /questbook 404 si la sesión no existe', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/questbook?id=nope`, { headers: { ...auth } });
+  assert.equal(r.status, 404);
+  server.close();
+});
+
+test('GET /questbook libro vacío si la sesión no tiene _questbook', async () => {
+  const store = createStore();
+  store.upsert(newSession('qb2', { name: 'mario' }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/questbook?id=qb2`, { headers: { ...auth } });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.deepEqual(body, { synopsis: '', quests: [], events: [] });
+  server.close();
+});

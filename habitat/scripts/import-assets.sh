@@ -65,6 +65,10 @@ cp "$SRC/Ui/Receptacle/Receptacle Sphere/ProgressHealth.png" "$DST/ui/orb-red.pn
 cp "$SRC/Ui/Receptacle/Receptacle Sphere/Over.png" "$DST/ui/orb-over.png"
 cp "$SRC/Items/Treasure/BigTreasureChest.png" "$DST/ui/chest.png"
 cp "$SRC/Items/Treasure/GoldCoin.png" "$DST/ui/coin.png"
+cp "$SRC/Ui/Receptacle/Receptacle Rectangle/BackgroundScroll.png" "$DST/ui/scroll-bg.png"
+cp "$SRC/Items/Object/Book.png" "$DST/ui/book.png"
+cp "$SRC/Ui/Skill Icon/Items & Weapon/Scroll.png" "$DST/ui/quest-done.png"
+cp "$SRC/Ui/Skill Icon/Items & Weapon/ScrollDisabled.png" "$DST/ui/quest-pending.png"
 for i in $(seq 1 30); do cp "$SRC/Ui/Emote/emote$i.png" "$DST/emote/$i.png"; done
 
 # --- Animaciones de avatar generadas (canónicas en assets-src, fuera del pack) ---

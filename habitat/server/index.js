@@ -7,7 +7,7 @@ import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
 import { createProjects } from './projects.js';
-import { readUsage } from './transcript.js';
+import { readUsage, readLastAssistantText } from './transcript.js';
 import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
@@ -81,7 +81,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
         const { session, fightResult, removed, rekey } = applyEvent(store, payload, {
-          readUsage, gitBranch, now: () => Date.now(),
+          readUsage, readLastAssistantText, gitBranch, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
         if (rekey) {
@@ -123,6 +123,15 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const s = store.get(url.searchParams.get('id'));
       const lines = s ? await capturePane(s.tmux || s.name, config.PREVIEW_LINES) : '';
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ lines }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/questbook') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id'));
+      if (!s) { res.writeHead(404).end(); return; }
+      const book = s._questbook || { synopsis: '', quests: [], events: [] };
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(book));
       return;
     }
 
