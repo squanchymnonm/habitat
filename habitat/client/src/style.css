@@ -82,6 +82,7 @@
   .pod.selected{border-color:var(--gold)}
   .pod.selected::after{content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
     background:var(--gold); box-shadow:var(--glow-gold); pointer-events:none; z-index:4}
+  .pod-ghost{opacity:.4; border-color:var(--gold)}
 
   .meta{margin-top:8px}
   .name{font-family:var(--f-ui); font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
