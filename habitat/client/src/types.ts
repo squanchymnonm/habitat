@@ -10,7 +10,7 @@ export interface Monster {
   source?: 'todo' | 'turn' // 'todo': monstruo de quest; 'turn': monstruo de turno (uso interno del server)
 }
 
-export interface Quest {
+export interface SessionQuest {
   total: number
   done: number
 }
@@ -33,7 +33,7 @@ export interface Session {
   char?: string // personaje elegido al crear; si no, se deriva por hash del nombre
   // --- capa RPG ---
   stamina: number // 0..100 = context restante
-  quest?: Quest
+  quest?: SessionQuest
   monster?: Monster | null
   combat?: Combat
 }
@@ -79,4 +79,29 @@ export const STATUS_LABEL: Record<Status, string> = {
   done: 'lista',
   error: 'error',
   offline: 'caída',
+}
+
+export interface Quest {
+  id: string
+  title: string
+  status: 'pending' | 'in_progress' | 'completed'
+  originPrompt: string
+  claudeSummary: string
+  monster: string | null
+  damage: number
+  hits: number
+  since: number
+}
+
+export interface QuestEvent {
+  type: 'quest_completed' | 'boss_defeated' | 'error' | 'waiting' | 'cleared' | 'dungeon_cleared'
+  label: string
+  detail: string
+  ts: number
+}
+
+export interface QuestBook {
+  synopsis: string
+  quests: Quest[]
+  events: QuestEvent[]
 }
