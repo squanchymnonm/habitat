@@ -843,3 +843,50 @@ test('POST /spawn con char dentro de la allowlist -> 200', async () => {
   assert.equal(r.status, 200);
   server.close();
 });
+
+test('POST /sessions/order sin token -> 401', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ order: ['a'] }),
+  });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /sessions/order reordena el store y difunde reorder', async () => {
+  const store = createStore();
+  store.upsert(newSession('a'));
+  store.upsert(newSession('b'));
+  store.upsert(newSession('c'));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); }); // snapshot inicial
+  const reorderMsg = new Promise((r) => ws.on('message', (d) => {
+    const m = JSON.parse(d.toString());
+    if (m.type === 'reorder') r(m);
+  }));
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: ['c', 'a', 'b'] }),
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(store.all().map((s) => s.id), ['c', 'a', 'b']);
+  const m = await reorderMsg;
+  assert.deepEqual(m.order, ['c', 'a', 'b']);
+  ws.close();
+  server.close();
+});
+
+test('POST /sessions/order con body inválido -> 400', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: 'no-es-array' }),
+  });
+  assert.equal(res.status, 400);
+  server.close();
+});

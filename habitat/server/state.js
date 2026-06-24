@@ -75,6 +75,16 @@ export function createStore({ persistPath } = {}) {
     all: () => [...map.values()],
     upsert: (session) => { map.set(session.id, session); return session; },
     remove: (id) => { map.delete(id); persist(); },
+    reorder: (ids) => {
+      // Reconstruye el Map en el orden pedido. Las sesiones existentes que no estén en
+      // `ids` (carrera con un alta reciente) quedan al final. Ids inexistentes se ignoran.
+      const next = new Map();
+      for (const id of ids) if (map.has(id)) next.set(id, map.get(id));
+      for (const [id, s] of map) if (!next.has(id)) next.set(id, s);
+      map.clear();
+      for (const [id, s] of next) map.set(id, s);
+      persist();
+    },
     snapshot: () => [...map.values()].map(stripInternal),
     persist,
     setPendingChar: (name, char) => { pendingChars.set(name, char); },
