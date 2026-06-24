@@ -198,6 +198,11 @@ export function applyEvent(store, payload, deps) {
       const claudeText = deps.readLastAssistantText
         ? deps.readLastAssistantText(payload.transcript_path, 600)
         : '';
+      // Reasignamos _openExchange en CADA Stop: el único lugar que recorta el
+      // diálogo (el cap en openExchange) corre acá mismo y devuelve el índice ya
+      // recalculado post-recorte. Así el puntero nunca queda desfasado antes de
+      // su closeExchange (en el próximo UserPromptSubmit). Dos Stop seguidos sin
+      // respuesta descartan el puntero viejo: ese intercambio queda con you:''.
       s._openExchange = openExchange(s._questbook, dialogueQuestId, claudeText, { now: now() });
       break;
     }
