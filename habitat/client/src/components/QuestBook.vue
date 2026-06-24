@@ -9,13 +9,23 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 
 const { book, loading, error, load } = useQuestBook()
 const expanded = ref<string | null>(null)
+// intercambios de Claude expandidos: clave `${questId}:${index}`
+const openText = ref<Set<string>>(new Set())
 
 watch(() => props.id, (id) => { if (id) load(id) }, { immediate: true })
 
-const total = computed(() => book.value?.quests.length ?? 0)
-const done = computed(() => book.value?.quests.filter((q) => q.status === 'completed').length ?? 0)
+// El progreso X/Y cuenta solo quests de plan (no la quest suelta de la sesión).
+const planQuests = computed(() => book.value?.quests.filter((q) => !q.loose) ?? [])
+const total = computed(() => planQuests.value.length)
+const done = computed(() => planQuests.value.filter((q) => q.status === 'completed').length)
 
 function toggle(id: string) { expanded.value = expanded.value === id ? null : id }
+function exKey(qid: string, i: number) { return `${qid}:${i}` }
+function toggleText(key: string) {
+  const next = new Set(openText.value)
+  if (next.has(key)) next.delete(key); else next.add(key)
+  openText.value = next
+}
 </script>
 
 <template>
@@ -39,20 +49,23 @@ function toggle(id: string) { expanded.value = expanded.value === id ? null : id
               <span class="qb-qtitle">{{ q.title }}</span>
             </div>
             <div v-if="expanded === q.id" class="qb-qdetail">
-              <p v-if="q.originPrompt"><b>Pedido:</b> {{ q.originPrompt }}</p>
-              <p v-if="q.claudeSummary"><b>Resumen:</b> {{ q.claudeSummary }}</p>
-              <p v-if="q.monster"><b>Vencido:</b> {{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
-            </div>
-          </div>
-        </section>
+              <p v-if="q.originPrompt && !q.loose"><b>Pedido:</b> {{ q.originPrompt }}</p>
 
-        <section class="qb-events">
-          <div class="qb-label">Eventos</div>
-          <div v-if="!book.events.length" class="qb-empty">Sin eventos.</div>
-          <div v-for="(e, i) in [...book.events].reverse()" :key="i" class="qb-event" :class="e.type">
-            <span class="qb-etime">{{ ago(e.ts) }}</span>
-            <span class="qb-elabel">{{ e.label }}</span>
-            <span v-if="e.detail" class="qb-edetail">{{ e.detail }}</span>
+              <div v-if="!q.dialogue.length" class="qb-empty">Sin diálogo todavía.</div>
+              <div v-for="(ex, i) in q.dialogue" :key="i" class="qb-ex">
+                <div class="qb-ex-claude" @click="toggleText(exKey(q.id, i))">
+                  <span class="qb-ex-tag">🗨️ Claude</span>
+                  <span class="qb-ex-time">{{ ago(ex.ts) }}</span>
+                  <span class="qb-ex-text" :class="{ clamp: !openText.has(exKey(q.id, i)) }">{{ ex.claude }}</span>
+                </div>
+                <div class="qb-ex-you">
+                  <span class="qb-ex-tag">✍️ Vos</span>
+                  <span class="qb-ex-text">{{ ex.you || '…esperando tu respuesta' }}</span>
+                </div>
+              </div>
+
+              <p v-if="q.monster" class="qb-ex-loot"><b>Vencido:</b> {{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
+            </div>
           </div>
         </section>
       </template>
@@ -84,12 +97,14 @@ function toggle(id: string) { expanded.value = expanded.value === id ? null : id
 .qb-qtitle { font-size: 12px; }
 .qb-qdetail { padding: 4px 8px 8px 30px; font-size: 11px; color: #d8c69e; }
 .qb-qdetail p { margin: 3px 0; }
-.qb-events { margin-top: 14px; border-top: 1px solid #6b5836; padding-top: 8px; }
-.qb-label { font-size: 10px; text-transform: uppercase; color: #cbb586; margin-bottom: 6px; }
-.qb-event { display: flex; gap: 8px; align-items: baseline; font-size: 11px; padding: 2px 0; }
-.qb-etime { color: #9a8a6a; min-width: 64px; }
-.qb-event.error .qb-elabel { color: #f9a; }
-.qb-event.dungeon_cleared .qb-elabel, .qb-event.quest_completed .qb-elabel { color: #bda; }
-.qb-edetail { color: #9a8a6a; }
+.qb-ex { margin: 6px 0; padding-left: 4px; border-left: 2px solid #6b5836; }
+.qb-ex-claude { cursor: pointer; }
+.qb-ex-you { margin-top: 2px; }
+.qb-ex-tag { font-size: 10px; color: #cbb586; margin-right: 6px; }
+.qb-ex-time { font-size: 10px; color: #9a8a6a; margin-right: 6px; }
+.qb-ex-text { font-size: 11px; color: #e8d4a8; white-space: pre-wrap; }
+.qb-ex-text.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qb-ex-you .qb-ex-text { color: #bda; }
+.qb-ex-loot { margin: 6px 0 0; font-size: 11px; color: #d8c69e; }
 .qb-empty { font-size: 11px; color: #9a8a6a; padding: 6px 2px; }
 </style>
