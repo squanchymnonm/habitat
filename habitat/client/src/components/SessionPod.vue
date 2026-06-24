@@ -8,8 +8,12 @@ import MiniArena from './MiniArena.vue'
 
 const props = defineProps<{ session: Session }>()
 const store = useSessions()
-const { canSpawn, kill } = useProjects()
+const { canSpawn, kill, colorForProject } = useProjects()
 const selected = computed(() => store.selectedId === props.session.id)
+const tint = computed(() => {
+  const c = colorForProject(props.session.project)
+  return c ? { background: `color-mix(in srgb, ${c} 14%, var(--surface))` } : {}
+})
 
 function requestClose() {
   if (confirm(`¿Cerrar la sesión "${props.session.name}"? Se perderá el trabajo en curso.`)) {
@@ -25,6 +29,7 @@ function select() {
   <div
     class="pod"
     :class="[session.status, { selected }]"
+    :style="tint"
     tabindex="0"
     role="button"
     :aria-pressed="selected"

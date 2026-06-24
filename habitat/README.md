@@ -47,7 +47,15 @@ Complementos ya en el código que refuerzan esto:
 Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
 
     export HABITAT_ALLOW_SPAWN=1
-    export HABITAT_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # rutas absolutas, separadas por :
+    export HABITAT_PROJECTS_ROOT="/home/tu/proyectos"   # raíz para navegar y agregar proyectos desde la UI
+    export HABITAT_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # opcional: siembra la lista la primera vez
+
+La lista de proyectos se gestiona desde **Settings → Proyectos**: el botón "Agregar proyecto"
+navega las carpetas dentro de `HABITAT_PROJECTS_ROOT`, y al elegir una se asigna un **color**
+(de una paleta fija) que diferencia los pods de ese proyecto. La lista se persiste en
+`.projects.json`; `HABITAT_PROJECTS` solo la siembra la primera vez (después manda la UI).
+Cada proyecto puede además fijar una **allowlist de personajes**: si está seteada, al crear una
+sesión solo se ofrecen esos; si está vacía, están todos.
 
 Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server crea una sesión
 tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude
@@ -60,7 +68,8 @@ repo en paralelo, cada uno en su rama. Los worktrees persisten: limpialos con `g
 termines.
 
 > Crear sesiones spawnea procesos en tu máquina. El endpoint exige el mismo token, bind a
-> loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en `HABITAT_PROJECTS`.
+> loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en la lista de proyectos
+> gestionada desde Settings.
 
 ## Hooks (command hook)
 Agregar a `~/.claude/settings.json`. `habitat-hook` debe estar en PATH o usar ruta absoluta.

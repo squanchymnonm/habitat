@@ -1,10 +1,12 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, realpath } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize, sep, basename } from 'node:path';
+import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
+import { existsSync } from 'node:fs';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
+import { createProjects } from './projects.js';
 import { readUsage } from './transcript.js';
 import { applyEvent, staminaFromStatus } from './hooks-logic.js';
 import { attachWs } from './ws.js';
@@ -33,8 +35,9 @@ function readBody(req) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
+  const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   function authorize(req, res) {
     if (config.TOKEN) {
       const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
@@ -61,6 +64,14 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
     if (hub) hub.broadcast({ type: 'session', session: snapOf(s) });
   }
 
+  // Lista de proyectos en el shape que consume el cliente (name = label).
+  function projectsForClient() {
+    return projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+  }
+  function broadcastProjects() {
+    if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
@@ -69,13 +80,19 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
-        const { session, fightResult, removed } = applyEvent(store, payload, {
+        const { session, fightResult, removed, rekey } = applyEvent(store, payload, {
           readUsage, gitBranch, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
-        if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
+        if (rekey) {
+          // /clear cambia el id del pod: lo mandamos como rekey atómico para que el front
+          // lo reemplace en su lugar y conserve la selección (sin push al final ni perder foco).
+          hub.broadcast({ type: 'rekey', from: rekey.from, to: rekey.to, session: snapOf(session) });
+        } else {
+          if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
+          if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
+        }
         if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
-        if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();
@@ -111,9 +128,104 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
 
     if (req.method === 'GET' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
-      const projects = (config.PROJECTS || []).map((dir) => ({ name: basename(dir), dir }));
-      const canSpawn = !!(config.ALLOW_SPAWN && projects.length > 0);
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, projects }));
+      const list = projectsForClient();
+      const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
+      const canManage = !!(config.ALLOW_SPAWN && config.PROJECTS_ROOT);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, projects: list }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/projects/browse') {
+      if (!authorize(req, res)) return;
+      const root = config.PROJECTS_ROOT;
+      if (!config.ALLOW_SPAWN || !root) { res.writeHead(403).end(); return; }
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolve(root, rel);
+      // Guard sintáctico: el target no puede salirse del root.
+      if (target !== root && !target.startsWith(root + sep)) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try {
+        realTarget = await realpath(target);
+        realRoot = await realpath(root);
+      } catch { res.writeHead(404).end(); return; }
+      // Guard contra symlinks que escapen del root.
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = dirents
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+        .map((d) => {
+          const childAbs = join(realTarget, d.name);
+          const childRel = relative(realRoot, childAbs);
+          return {
+            name: d.name,
+            rel: childRel,
+            isRepo: existsSync(join(childAbs, '.git')),
+            added: projects.has(childAbs),
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    // dir absoluto, existente y contenido en PROJECTS_ROOT (para alta).
+    async function dirWithinRoot(dir) {
+      const root = config.PROJECTS_ROOT;
+      if (!root || typeof dir !== 'string' || !dir) return false;
+      let real, realRoot;
+      try { real = await realpath(dir); realRoot = await realpath(root); }
+      catch { return false; }
+      return real === realRoot || real.startsWith(realRoot + sep);
+    }
+
+    if (req.method === 'POST' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      let dir = body && body.dir;
+      if (typeof dir === 'string' && dir && !dir.startsWith(sep)) {
+        dir = resolve(config.PROJECTS_ROOT || '', dir); // el cliente manda rel respecto del root
+      }
+      if (!(await dirWithinRoot(dir))) { res.writeHead(400).end(); return; }
+      const r = projects.add({ dir, label: body.label, color: body.color, chars: body.chars });
+      if (!r.ok) { res.writeHead(r.error === 'duplicado' ? 409 : 400).end(); return; }
+      broadcastProjects();
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      return;
+    }
+
+    if (req.method === 'PATCH' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
+      if (!projects.has(body.dir)) { res.writeHead(404).end(); return; }
+      const r = projects.update({ dir: body.dir, label: body.label, color: body.color, chars: body.chars });
+      if (!r.ok) { res.writeHead(400).end(); return; }
+      broadcastProjects();
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      return;
+    }
+
+    if (req.method === 'DELETE' && url.pathname === '/projects') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
+      if (!projects.remove(body.dir)) { res.writeHead(404).end(); return; }
+      broadcastProjects();
+      res.writeHead(200).end();
       return;
     }
 
@@ -141,9 +253,11 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       const dir = body && body.dir;
       if (typeof dir !== 'string' || !dir) { res.writeHead(400).end(); return; }
-      if (!config.PROJECTS.includes(dir)) { res.writeHead(403).end(); return; }
+      if (!projects.has(dir)) { res.writeHead(403).end(); return; }
       const char = body && body.char;
       if (char != null && !CHARACTERS.includes(char)) { res.writeHead(400).end(); return; }
+      const allowed = (projects.list().find((p) => p.dir === dir) || {}).chars || [];
+      if (char != null && allowed.length && !allowed.includes(char)) { res.writeHead(400).end(); return; }
       const { permissionMode } = settingsStore.get(); // setting global: aplica a toda sesión nueva
 
       const projectName = basename(dir);
@@ -187,7 +301,7 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
       // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
       if (config.WORKTREES_DIR && s.project && s.branch && s.tmux && s.tmux !== s.project) {
-        const projectDir = (config.PROJECTS || []).find((d) => basename(d) === s.project);
+        const projectDir = (projects.list().find((p) => basename(p.dir) === s.project) || {}).dir;
         if (projectDir) {
           const { path } = worktreePaths(config.WORKTREES_DIR, s.project, s.branch);
           const nested = await git.findNestedRepos(projectDir);
@@ -202,6 +316,18 @@ export function createApp({ config, store, settingsStore = createSettings(), tmu
       }
       store.remove(id); // ya persiste a disco
       hub.broadcast({ type: 'remove', id });
+      res.writeHead(200).end();
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/sessions/order') {
+      if (!authorize(req, res)) return;
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const order = body && body.order;
+      if (!Array.isArray(order) || !order.every((x) => typeof x === 'string')) { res.writeHead(400).end(); return; }
+      store.reorder(order);
+      hub.broadcast({ type: 'reorder', order }); // sincroniza el orden a todos los clientes
       res.writeHead(200).end();
       return;
     }
@@ -242,7 +368,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
   const store = createStore({ persistPath: config.STATE_PATH });
   const settingsStore = createSettings({ persistPath: config.SETTINGS_PATH });
-  const { server } = createApp({ config, store, settingsStore });
+  const projectsStore = createProjects({ persistPath: config.PROJECTS_STATE, seed: config.PROJECTS });
+  const { server } = createApp({ config, store, settingsStore, projectsStore });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
   });

@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
 import { createApp } from './index.js';
 import { createSettings } from './settings.js';
+import { PALETTE } from './palette.js';
+import { createProjects } from './projects.js';
 import { NAMES } from './characters.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
@@ -155,7 +160,24 @@ test('GET /projects lista la whitelist cuando está habilitado', async () => {
   const r = await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth });
   const body = await r.json();
   assert.equal(body.canSpawn, true);
-  assert.deepEqual(body.projects, [{ name: 'proj-api', dir: '/home/u/proj-api' }]);
+  assert.equal(body.projects.length, 1);
+  assert.equal(body.projects[0].dir, '/home/u/proj-api');
+  assert.equal(body.projects[0].name, 'proj-api');
+  assert.ok(typeof body.projects[0].color === 'string' && body.projects[0].color.startsWith('#'));
+  assert.deepEqual(body.projects[0].chars, []);
+  server.close();
+});
+
+test('GET /projects canManage=true con lista vacía cuando ALLOW_SPAWN y PROJECTS_ROOT están configurados', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: '/some/projects/root', PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth });
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.canManage, true);
+  assert.equal(body.canSpawn, false);
+  assert.equal(body.projects.length, 0);
   server.close();
 });
 
@@ -647,5 +669,224 @@ test('POST /kill de sesión plana (no worktree) no toca el worktree', async () =
   });
   assert.equal(r.status, 200);
   assert.deepEqual(seenRemove, []);
+  server.close();
+});
+
+test('GET /projects/browse deshabilitado (sin ALLOW_SPAWN) -> 403', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects/browse`, { headers: auth });
+  assert.equal(r.status, 403);
+  server.close();
+});
+
+test('GET /projects/browse lista subcarpetas del root y marca isRepo', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-a'));
+  mkdirSync(join(root, 'proj-a', '.git'));
+  mkdirSync(join(root, 'proj-b'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/browse`, { headers: auth });
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    const names = body.entries.map((e) => e.name).sort();
+    assert.deepEqual(names, ['proj-a', 'proj-b']);
+    assert.equal(body.entries.find((e) => e.name === 'proj-a').isRepo, true);
+    assert.equal(body.entries.find((e) => e.name === 'proj-b').isRepo, false);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('GET /projects/browse con path=.. -> 400 (no escapa del root)', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/browse?path=..`, { headers: auth });
+    assert.equal(r.status, 400);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('POST /projects agrega una carpeta del root y la lista la incluye', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-c'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const dir = join(root, 'proj-c');
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir, color: PALETTE[0], chars: ['Knight'] }),
+    });
+    assert.equal(r.status, 200);
+    const rec = await r.json();
+    assert.equal(rec.name, 'proj-c');
+    assert.equal(rec.color, PALETTE[0]);
+    const list = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.ok(list.projects.some((p) => p.dir === dir));
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('POST /projects acepta dir relativo al root', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  mkdirSync(join(root, 'proj-rel'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir: 'proj-rel', color: PALETTE[0] }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).name, 'proj-rel');
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('POST /projects con dir fuera del root -> 400', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  try {
+    const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [] };
+    const { server } = createApp({ config: cfg, store: createStore() });
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ dir: '/etc', color: PALETTE[0] }),
+    });
+    assert.equal(r.status, 400);
+    server.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('DELETE /projects quita de la lista', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'DELETE', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api' }),
+  });
+  assert.equal(r.status, 200);
+  const list = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+  assert.equal(list.projects.length, 0);
+  server.close();
+});
+
+test('PATCH /projects edita el color', async () => {
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: ['/home/u/proj-api'] };
+  const { server } = createApp({ config: cfg, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'PATCH', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', color: PALETTE[5] }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).color, PALETTE[5]);
+  server.close();
+});
+
+test('POST /projects sin ALLOW_SPAWN -> 403', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/projects`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/x', color: PALETTE[0] }),
+  });
+  assert.equal(r.status, 403);
+  server.close();
+});
+
+test('POST /spawn con char fuera de la allowlist del proyecto -> 400', async () => {
+  const projectsStore = createProjects();
+  projectsStore.add({ dir: '/home/u/proj-api', color: PALETTE[0], chars: ['Knight'] });
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Monk' }),
+  });
+  assert.equal(r.status, 400);
+  server.close();
+});
+
+test('POST /spawn con char dentro de la allowlist -> 200', async () => {
+  const projectsStore = createProjects();
+  projectsStore.add({ dir: '/home/u/proj-api', color: PALETTE[0], chars: ['Knight'] });
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS: [], WORKTREES_DIR: '/home/u/habitat-worktrees' };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, tmux, git: fakeGit() });
+  const port = await listen(server);
+  const r = await fetch(`http://127.0.0.1:${port}/spawn`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ dir: '/home/u/proj-api', char: 'Knight' }),
+  });
+  assert.equal(r.status, 200);
+  server.close();
+});
+
+test('POST /sessions/order sin token -> 401', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ order: ['a'] }),
+  });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('POST /sessions/order reordena el store y difunde reorder', async () => {
+  const store = createStore();
+  store.upsert(newSession('a'));
+  store.upsert(newSession('b'));
+  store.upsert(newSession('c'));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); }); // snapshot inicial
+  const reorderMsg = new Promise((r) => ws.on('message', (d) => {
+    const m = JSON.parse(d.toString());
+    if (m.type === 'reorder') r(m);
+  }));
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: ['c', 'a', 'b'] }),
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(store.all().map((s) => s.id), ['c', 'a', 'b']);
+  const m = await reorderMsg;
+  assert.deepEqual(m.order, ['c', 'a', 'b']);
+  ws.close();
+  server.close();
+});
+
+test('POST /sessions/order con body inválido -> 400', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: 'no-es-array' }),
+  });
+  assert.equal(res.status, 400);
   server.close();
 });

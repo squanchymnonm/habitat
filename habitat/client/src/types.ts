@@ -51,13 +51,23 @@ export interface Settings {
   permissionMode: PermissionMode
 }
 
+export interface Project {
+  dir: string
+  name: string // label mostrado
+  color: string
+  chars?: string[]
+}
+
 // server -> client
 export type ServerMessage =
   | { type: 'snapshot'; sessions: Session[] }
   | { type: 'session'; session: Session }
   | { type: 'remove'; id: string }
+  | { type: 'rekey'; from: string; to: string; session: Session }
   | { type: 'fightResult'; id: string; result: FightResult }
   | { type: 'settings'; settings: Settings }
+  | { type: 'projects'; projects: Project[] }
+  | { type: 'reorder'; order: string[] }
 
 // client -> server (fase 2: chat por send-keys)
 export type ClientMessage = { type: 'chat'; id: string; text: string }

@@ -1,6 +1,7 @@
 import { useSessions } from '../stores/sessions'
 import type { ServerMessage, ClientMessage } from '../types'
 import { applyServerSettings } from './useSettings'
+import { applyServerProjects } from './useProjects'
 
 // Socket único a nivel de app. Bidireccional: recibe estado y permite enviar (chat, fase 2).
 let ws: WebSocket | null = null
@@ -16,8 +17,11 @@ function connect() {
     if (msg.type === 'snapshot') store.setAll(msg.sessions)
     else if (msg.type === 'session') store.upsert(msg.session)
     else if (msg.type === 'remove') store.remove(msg.id)
+    else if (msg.type === 'rekey') store.rekey(msg.from, msg.to, msg.session)
     else if (msg.type === 'fightResult') store.fight(msg.id, msg.result)
     else if (msg.type === 'settings') applyServerSettings(msg.settings)
+    else if (msg.type === 'projects') applyServerProjects(msg.projects)
+    else if (msg.type === 'reorder') store.reorder(msg.order)
   }
   ws.onclose = () => setTimeout(connect, 1500) // reconexión
 }

@@ -28,6 +28,24 @@ export const useSessions = defineStore('sessions', () => {
     list.value = list.value.filter((s) => s.id !== id)
     reconcile()
   }
+  // /clear cambia el id del pod (rekey). Lo reemplazamos en su MISMA posición y
+  // migramos la selección, para no mandarlo al final ni perder el foco.
+  function rekey(from: string, to: string, session: Session) {
+    const i = list.value.findIndex((s) => s.id === from)
+    if (i === -1) {
+      upsert(session)
+      return
+    }
+    list.value[i] = session
+    if (selectedId.value === from) selectedId.value = to
+  }
+  // Ordena la lista según `ids`. Los pods no mencionados (carrera con un alta) quedan al
+  // final preservando su orden relativo. No toca la selección.
+  function reorder(ids: string[]) {
+    const pos = new Map(ids.map((id, i) => [id, i]))
+    const rank = (id: string) => (pos.has(id) ? (pos.get(id) as number) : Number.MAX_SAFE_INTEGER)
+    list.value = [...list.value].sort((a, b) => rank(a.id) - rank(b.id))
+  }
   function fight(id: string, result: FightResult) {
     lastFight.value = { id, result, seq: ++seq }
   }
@@ -40,5 +58,5 @@ export const useSessions = defineStore('sessions', () => {
     selectedId.value = pickSelection(list.value.map((s) => s.id), selectedId.value)
   }
 
-  return { list, selected, selectedId, selectTick, needCount, lastFight, setAll, upsert, remove, fight, select }
+  return { list, selected, selectedId, selectTick, needCount, lastFight, setAll, upsert, remove, rekey, reorder, fight, select }
 })

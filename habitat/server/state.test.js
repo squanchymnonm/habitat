@@ -171,3 +171,20 @@ test('randomMonster es de turno, no boss, con type aleatorio', () => {
 test('randomMonster sin label usa string vacío', () => {
   assert.equal(randomMonster().label, '');
 });
+
+test('reorder deja el Map en el orden pedido; sobrevivientes al final', () => {
+  const store = createStore();
+  store.upsert(newSession('a'));
+  store.upsert(newSession('b'));
+  store.upsert(newSession('c'));
+  store.reorder(['c', 'a']); // 'b' no mencionado
+  assert.deepEqual(store.all().map((s) => s.id), ['c', 'a', 'b']);
+});
+
+test('reorder ignora ids inexistentes', () => {
+  const store = createStore();
+  store.upsert(newSession('a'));
+  store.upsert(newSession('b'));
+  store.reorder(['x', 'b', 'a']);
+  assert.deepEqual(store.all().map((s) => s.id), ['b', 'a']);
+});

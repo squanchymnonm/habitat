@@ -28,7 +28,7 @@ export function faceFor(name: string, char?: string): string {
   return `assets/char/${resolveChar(name, char)}/face.png`
 }
 
-export type Pose = 'rest' | 'walk' | 'jump' | 'item' | 'dead' | 'combat'
+export type Pose = 'rest' | 'walk' | 'jump' | 'dead' | 'combat'
 
 export interface PoseRender {
   file: string
@@ -42,9 +42,9 @@ export const POSE_RENDER: Record<Pose, PoseRender> = {
   rest: { file: 'anim_idle', mode: 'strip', duration: 1600 },
   walk: { file: 'walk', mode: 'grid', duration: 600 },
   jump: { file: 'jump', mode: 'static', frame: 0 },
-  item: { file: 'item', mode: 'static', frame: 0 },
   dead: { file: 'dead', mode: 'static', frame: 0 },
-  combat: { file: 'idle', mode: 'static', frame: 3 },
+  // combate: strip de 2 frames (guardia + golpe) mirando al monstruo; ver build-combat.mjs.
+  combat: { file: 'anim_combat', mode: 'strip', duration: 360 },
 }
 
 export function heroSprite(name: string, char: string | undefined, pose: Pose): string {
@@ -54,7 +54,6 @@ export function heroSprite(name: string, char: string | undefined, pose: Pose): 
 export interface HeroPoseInput {
   status: Status
   inCombat: boolean
-  jabbing: boolean
   celebrating: boolean
 }
 
@@ -62,7 +61,7 @@ export interface HeroPoseInput {
 export function heroPoseFor(s: HeroPoseInput): Pose {
   if (s.celebrating) return 'jump'
   if (s.status === 'offline') return 'dead'
-  if (s.inCombat) return s.jabbing ? 'item' : 'combat'
+  if (s.inCombat) return 'combat'
   if (s.status === 'working') return 'walk'
   if (s.status === 'done') return 'jump'
   return 'rest'
