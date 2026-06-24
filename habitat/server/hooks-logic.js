@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import { newSession, questFromTodos, monsterFromTodos, randomMonster } from './state.js';
+import { emptyBook, setSynopsis, upsertQuests, setClaudeSummary, completeQuest, pushEvent } from './questbook.js';
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
@@ -17,6 +18,8 @@ function ensure(store, payload) {
     store.upsert(s);
   }
   if (!s._touched) s._touched = new Set();
+  if (!s._questbook) s._questbook = emptyBook();
+  if (s._currentPrompt == null) s._currentPrompt = '';
   return s;
 }
 
@@ -82,6 +85,8 @@ export function applyEvent(store, payload, deps) {
       if (pendingChar) prev.char = pendingChar;
       if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
       setStatus(prev, 'idle', 'memoria despejada', now);
+      if (!prev._questbook) prev._questbook = emptyBook();
+      pushEvent(prev._questbook, { type: 'cleared', label: 'memoria despejada', detail: '', ts: now() });
       store.upsert(prev);
       // El rekey cambió el id del pod (viejo -> nuevo). El front trackea las cards por id,
       // así que hay que avisarle que borre la del id viejo; si no, queda colgada y se ve
@@ -140,6 +145,8 @@ export function applyEvent(store, payload, deps) {
     }
     case 'UserPromptSubmit': {
       s._resting = false;
+      s._currentPrompt = payload.prompt ? String(payload.prompt).slice(0, 200) : '';
+      setSynopsis(s._questbook, s._currentPrompt);
       setStatus(s, 'working', 'procesando tu pedido', now);
       // Sin quest activa, cada prompt trae un monstruo de turno nuevo (aleatorio) y
       // arranca un combate limpio. Con quest activa la dejamos correr entre turnos.
@@ -152,10 +159,12 @@ export function applyEvent(store, payload, deps) {
     }
     case 'Notification': {
       setStatus(s, 'waiting', payload.message || 'te necesita', now);
+      pushEvent(s._questbook, { type: 'waiting', label: payload.message || 'te necesita', detail: '', ts: now() });
       break;
     }
     case 'StopFailure': {
       setStatus(s, 'error', payload.message || 'falló', now);
+      pushEvent(s._questbook, { type: 'error', label: payload.message || 'falló', detail: '', ts: now() });
       break;
     }
     case 'PreCompact': {
@@ -169,6 +178,7 @@ export function applyEvent(store, payload, deps) {
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
+      if (done) pushEvent(s._questbook, { type: 'dungeon_cleared', label: 'dungeon cleared', detail: '', ts: now() });
       // El monstruo de turno muere al cerrar el turno; si peleó (hubo daño o golpes)
       // suelta loot. El de quest sobrevive entre turnos hasta completarse el todo.
       if (s.monster && s.monster.source === 'turn') {
@@ -177,6 +187,12 @@ export function applyEvent(store, payload, deps) {
           fightResult = { id: s.id, result: {
             monster: s.monster.label, hp: s.combat.tokens, hits: s.combat.hits, loot,
           } };
+          pushEvent(s._questbook, {
+            type: 'boss_defeated',
+            label: s.monster.isBoss ? `boss vencido: ${s.monster.label}` : `vencido: ${s.monster.label}`,
+            detail: loot.join(', '),
+            ts: now(),
+          });
         }
         s.monster = null;
         s.combat = { hits: 0, tokens: 0 };
@@ -192,7 +208,7 @@ export function applyEvent(store, payload, deps) {
     case 'PreToolUse':
     case 'PostToolUse': {
       if (payload.tool_name === 'TodoWrite') {
-        fightResult = handleTodoWrite(s, payload, now);
+        fightResult = handleTodoWrite(s, payload, now, deps);
       } else {
         handleHit(s, payload, deps);
       }
@@ -204,12 +220,15 @@ export function applyEvent(store, payload, deps) {
   return { session: s, fightResult, removed };
 }
 
-function handleTodoWrite(s, payload, now) {
+function handleTodoWrite(s, payload, now, deps) {
   const todos = (payload.tool_input && payload.tool_input.todos) || [];
   const prevDone = s.quest ? s.quest.done : 0;
   const prevLabel = s.monster ? s.monster.label : null;
   s.quest = questFromTodos(todos);
   let fightResult = null;
+
+  // Quest Book: acumular quests (no borra las que salen del plan).
+  upsertQuests(s._questbook, todos, { originPrompt: s._currentPrompt, now: now() });
 
   // ¿se completó un todo? (subió done) -> cayó el monstruo anterior
   if (s.quest.done > prevDone && prevLabel) {
@@ -217,6 +236,12 @@ function handleTodoWrite(s, payload, now) {
     fightResult = { id: s.id, result: {
       monster: prevLabel, hp: s.combat.tokens, hits: s.combat.hits, loot,
     } };
+    // Quest Book: estampar monstruo + daño en la quest completada y loguear evento.
+    completeQuest(s._questbook, prevLabel, { monster: prevLabel, damage: s.combat.tokens, hits: s.combat.hits });
+    pushEvent(s._questbook, {
+      type: 'quest_completed', label: prevLabel,
+      detail: `${s.combat.tokens} dmg · ${s.combat.hits} golpes`, ts: now(),
+    });
     s.combat = { hits: 0, tokens: 0 };
     s._touched = new Set();
   }
@@ -228,6 +253,10 @@ function handleTodoWrite(s, payload, now) {
     s._touched = new Set();
   }
   s.monster = next;
+  // Quest Book: capturar el resumen de Claude cuando una quest entra en curso.
+  if (next && deps && deps.readLastAssistantText) {
+    setClaudeSummary(s._questbook, next.label, deps.readLastAssistantText(payload.transcript_path));
+  }
   setStatus(s, 'working', 'planificando', now);
   return fightResult;
 }
