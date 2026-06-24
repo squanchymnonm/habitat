@@ -320,6 +320,18 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/sessions/order') {
+      if (!authorize(req, res)) return;
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const order = body && body.order;
+      if (!Array.isArray(order) || !order.every((x) => typeof x === 'string')) { res.writeHead(400).end(); return; }
+      store.reorder(order);
+      hub.broadcast({ type: 'reorder', order }); // sincroniza el orden a todos los clientes
+      res.writeHead(200).end();
+      return;
+    }
+
     // estáticos
     let p = url.pathname === '/' ? '/index.html' : url.pathname;
     const file = normalize(join(WEB, p));
