@@ -254,8 +254,13 @@ function handleTodoWrite(s, payload, now, deps) {
   }
   s.monster = next;
   // Quest Book: capturar el resumen de Claude cuando una quest entra en curso.
+  // Solo leemos el transcript si la quest todavía no tiene resumen (setClaudeSummary
+  // es write-once: leer de nuevo sería trabajo descartado).
   if (next && deps && deps.readLastAssistantText) {
-    setClaudeSummary(s._questbook, next.label, deps.readLastAssistantText(payload.transcript_path));
+    const q = s._questbook.quests.find((x) => x.id === next.label);
+    if (q && !q.claudeSummary) {
+      setClaudeSummary(s._questbook, next.label, deps.readLastAssistantText(payload.transcript_path));
+    }
   }
   setStatus(s, 'working', 'planificando', now);
   return fightResult;
