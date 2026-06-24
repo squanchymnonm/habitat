@@ -29,8 +29,8 @@ export function readUsage(transcriptPath) {
 
 // Último texto del asistente en el transcript (para el "resumen de Claude" del
 // Quest Book). Concatena los bloques de texto del último mensaje assistant.
-// Trunca a 400. Cualquier fallo de lectura/parseo => '' (nunca tira).
-export function readLastAssistantText(transcriptPath) {
+// Trunca a max (default 400). Cualquier fallo de lectura/parseo => '' (nunca tira).
+export function readLastAssistantText(transcriptPath, max = 400) {
   let raw;
   try {
     raw = readFileSync(transcriptPath, 'utf8');
@@ -52,5 +52,5 @@ export function readLastAssistantText(transcriptPath) {
       .trim();
     if (text) last = text;
   }
-  return last.slice(0, 400);
+  return last.slice(0, max);
 }
