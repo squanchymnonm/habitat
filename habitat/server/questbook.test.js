@@ -147,3 +147,22 @@ test('openExchange respeta el cap global de 100 descartando el más viejo', () =
   // el puntero devuelto sigue apuntando al recién agregado pese al recorte
   assert.equal(q.dialogue[ptr.index].claude, 'c104');
 });
+
+test('el cap global recorta la quest más vieja, no la que recibe el intercambio', () => {
+  const b = emptyBook();
+  upsertQuests(b, [{ content: 'A', status: 'in_progress' }], { now: 0 }); // quest vieja
+  upsertQuests(b, [{ content: 'B', status: 'pending' }], { now: 1 });     // quest nueva
+  const A = b.quests.find((q) => q.id === 'A');
+  const B = b.quests.find((q) => q.id === 'B');
+  // 60 intercambios en A
+  for (let i = 0; i < 60; i++) openExchange(b, 'A', `a${i}`, { now: i });
+  // 60 más en B -> total 120, supera el cap de 100; deben caer 20 de A (la más vieja)
+  let ptr;
+  for (let i = 0; i < 60; i++) ptr = openExchange(b, 'B', `b${i}`, { now: 100 + i });
+  const total = b.quests.reduce((n, q) => n + q.dialogue.length, 0);
+  assert.equal(total, 100);            // cap global respetado sumando A+B
+  assert.equal(A.dialogue.length, 40); // se recortaron 20 de A
+  assert.equal(B.dialogue.length, 60); // B intacta (recibe los intercambios)
+  assert.equal(A.dialogue[0].claude, 'a20'); // los 20 más viejos de A se fueron
+  assert.equal(B.dialogue[ptr.index].claude, 'b59'); // el puntero de B sigue válido
+});
