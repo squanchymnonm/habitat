@@ -21,7 +21,7 @@ export function upsertQuests(book, todos, ctx = {}) {
     if (!id) continue;
     const existing = book.quests.find((q) => q.id === id);
     if (existing) {
-      if (t.status) existing.status = t.status;
+      if (t.status != null) existing.status = t.status;
     } else {
       book.quests.push({
         id,
