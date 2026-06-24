@@ -1,3 +1,10 @@
+  /* Fuente pixel del pack Ninja Adventure (public/fonts/NormalFont.ttf), para
+     elementos RPG como el Quest Book. */
+  @font-face{
+    font-family:'NinjaPixel';
+    src:url('/fonts/NormalFont.ttf') format('truetype');
+    font-display:swap;
+  }
   :root{
     /* Paleta medieval: piedra/madera oscura a la luz de antorcha. */
     --bg:#16100A; --bg2:#20160D; --surface:#2A1E12; --surface2:#352713;
@@ -15,6 +22,7 @@
     --f-logo:'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
     --f-ui:'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
     --f-body:'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+    --f-quest:'NinjaPixel', var(--f-ui);
     --bevel: inset 2px 2px 0 rgba(255,255,255,.09), inset -2px -2px 0 rgba(0,0,0,.55);
   }
   *{box-sizing:border-box}
