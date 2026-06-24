@@ -63,4 +63,20 @@ describe('sessions store — selección', () => {
     expect(s.selectedId).toBe('a')
     expect(s.list.map((x) => x.id)).toEqual(['a', 'b2'])
   })
+
+  it('reorder ordena la lista según los ids y no toca la selección', () => {
+    const s = useSessions()
+    s.setAll([mk('a'), mk('b'), mk('c')])
+    s.select('a')
+    s.reorder(['c', 'a', 'b'])
+    expect(s.list.map((x) => x.id)).toEqual(['c', 'a', 'b'])
+    expect(s.selectedId).toBe('a')
+  })
+
+  it('reorder deja los ids no mencionados al final preservando su orden', () => {
+    const s = useSessions()
+    s.setAll([mk('a'), mk('b'), mk('c')])
+    s.reorder(['c'])
+    expect(s.list.map((x) => x.id)).toEqual(['c', 'a', 'b'])
+  })
 })

@@ -21,6 +21,7 @@ function connect() {
     else if (msg.type === 'fightResult') store.fight(msg.id, msg.result)
     else if (msg.type === 'settings') applyServerSettings(msg.settings)
     else if (msg.type === 'projects') applyServerProjects(msg.projects)
+    else if (msg.type === 'reorder') store.reorder(msg.order)
   }
   ws.onclose = () => setTimeout(connect, 1500) // reconexión
 }
