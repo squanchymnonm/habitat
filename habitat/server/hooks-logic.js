@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
 import { newSession, questFromTodos, monsterFromTodos, randomMonster } from './state.js';
-import { emptyBook, setSynopsis, upsertQuests, setClaudeSummary, completeQuest, pushEvent } from './questbook.js';
+import { emptyBook, setSynopsis, upsertQuests, setClaudeSummary, completeQuest,
+  ensureLooseQuest, activeQuestId, openExchange, closeExchange } from './questbook.js';
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
@@ -86,7 +87,6 @@ export function applyEvent(store, payload, deps) {
       if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
       setStatus(prev, 'idle', 'memoria despejada', now);
       if (!prev._questbook) prev._questbook = emptyBook();
-      pushEvent(prev._questbook, { type: 'cleared', label: 'memoria despejada', detail: '', ts: now() });
       store.upsert(prev);
       // El rekey cambió el id del pod (viejo -> nuevo). El front trackea las cards por id,
       // así que hay que avisarle que borre la del id viejo; si no, queda colgada y se ve
@@ -147,6 +147,10 @@ export function applyEvent(store, payload, deps) {
       s._resting = false;
       s._currentPrompt = payload.prompt ? String(payload.prompt).slice(0, 200) : '';
       setSynopsis(s._questbook, s._currentPrompt);
+      if (s._openExchange) {
+        closeExchange(s._questbook, s._openExchange, payload.prompt || '');
+        s._openExchange = null;
+      }
       setStatus(s, 'working', 'procesando tu pedido', now);
       // Sin quest activa, cada prompt trae un monstruo de turno nuevo (aleatorio) y
       // arranca un combate limpio. Con quest activa la dejamos correr entre turnos.
@@ -159,12 +163,10 @@ export function applyEvent(store, payload, deps) {
     }
     case 'Notification': {
       setStatus(s, 'waiting', payload.message || 'te necesita', now);
-      pushEvent(s._questbook, { type: 'waiting', label: payload.message || 'te necesita', detail: '', ts: now() });
       break;
     }
     case 'StopFailure': {
       setStatus(s, 'error', payload.message || 'falló', now);
-      pushEvent(s._questbook, { type: 'error', label: payload.message || 'falló', detail: '', ts: now() });
       break;
     }
     case 'PreCompact': {
@@ -178,7 +180,6 @@ export function applyEvent(store, payload, deps) {
     case 'Stop': {
       const done = s.quest && s.quest.total > 0 && s.quest.done >= s.quest.total;
       setStatus(s, done ? 'done' : 'idle', done ? 'dungeon cleared' : 'a la espera', now);
-      if (done) pushEvent(s._questbook, { type: 'dungeon_cleared', label: 'dungeon cleared', detail: '', ts: now() });
       // El monstruo de turno muere al cerrar el turno; si peleó (hubo daño o golpes)
       // suelta loot. El de quest sobrevive entre turnos hasta completarse el todo.
       if (s.monster && s.monster.source === 'turn') {
@@ -187,17 +188,22 @@ export function applyEvent(store, payload, deps) {
           fightResult = { id: s.id, result: {
             monster: s.monster.label, hp: s.combat.tokens, hits: s.combat.hits, loot,
           } };
-          pushEvent(s._questbook, {
-            type: 'boss_defeated',
-            label: s.monster.isBoss ? `boss vencido: ${s.monster.label}` : `vencido: ${s.monster.label}`,
-            detail: loot.join(', '),
-            ts: now(),
-          });
         }
         s.monster = null;
         s.combat = { hits: 0, tokens: 0 };
         s._touched = new Set();
       }
+      const dialogueQuestId = activeQuestId(s._questbook)
+        ?? ensureLooseQuest(s._questbook, { now: now() }).id;
+      const claudeText = deps.readLastAssistantText
+        ? deps.readLastAssistantText(payload.transcript_path, 600)
+        : '';
+      // Reasignamos _openExchange en CADA Stop: el único lugar que recorta el
+      // diálogo (el cap en openExchange) corre acá mismo y devuelve el índice ya
+      // recalculado post-recorte. Así el puntero nunca queda desfasado antes de
+      // su closeExchange (en el próximo UserPromptSubmit). Dos Stop seguidos sin
+      // respuesta descartan el puntero viejo: ese intercambio queda con you:''.
+      s._openExchange = openExchange(s._questbook, dialogueQuestId, claudeText, { now: now() });
       break;
     }
     case 'SessionEnd': {
@@ -236,12 +242,8 @@ function handleTodoWrite(s, payload, now, deps) {
     fightResult = { id: s.id, result: {
       monster: prevLabel, hp: s.combat.tokens, hits: s.combat.hits, loot,
     } };
-    // Quest Book: estampar monstruo + daño en la quest completada y loguear evento.
+    // Quest Book: estampar monstruo + daño en la quest completada.
     completeQuest(s._questbook, prevLabel, { monster: prevLabel, damage: s.combat.tokens, hits: s.combat.hits });
-    pushEvent(s._questbook, {
-      type: 'quest_completed', label: prevLabel,
-      detail: `${s.combat.tokens} dmg · ${s.combat.hits} golpes`, ts: now(),
-    });
     s.combat = { hits: 0, tokens: 0 };
     s._touched = new Set();
   }

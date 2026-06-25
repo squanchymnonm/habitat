@@ -81,18 +81,28 @@ export const STATUS_LABEL: Record<Status, string> = {
   offline: 'caída',
 }
 
+export interface QuestExchange {
+  claude: string
+  you: string
+  ts: number
+}
+
 export interface Quest {
   id: string
   title: string
   status: 'pending' | 'in_progress' | 'completed'
+  loose?: boolean
   originPrompt: string
   claudeSummary: string
   monster: string | null
   damage: number
   hits: number
   since: number
+  dialogue: QuestExchange[]
 }
 
+// Deprecado: el libro ya no genera eventos de combate. Se conserva el tipo y el
+// campo opcional por compatibilidad del payload.
 export interface QuestEvent {
   type: 'quest_completed' | 'boss_defeated' | 'error' | 'waiting' | 'cleared' | 'dungeon_cleared'
   label: string
@@ -103,5 +113,5 @@ export interface QuestEvent {
 export interface QuestBook {
   synopsis: string
   quests: Quest[]
-  events: QuestEvent[]
+  events?: QuestEvent[]
 }

@@ -47,6 +47,13 @@ test('readLastAssistantText trunca a 400', () => {
   rmSync(p);
 });
 
+test('readLastAssistantText respeta el parámetro max', () => {
+  const p = fixture([{ type: 'assistant', message: { content: [{ type: 'text', text: 'z'.repeat(800) }] } }]);
+  assert.equal(readLastAssistantText(p, 600).length, 600);
+  assert.equal(readLastAssistantText(p).length, 400); // default sin cambios
+  rmSync(p);
+});
+
 test('readLastAssistantText devuelve "" si no hay texto de asistente', () => {
   const p = fixture([{ type: 'user', message: { content: [{ type: 'text', text: 'solo user' }] } }]);
   assert.equal(readLastAssistantText(p), '');

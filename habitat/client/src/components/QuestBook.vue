@@ -9,14 +9,24 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 
 const { book, loading, error, load } = useQuestBook()
 const expanded = ref<string | null>(null)
+// intercambios de Claude expandidos: clave `${questId}:${index}`
+const openText = ref<Set<string>>(new Set())
 
 watch(() => props.id, (id) => { if (id) load(id) }, { immediate: true })
 
-const total = computed(() => book.value?.quests.length ?? 0)
-const done = computed(() => book.value?.quests.filter((q) => q.status === 'completed').length ?? 0)
+// El progreso X/Y cuenta solo quests de plan (no la quest suelta de la sesión).
+const planQuests = computed(() => book.value?.quests.filter((q) => !q.loose) ?? [])
+const total = computed(() => planQuests.value.length)
+const done = computed(() => planQuests.value.filter((q) => q.status === 'completed').length)
 const pct = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
 
 function toggle(id: string) { expanded.value = expanded.value === id ? null : id }
+function exKey(qid: string, i: number) { return `${qid}:${i}` }
+function toggleText(key: string) {
+  const next = new Set(openText.value)
+  if (next.has(key)) next.delete(key); else next.add(key)
+  openText.value = next
+}
 </script>
 
 <template>
@@ -49,26 +59,29 @@ function toggle(id: string) { expanded.value = expanded.value === id ? null : id
                 </svg>
               </button>
               <div v-if="expanded === q.id" class="qb-qdetail">
-                <p v-if="q.originPrompt"><span class="qb-dt">Pedido</span>{{ q.originPrompt }}</p>
-                <p v-if="q.claudeSummary"><span class="qb-dt">Resumen</span>{{ q.claudeSummary }}</p>
-                <p v-if="q.monster" class="qb-loot"><span class="qb-dt">Vencido</span>{{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
-                <p v-if="!q.originPrompt && !q.claudeSummary && !q.monster" class="qb-muted">Sin detalle registrado.</p>
-              </div>
-            </li>
-          </ul>
-        </section>
+                <p v-if="q.originPrompt && !q.loose"><span class="qb-dt">Pedido</span>{{ q.originPrompt }}</p>
 
-        <section class="qb-section">
-          <div class="qb-label">Eventos</div>
-          <div v-if="!book.events.length" class="qb-empty">Sin eventos.</div>
-          <ul v-else class="qb-events">
-            <li v-for="(e, i) in [...book.events].reverse()" :key="e.ts + '-' + i" class="qb-event" :class="e.type">
-              <span class="qb-dot" aria-hidden="true"></span>
-              <div class="qb-ebody">
-                <span class="qb-elabel">{{ e.label }}</span>
-                <span v-if="e.detail" class="qb-edetail">{{ e.detail }}</span>
+                <div v-if="!q.dialogue.length" class="qb-muted">Sin diálogo todavía.</div>
+                <div v-for="(ex, i) in q.dialogue" :key="i" class="qb-ex">
+                  <button
+                    class="qb-ex-claude"
+                    @click="toggleText(exKey(q.id, i))"
+                    :aria-expanded="openText.has(exKey(q.id, i))"
+                  >
+                    <span class="qb-ex-head">
+                      <span class="qb-ex-tag">🗨️ Claude</span>
+                      <time class="qb-ex-time">{{ ago(ex.ts) }}</time>
+                    </span>
+                    <span class="qb-ex-text" :class="{ clamp: !openText.has(exKey(q.id, i)) }">{{ ex.claude }}</span>
+                  </button>
+                  <div class="qb-ex-you">
+                    <span class="qb-ex-tag">✍️ Vos</span>
+                    <span class="qb-ex-text qb-ex-you-text">{{ ex.you || '…esperando tu respuesta' }}</span>
+                  </div>
+                </div>
+
+                <p v-if="q.monster" class="qb-loot"><span class="qb-dt">Vencido</span>{{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
               </div>
-              <time class="qb-etime">{{ ago(e.ts) }}</time>
             </li>
           </ul>
         </section>
@@ -142,23 +155,25 @@ function toggle(id: string) { expanded.value = expanded.value === id ? null : id
 .qb-qdetail p { margin: 0 0 8px; }
 .qb-qdetail p:last-child { margin-bottom: 0; }
 .qb-dt { display: block; font-family: var(--f-ui); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; }
-.qb-loot { color: var(--coral); }
+.qb-loot { color: var(--coral); margin-top: 8px; }
 .qb-muted { color: var(--dim); font-style: italic; }
 
-/* Events */
-.qb-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.qb-event { display: flex; align-items: flex-start; gap: 10px; padding: 8px 4px; border-top: 1px solid rgba(255, 255, 255, .04); }
-.qb-event:first-child { border-top: none; }
-.qb-dot { flex: 0 0 auto; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--dim); }
-.qb-ebody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.qb-elabel { font-size: 14px; line-height: 1.35; color: var(--ink); }
-.qb-edetail { font-size: 12px; color: var(--dim); }
-.qb-etime { flex: 0 0 auto; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.qb-event.quest_completed .qb-dot, .qb-event.dungeon_cleared .qb-dot { background: var(--green); }
-.qb-event.boss_defeated .qb-dot { background: var(--gold); }
-.qb-event.error .qb-dot { background: var(--red); }
-.qb-event.waiting .qb-dot { background: var(--coral); }
-.qb-event.cleared .qb-dot { background: var(--lav); }
+/* Diálogo (pregunta de Claude ↔ tu respuesta) */
+.qb-ex { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--soft); }
+.qb-ex:first-of-type { margin-top: 4px; }
+.qb-ex-claude {
+  display: flex; flex-direction: column; gap: 3px; width: 100%;
+  background: transparent; border: none; padding: 0; margin: 0;
+  color: var(--ink); text-align: left; font: inherit; cursor: pointer;
+}
+.qb-ex-claude:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.qb-ex-head { display: flex; align-items: baseline; gap: 8px; }
+.qb-ex-you { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+.qb-ex-tag { font-family: var(--f-ui); font-size: 11px; letter-spacing: .5px; color: var(--dim); }
+.qb-ex-time { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.qb-ex-text { font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.qb-ex-text.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qb-ex-you-text { color: var(--green); }
 
 @keyframes qb-pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.7); } }
 @keyframes qb-fade { from { opacity: 0; } to { opacity: 1; } }
