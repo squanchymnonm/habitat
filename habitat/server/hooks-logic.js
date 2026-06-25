@@ -134,6 +134,7 @@ export function applyEvent(store, payload, deps) {
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
+        s.cwd = payload.cwd;
         // El nombre del pod es el personaje (leaf del worktree). El proyecto real sale
         // del worktree (su carpeta padre); fuera de un worktree, proyecto = name.
         s.name = basename(payload.cwd);

@@ -20,4 +20,6 @@ export default {
   PROJECTS_STATE: process.env.HABITAT_PROJECTS_STATE || join(HERE, '..', '.projects.json'),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
   SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
+  UPLOAD_PASSWORD: process.env.HABITAT_UPLOAD_PASSWORD || '',
+  UPLOAD_MAX_BYTES: num(process.env.HABITAT_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
 };

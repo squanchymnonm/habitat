@@ -27,6 +27,14 @@ test('SessionStart setea branch desde deps.gitBranch(cwd)', () => {
   assert.equal(session.branch, 'feat/habitat-rpg');
 });
 
+test('SessionStart persiste el cwd en la sesión', () => {
+  const store = createStore();
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj-api', hook_event_name: 'SessionStart',
+  }, deps(null));
+  assert.equal(session.cwd, '/home/u/proj-api');
+});
+
 test('cualquier evento con cwd reactualiza branch al moverse de branch', () => {
   const store = createStore();
   // arranca en main

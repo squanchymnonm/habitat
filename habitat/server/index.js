@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -14,6 +14,7 @@ import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
+import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
 import { CHARACTERS, autoName } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -32,6 +33,26 @@ function readBody(req) {
     req.on('data', (c) => { b += c; if (b.length > 1e6) req.destroy(); });
     req.on('end', () => res(b));
     req.on('error', rej);
+  });
+}
+
+// Lee el body como Buffer, abortando si supera `maxBytes` (cap real de upload,
+// no solo el header Content-Length). Rechaza con 'too large' si se pasa.
+// Con maxBytes=Infinity (bypass por password) NO hay tope: bufferea todo el
+// body en memoria (aceptado por diseño).
+function readBodyCapped(req, maxBytes) {
+  return new Promise((resolveP, reject) => {
+    const chunks = [];
+    let size = 0;
+    let tooBig = false;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > maxBytes) { tooBig = true; req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => { if (!tooBig) resolveP(Buffer.concat(chunks)); });
+    req.on('error', () => reject(new Error('body error')));
+    req.on('close', () => { if (tooBig) reject(new Error('too large')); });
   });
 }
 
@@ -180,6 +201,76 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/files') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); }
+      catch { res.writeHead(404).end(); return; }
+      // Guard anti-symlink: el target real no puede salir del root real.
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = [];
+      for (const d of dirents) {
+        // Ocultar dotfiles, salvo la carpeta de uploads (para ver lo subido).
+        if (d.name.startsWith('.') && d.name !== '.habitat-uploads') continue;
+        const abs = join(realTarget, d.name);
+        let size = 0;
+        if (!d.isDirectory()) { try { size = (await stat(abs)).size; } catch { size = 0; } }
+        entries.push({ name: d.name, rel: relative(realRoot, abs), isDir: d.isDirectory(), size });
+      }
+      // Carpetas primero, después archivos; alfabético dentro de cada grupo.
+      entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/files/upload') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      let rawName = req.headers['x-filename'] || '';
+      try { rawName = decodeURIComponent(rawName); } catch { /* dejar tal cual */ }
+      const name = sanitizeFilename(rawName);
+      const max = maxUploadBytes({
+        cap: config.UPLOAD_MAX_BYTES,
+        configuredPassword: config.UPLOAD_PASSWORD,
+        providedPassword: req.headers['x-upload-password'] || '',
+      });
+      let body;
+      try { body = await readBodyCapped(req, max); }
+      catch (e) { res.writeHead(e.message === 'too large' ? 413 : 400).end(); return; }
+      const dir = resolveWithinRoot(root, '.habitat-uploads');
+      if (!dir) { res.writeHead(400).end(); return; }
+      await mkdir(dir, { recursive: true });
+      // Guard anti-symlink en el destino: si .habitat-uploads es un symlink que
+      // escapa del cwd del pod, no escribimos fuera del root (mismo check que GET /files).
+      let realDir, realRoot;
+      try { realDir = await realpath(dir); realRoot = await realpath(root); }
+      catch { res.writeHead(400).end(); return; }
+      if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      // readdir->uniqueName->writeFile no es atómico (TOCTOU); aceptable para uso single-user.
+      let taken;
+      try { taken = new Set(await readdir(realDir)); } catch { taken = new Set(); }
+      const finalName = uniqueName(name, taken);
+      await writeFile(join(realDir, finalName), body);
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ rel: join('.habitat-uploads', finalName) }));
       return;
     }
 
