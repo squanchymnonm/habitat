@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -14,6 +14,7 @@ import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
+import { resolveWithinRoot } from './files.js';
 import { CHARACTERS, autoName } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -175,6 +176,41 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/files') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); }
+      catch { res.writeHead(404).end(); return; }
+      // Guard anti-symlink: el target real no puede salir del root real.
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = [];
+      for (const d of dirents) {
+        // Ocultar dotfiles, salvo la carpeta de uploads (para ver lo subido).
+        if (d.name.startsWith('.') && d.name !== '.habitat-uploads') continue;
+        const abs = join(realTarget, d.name);
+        let size = 0;
+        if (!d.isDirectory()) { try { size = (await stat(abs)).size; } catch { size = 0; } }
+        entries.push({ name: d.name, rel: relative(realRoot, abs), isDir: d.isDirectory(), size });
+      }
+      // Carpetas primero, después archivos; alfabético dentro de cada grupo.
+      entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
       const relFromRoot = relative(realRoot, realTarget);
       const parts = relFromRoot ? relFromRoot.split(sep) : [];
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
