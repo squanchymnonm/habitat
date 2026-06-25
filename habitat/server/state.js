@@ -13,6 +13,7 @@ export function newSession(id, fields = {}) {
     name: '',
     project: '',
     branch: '',
+    cwd: '',
     status: 'idle',
     action: '',
     since: 0,
