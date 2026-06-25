@@ -27,6 +27,33 @@ test('SessionStart setea branch desde deps.gitBranch(cwd)', () => {
   assert.equal(session.branch, 'feat/habitat-rpg');
 });
 
+test('cualquier evento con cwd reactualiza branch al moverse de branch', () => {
+  const store = createStore();
+  // arranca en main
+  let branch = 'main';
+  const d = { ...deps(null), gitBranch: () => branch };
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/proj', hook_event_name: 'SessionStart' }, d);
+  assert.equal(store.get('s1').branch, 'main');
+  // git checkout a otra branch entre eventos
+  branch = 'feat/nueva';
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj', hook_event_name: 'PostToolUse', tool_name: 'Bash',
+  }, d);
+  assert.equal(session.branch, 'feat/nueva');
+});
+
+test('branch no se pisa con vacío si gitBranch falla en un evento', () => {
+  const store = createStore();
+  let branch = 'main';
+  const d = { ...deps(null), gitBranch: () => branch };
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/proj', hook_event_name: 'SessionStart' }, d);
+  branch = ''; // git falló / cwd transitorio
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj', hook_event_name: 'PostToolUse', tool_name: 'Read',
+  }, d);
+  assert.equal(session.branch, 'main');
+});
+
 test('TodoWrite setea quest y monster', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
