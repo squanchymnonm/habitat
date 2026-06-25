@@ -35,6 +35,17 @@ test('SessionStart persiste el cwd en la sesión', () => {
   assert.equal(session.cwd, '/home/u/proj-api');
 });
 
+test('cualquier evento con cwd cura el cwd de un pod que no lo tenía (sesión vieja)', () => {
+  const store = createStore();
+  // Pod viejo en el store sin cwd (arrancó antes de que existiera el campo).
+  const old = newSession('s1', { name: 'proj', cwd: '' });
+  store.upsert(old);
+  const { session } = applyEvent(store, {
+    session_id: 's1', cwd: '/home/u/proj', hook_event_name: 'PostToolUse', tool_name: 'Bash',
+  }, deps(null));
+  assert.equal(session.cwd, '/home/u/proj');
+});
+
 test('cualquier evento con cwd reactualiza branch al moverse de branch', () => {
   const store = createStore();
   // arranca en main

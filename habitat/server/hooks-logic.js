@@ -94,6 +94,7 @@ export function applyEvent(store, payload, deps) {
       prev._touched = new Set();
       const pendingChar = store.takePendingChar(tmux || name);
       if (pendingChar) prev.char = pendingChar;
+      if (payload.cwd) prev.cwd = payload.cwd;
       if (deps.gitBranch) prev.branch = deps.gitBranch(payload.cwd) || prev.branch;
       setStatus(prev, 'idle', 'memoria despejada', now);
       if (!prev._questbook) prev._questbook = emptyBook();
@@ -119,13 +120,17 @@ export function applyEvent(store, payload, deps) {
 
   const s = ensure(store, payload);
 
-  // La branch debe ser fiel a la real en todo momento, no solo al iniciar/clear:
-  // un `git checkout` (mío o tuyo) se refleja en el próximo hook (cada tool use
-  // dispara uno). Releemos en cada evento con cwd. Si git falla (cwd transitorio,
-  // detached, etc.) conservamos la anterior en vez de pisarla con vacío.
-  if (payload.cwd && deps.gitBranch) {
-    const b = deps.gitBranch(payload.cwd);
-    if (b) s.branch = b;
+  // La branch y el cwd deben ser fieles a la sesión real en todo momento, no solo
+  // al iniciar/clear: así un pod que arrancó antes de este código se auto-cura en
+  // su próximo hook (cada tool use dispara uno). La branch se relee de git (un
+  // `git checkout` se refleja en el próximo evento; si git falla conservamos la
+  // anterior en vez de pisarla con vacío). El cwd es estable: se copia de payload.
+  if (payload.cwd) {
+    s.cwd = payload.cwd;
+    if (deps.gitBranch) {
+      const b = deps.gitBranch(payload.cwd);
+      if (b) s.branch = b;
+    }
   }
 
   let fightResult = null;
@@ -134,7 +139,7 @@ export function applyEvent(store, payload, deps) {
   switch (ev) {
     case 'SessionStart': {
       if (payload.cwd) {
-        s.cwd = payload.cwd;
+        // cwd: lo setea el bloque genérico de arriba (fiel en cada evento).
         // El nombre del pod es el personaje (leaf del worktree). El proyecto real sale
         // del worktree (su carpeta padre); fuera de un worktree, proyecto = name.
         s.name = basename(payload.cwd);
