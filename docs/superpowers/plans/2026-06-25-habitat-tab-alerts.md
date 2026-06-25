@@ -96,7 +96,11 @@ git commit -m "feat(habitat): helper puro newlyWaiting para alertas de tab"
 
 **Files:**
 - Modify: `habitat/client/index.html` (dentro de `<head>`)
-- Modify: `habitat/web/index.html` (dentro de `<head>`)
+
+**NOTA:** NO editar `habitat/web/index.html`. Es output de build (`vite.config.ts`:
+`build.outDir = ../web`, `emptyOutDir: true`) y está **gitignoreado**; se borra y
+regenera en cada `npm run build` desde `client/index.html`. El `<link>` agregado en
+`client/index.html` se propaga al build automáticamente.
 
 **Interfaces:**
 - Consumes: asset `/assets/char/Monkey/face.png`.
@@ -110,23 +114,15 @@ En `habitat/client/index.html`, dentro de `<head>`, después de la línea `<meta
   <link rel="icon" type="image/png" href="/assets/char/Monkey/face.png" />
 ```
 
-- [ ] **Step 2: Agregar el link en `web/index.html`**
+- [ ] **Step 2: Verificar que el asset existe y el link quedó**
 
-En `habitat/web/index.html`, dentro de `<head>`, después de la línea `<meta name="viewport" ...>` (antes de los `<script>`/`<link rel=stylesheet>` de build):
+Run: `ls habitat/client/public/assets/char/Monkey/face.png && grep -n "rel=\"icon\"" habitat/client/index.html`
+Expected: existe el png y aparece el link en `client/index.html`.
 
-```html
-  <link rel="icon" type="image/png" href="/assets/char/Monkey/face.png" />
-```
-
-- [ ] **Step 3: Verificar que el asset existe y el HTML es válido**
-
-Run: `ls habitat/client/public/assets/char/Monkey/face.png && grep -n "rel=\"icon\"" habitat/client/index.html habitat/web/index.html`
-Expected: existe el png y aparece el link en ambos HTML.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add habitat/client/index.html habitat/web/index.html
+git add habitat/client/index.html
 git commit -m "feat(habitat): favicon del Monkey en la tab"
 ```
 
