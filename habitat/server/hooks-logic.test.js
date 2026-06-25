@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, newSession } from './state.js';
-import { applyEvent, staminaFromStatus } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus, dismissAlert } from './hooks-logic.js';
 import { worktreeName } from './worktree.js';
 
 const deps = (usage) => ({
@@ -95,6 +95,28 @@ test('Notification -> waiting; StopFailure -> error', () => {
   assert.equal(r.session.action, 'pide permiso');
   r = applyEvent(store, { session_id: 's1', hook_event_name: 'StopFailure', message: 'boom' }, deps(null));
   assert.equal(r.session.status, 'error');
+});
+
+test('dismissAlert: waiting/error -> idle (manual); no toca otros estados', () => {
+  const at = (status) => Object.assign(newSession('s1', {}), { status, since: 1, action: 'x' });
+  const now = () => 2000;
+
+  const w = at('waiting');
+  assert.equal(dismissAlert(w, now), true);
+  assert.equal(w.status, 'idle');
+  assert.equal(w.action, 'quieta (manual)');
+  assert.equal(w.since, 2000); // refresca el reloj del estado
+
+  const e = at('error');
+  assert.equal(dismissAlert(e, now), true);
+  assert.equal(e.status, 'idle');
+
+  for (const st of ['working', 'idle', 'done', 'offline']) {
+    const s = at(st);
+    assert.equal(dismissAlert(s, now), false);
+    assert.equal(s.status, st); // intacto
+  }
+  assert.equal(dismissAlert(null, now), false); // defensivo
 });
 
 test('PreCompact marca descanso sin tocar la stamina (la maneja el statusLine)', () => {

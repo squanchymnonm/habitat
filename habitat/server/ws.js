@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 
-export function attachWs(httpServer, store, { token, onChat } = {}) {
+export function attachWs(httpServer, store, { token, onChat, onDismiss } = {}) {
   // noServer + ruteo manual por pathname: si usáramos { server, path }, este WSS
   // abortaría con 400 cualquier upgrade que no sea /ws (incluido /term), pisando
   // al otro WSS montado sobre el mismo http server. Acá cedemos los paths ajenos.
@@ -25,6 +25,8 @@ export function attachWs(httpServer, store, { token, onChat } = {}) {
       try { msg = JSON.parse(data.toString()); } catch { return; }
       if (msg && msg.type === 'chat' && msg.id && typeof msg.text === 'string' && onChat) {
         onChat(msg.id, msg.text);
+      } else if (msg && msg.type === 'dismiss' && msg.id && onDismiss) {
+        onDismiss(msg.id);
       }
     });
   });

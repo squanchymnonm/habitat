@@ -4,6 +4,7 @@ import type { Session, Status } from '../types'
 import { heroSprite, heroPoseFor, POSE_RENDER, monsterSprite, bossSprite, fmt } from '../sprites'
 import Sprite from './Sprite.vue'
 import { useSessions } from '../stores/sessions'
+import { send } from '../composables/useSocket'
 
 const props = withDefaults(defineProps<{ session: Session; height?: number }>(), { height: 56 })
 
@@ -17,6 +18,13 @@ const EMOTE: Partial<Record<Status, number>> = {
 }
 const emote = computed(() => EMOTE[props.session.status] ?? null)
 const emoteUrl = computed(() => (emote.value ? `assets/emote/${emote.value}.png` : ''))
+// El globo es clickeable solo cuando la sesión pide atención: descarta la alerta a 'quieta'.
+const dismissable = computed(
+  () => props.session.status === 'waiting' || props.session.status === 'error',
+)
+function dismiss() {
+  if (dismissable.value) send({ type: 'dismiss', id: props.session.id })
+}
 
 const monster = computed(() => props.session.monster ?? null)
 const monsterUrl = computed(() =>
@@ -93,8 +101,10 @@ const heroFrame = computed(() =>
     <div
       v-if="emoteUrl"
       class="pemote"
-      :class="{ alert: session.status === 'waiting' }"
+      :class="{ alert: session.status === 'waiting', dismissable }"
       :style="{ backgroundImage: `url(${emoteUrl})` }"
+      :title="dismissable ? 'marcar como quieta' : ''"
+      @click.stop="dismiss"
     ></div>
     <Sprite
       class="fighter phero"
@@ -157,6 +167,7 @@ const heroFrame = computed(() =>
   background-repeat: no-repeat; background-size: 26px 24px; image-rendering: pixelated; z-index: 4;
 }
 .pemote.alert { animation: emoteBounce 0.7s steps(2) infinite; }
+.pemote.dismissable { cursor: pointer; }
 @keyframes emoteBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 .pdmg {
   position: absolute; right: 18%; top: 0; font-family: var(--f-ui); font-size: 12px; color: var(--gold);

@@ -30,6 +30,16 @@ function setStatus(s, status, action, now) {
   if (action != null) s.action = String(action).slice(0, 200);
 }
 
+// Descarte manual de la alerta desde la GUI: solo baja a 'idle' las sesiones que piden
+// atención ('waiting' = te necesita) o quedaron en 'error'. No pisa estados reales
+// (working/done/etc). Devuelve true si cambió algo (para decidir broadcast/persist).
+const DISMISSABLE = new Set(['waiting', 'error']);
+export function dismissAlert(s, now) {
+  if (!s || !DISMISSABLE.has(s.status)) return false;
+  setStatus(s, 'idle', 'quieta (manual)', now);
+  return true;
+}
+
 function ensureMonster(s) {
   if (!s.monster) s.monster = randomMonster(s.action || 'trabajando');
 }

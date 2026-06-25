@@ -70,7 +70,9 @@ export type ServerMessage =
   | { type: 'reorder'; order: string[] }
 
 // client -> server (fase 2: chat por send-keys)
-export type ClientMessage = { type: 'chat'; id: string; text: string }
+export type ClientMessage =
+  | { type: 'chat'; id: string; text: string }
+  | { type: 'dismiss'; id: string }
 
 export const STATUS_LABEL: Record<Status, string> = {
   idle: 'quieta',
