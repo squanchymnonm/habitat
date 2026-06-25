@@ -118,6 +118,16 @@ export function applyEvent(store, payload, deps) {
   }
 
   const s = ensure(store, payload);
+
+  // La branch debe ser fiel a la real en todo momento, no solo al iniciar/clear:
+  // un `git checkout` (mío o tuyo) se refleja en el próximo hook (cada tool use
+  // dispara uno). Releemos en cada evento con cwd. Si git falla (cwd transitorio,
+  // detached, etc.) conservamos la anterior en vez de pisarla con vacío.
+  if (payload.cwd && deps.gitBranch) {
+    const b = deps.gitBranch(payload.cwd);
+    if (b) s.branch = b;
+  }
+
   let fightResult = null;
   let removed = null;
 
@@ -134,7 +144,7 @@ export function applyEvent(store, payload, deps) {
         } else {
           s.project = s.name;
         }
-        if (deps.gitBranch) s.branch = deps.gitBranch(payload.cwd) || '';
+        // branch: la refresca el bloque genérico de arriba (fiel en cada evento).
       }
       // Sesión lanzada a mano dentro de tmux: el hook reporta el nombre de la tmux para
       // que el panel pueda attachear terminal/chat. El worktree (arriba) tiene prioridad.
