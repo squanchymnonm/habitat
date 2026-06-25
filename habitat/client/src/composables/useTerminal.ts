@@ -41,6 +41,12 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     }
   }
 
+  // Escribe texto al PTY como si se tipeara (lo usa el file browser para insertar
+  // el path de un archivo en el prompt de Claude). No-op si el WS no está abierto.
+  function insert(text: string) {
+    if (ws && ws.readyState === 1) ws.send(enc.encode(text))
+  }
+
   function fit() {
     if (fitAddon) { fitAddon.fit(); sendResize() }
   }
@@ -108,5 +114,5 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   )
 
   onUnmounted(teardown)
-  return { fit }
+  return { fit, insert }
 }
