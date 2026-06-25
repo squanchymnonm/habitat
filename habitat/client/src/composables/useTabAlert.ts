@@ -124,10 +124,17 @@ export function useTabAlert(): void {
 
   // transición a waiting → notif + sonido (solo en background)
   let prevWaiting = new Set(store.list.filter((s) => s.status === 'waiting').map((s) => s.id))
+  let initialized = false
   watch(
     () => store.list.map((s) => `${s.id}:${s.status}`).join('|'),
     () => {
       const current = new Set(store.list.filter((s) => s.status === 'waiting').map((s) => s.id))
+      if (!initialized) {
+        // primer snapshot = línea base; no avisar de golpe al abrir
+        initialized = true
+        prevWaiting = current
+        return
+      }
       const fresh = newlyWaiting(prevWaiting, current)
       prevWaiting = current
       if (fresh.length && document.hidden) {
