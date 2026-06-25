@@ -258,10 +258,17 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const dir = resolveWithinRoot(root, '.habitat-uploads');
       if (!dir) { res.writeHead(400).end(); return; }
       await mkdir(dir, { recursive: true });
+      // Guard anti-symlink en el destino: si .habitat-uploads es un symlink que
+      // escapa del cwd del pod, no escribimos fuera del root (mismo check que GET /files).
+      let realDir, realRoot;
+      try { realDir = await realpath(dir); realRoot = await realpath(root); }
+      catch { res.writeHead(400).end(); return; }
+      if (realDir !== realRoot && !realDir.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      // readdir->uniqueName->writeFile no es atómico (TOCTOU); aceptable para uso single-user.
       let taken;
-      try { taken = new Set(await readdir(dir)); } catch { taken = new Set(); }
+      try { taken = new Set(await readdir(realDir)); } catch { taken = new Set(); }
       const finalName = uniqueName(name, taken);
-      await writeFile(join(dir, finalName), body);
+      await writeFile(join(realDir, finalName), body);
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ rel: join('.habitat-uploads', finalName) }));
       return;

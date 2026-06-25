@@ -57,8 +57,7 @@ async function doUpload(file: File) {
 }
 
 function afterUpload(rel: string) {
-  list(props.id, cwd.value) // refrescar para ver el archivo nuevo
-  emit('pick', rel) // y ya insertarlo en la terminal
+  emit('pick', rel) // insertar en la terminal (el padre cierra el browser al recibir pick)
 }
 </script>
 
