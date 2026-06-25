@@ -56,17 +56,44 @@ function drawFavicon(needCount: number) {
 }
 
 // --- sonido: jingle corto (asset .wav). Un único elemento <audio> reusado. ---
+const ALERT_VOLUME = 0.5
 let alertAudio: HTMLAudioElement | null = null
+
+function getAlertAudio(): HTMLAudioElement {
+  if (!alertAudio) {
+    alertAudio = new Audio(SOUND_HREF)
+    alertAudio.volume = ALERT_VOLUME
+  }
+  return alertAudio
+}
+
+// "Desbloquea" el audio en el primer gesto del usuario (click en cualquier
+// lado): lo reproduce a volumen 0 (inaudible) para satisfacer la política de
+// autoplay, y restaura el volumen. Así el sonido en background suena después.
+function primeAudioOnFirstGesture() {
+  const unlock = () => {
+    const a = getAlertAudio()
+    a.volume = 0
+    a.play()
+      .then(() => {
+        a.pause()
+        a.currentTime = 0
+        a.volume = ALERT_VOLUME
+      })
+      .catch(() => {
+        a.volume = ALERT_VOLUME
+      })
+  }
+  window.addEventListener('pointerdown', unlock, { once: true, capture: true })
+}
+
 function playChime() {
   try {
-    if (!alertAudio) {
-      alertAudio = new Audio(SOUND_HREF)
-      alertAudio.volume = 0.5
-    }
-    alertAudio.currentTime = 0
+    const a = getAlertAudio()
+    a.currentTime = 0
     // play() devuelve una promesa; si el navegador la bloquea (autoplay sin
     // gesto previo) se rechaza: lo ignoramos para degradar en silencio.
-    void alertAudio.play().catch(() => {})
+    void a.play().catch(() => {})
   } catch {
     /* sin sonido si el navegador lo bloquea */
   }
@@ -93,6 +120,9 @@ export function useTabAlert(): void {
   if ('Notification' in window && Notification.permission === 'default') {
     void Notification.requestPermission()
   }
+
+  // desbloquear el audio en el primer click del usuario (autoplay policy)
+  primeAudioOnFirstGesture()
 
   // cargar el sprite del Monkey y dibujar el favicon inicial
   iconImg = new Image()
