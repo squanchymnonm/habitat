@@ -4,6 +4,7 @@ import { newlyWaiting } from './tabAlert'
 
 const BASE_TITLE = 'Hábitat · El Mono'
 const ICON_HREF = '/assets/char/Monkey/face.png'
+const SOUND_HREF = '/assets/sfx/alert.wav' // jingle "Secret" de Ninja Adventure (CC0)
 const SIZE = 64
 
 // --- favicon: dibuja el rostro del Monkey en un canvas y, si hay alerta,
@@ -54,29 +55,18 @@ function drawFavicon(needCount: number) {
   ensureIconLink().href = canvas.toDataURL('image/png')
 }
 
-// --- sonido: chime corto de dos notas con WebAudio (sin asset). ---
-let audioCtx: AudioContext | null = null
+// --- sonido: jingle corto (asset .wav). Un único elemento <audio> reusado. ---
+let alertAudio: HTMLAudioElement | null = null
 function playChime() {
   try {
-    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctor) return
-    if (!audioCtx) audioCtx = new Ctor()
-    if (audioCtx.state === 'suspended') void audioCtx.resume()
-    const now = audioCtx.currentTime
-    const notes = [660, 880]
-    notes.forEach((freq, i) => {
-      const t = now + i * 0.13
-      const osc = audioCtx!.createOscillator()
-      const gain = audioCtx!.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, t)
-      gain.gain.exponentialRampToValueAtTime(0.2, t + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
-      osc.connect(gain).connect(audioCtx!.destination)
-      osc.start(t)
-      osc.stop(t + 0.13)
-    })
+    if (!alertAudio) {
+      alertAudio = new Audio(SOUND_HREF)
+      alertAudio.volume = 0.5
+    }
+    alertAudio.currentTime = 0
+    // play() devuelve una promesa; si el navegador la bloquea (autoplay sin
+    // gesto previo) se rechaza: lo ignoramos para degradar en silencio.
+    void alertAudio.play().catch(() => {})
   } catch {
     /* sin sonido si el navegador lo bloquea */
   }

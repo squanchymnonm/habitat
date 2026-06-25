@@ -107,15 +107,18 @@ Para no repetir notificación/sonido mientras la sesión sigue esperando:
 - Si hay varias nuevas a la vez, un único aviso resumido
   (`«X» y N más te necesitan`) para no inundar.
 
-### 6. Sonido (WebAudio, sin archivo)
+### 6. Sonido (jingle .wav del asset pack)
 
-- Función `playChime()` que crea/reusa un `AudioContext` y reproduce un chime
-  corto de dos notas (p. ej. ~660 Hz → ~880 Hz, ~120 ms c/u) con un
-  `OscillatorNode` + `GainNode` (envolvente para evitar clicks).
-- Se crea el `AudioContext` de forma perezosa. Si el navegador lo suspende por
-  falta de gesto previo del usuario, se intenta `resume()`; si falla, se omite
-  sin romper.
-- Sin assets binarios nuevos.
+- Función `playChime()` que reproduce un jingle corto vía un único elemento
+  `HTMLAudioElement` reusado (`new Audio('/assets/sfx/alert.wav')`,
+  `volume = 0.5`, `currentTime = 0` antes de cada play).
+- Asset: `Secret2.wav` del pack Ninja Adventure (CC0), copiado a
+  `public/assets/sfx/alert.wav`.
+- `play()` devuelve una promesa; si el navegador la bloquea (autoplay sin
+  gesto previo del usuario) se rechaza y se ignora — degrada en silencio.
+
+> Nota: la primera versión usó un chime sintético WebAudio (sin asset); se
+> cambió por el jingle real del pack a pedido, antes del merge.
 
 ### 7. Wiring
 
