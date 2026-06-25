@@ -7,6 +7,20 @@ import '@xterm/xterm/css/xterm.css'
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
 const enc = new TextEncoder()
 
+// Intent de copiar/pegar desde el teclado, agnóstico de plataforma: Linux/Windows
+// usan Ctrl+Shift+C/V; Mac usa Cmd (metaKey) +C/V. Ctrl+C pelado (sin Shift) NO
+// se intercepta para que siga llegando al pty como SIGINT.
+export function copyPasteIntent(
+  e: Pick<KeyboardEvent, 'type' | 'ctrlKey' | 'shiftKey' | 'metaKey' | 'code'>,
+): 'copy' | 'paste' | null {
+  if (e.type !== 'keydown') return null
+  const mod = (e.ctrlKey && e.shiftKey) || e.metaKey
+  if (!mod) return null
+  if (e.code === 'KeyC') return 'copy'
+  if (e.code === 'KeyV') return 'paste'
+  return null
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string | null | undefined>) {
   let term: Terminal | null = null
@@ -39,6 +53,10 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
       fontSize: 13,
       theme: { background: '#160e07' },
       cursorBlink: true,
+      // En Mac, tmux mouse mode se traga el arrastre y xterm solo fuerza su selección
+      // nativa con Option(Alt)+arrastrar SI esta opción está activa (default false).
+      // Sin esto, en Mac no hay forma de seleccionar texto. En Linux/Win alcanza Shift.
+      macOptionClickForcesSelection: true,
     })
     fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
@@ -49,21 +67,20 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     )
 
     // Copiar/pegar: tmux corre con `mouse on`, así que arrastrar va a tmux y la rueda
-    // scrollea su copy-mode. Para seleccionar en xterm hay que mantener Shift al arrastrar
-    // (xterm fuerza su selección nativa). Acá cableamos Ctrl+Shift+C/V sobre esa selección;
-    // devolver false evita que xterm mande la tecla al pty. usa e.code para ser agnóstico al layout.
+    // scrollea su copy-mode. Para seleccionar en xterm hay que forzar su selección nativa:
+    // Shift+arrastrar en Linux/Win, Option(Alt)+arrastrar en Mac (ver macOptionClickForcesSelection).
+    // Sobre esa selección cableamos copiar/pegar: Ctrl+Shift+C/V (Linux/Win) o Cmd+C/V (Mac).
+    // Devolver false evita que xterm mande la tecla al pty.
     term.attachCustomKeyEventHandler((e) => {
-      if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey) return true
-      if (e.code === 'KeyC') {
+      const intent = copyPasteIntent(e)
+      if (!intent) return true
+      if (intent === 'copy') {
         const sel = term?.getSelection()
         if (sel) navigator.clipboard?.writeText(sel)
-        return false
-      }
-      if (e.code === 'KeyV') {
+      } else {
         navigator.clipboard?.readText().then((t) => t && term?.paste(t))
-        return false
       }
-      return true
+      return false
     })
 
     const tok = token()
