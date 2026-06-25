@@ -38,6 +38,8 @@ function readBody(req) {
 
 // Lee el body como Buffer, abortando si supera `maxBytes` (cap real de upload,
 // no solo el header Content-Length). Rechaza con 'too large' si se pasa.
+// Con maxBytes=Infinity (bypass por password) NO hay tope: bufferea todo el
+// body en memoria (aceptado por diseño).
 function readBodyCapped(req, maxBytes) {
   return new Promise((resolveP, reject) => {
     const chunks = [];
@@ -48,7 +50,7 @@ function readBodyCapped(req, maxBytes) {
       if (size > maxBytes) { tooBig = true; req.destroy(); return; }
       chunks.push(c);
     });
-    req.on('end', () => resolveP(Buffer.concat(chunks)));
+    req.on('end', () => { if (!tooBig) resolveP(Buffer.concat(chunks)); });
     req.on('error', () => reject(new Error('body error')));
     req.on('close', () => { if (tooBig) reject(new Error('too large')); });
   });
