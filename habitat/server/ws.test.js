@@ -53,6 +53,24 @@ test('un mensaje chat del cliente invoca onChat(id, text)', async () => {
   ws.close(); hub.close(); server.close();
 });
 
+test('un mensaje dismiss del cliente invoca onDismiss(id)', async () => {
+  const store = createStore();
+  const server = createServer();
+  const seen = [];
+  const hub = attachWs(server, store, { token: '', onDismiss: (id) => seen.push(id) });
+  const port = await listen(server);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  const snapPromise = nextMsg(ws);
+  await new Promise((r) => ws.once('open', r));
+  await snapPromise; // descartar snapshot
+  ws.send(JSON.stringify({ type: 'dismiss', id: 's1' }));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(seen, ['s1']);
+
+  ws.close(); hub.close(); server.close();
+});
+
 test('token inválido cierra la conexión', async () => {
   const store = createStore();
   const server = createServer();

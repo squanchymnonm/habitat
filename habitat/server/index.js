@@ -8,7 +8,7 @@ import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
 import { createProjects } from './projects.js';
 import { readUsage, readLastAssistantText } from './transcript.js';
-import { applyEvent, staminaFromStatus } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus, dismissAlert } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
@@ -356,6 +356,15 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
     onChat: (id, text) => {
       const s = store.get(id);
       if (s) sendKeys(s.tmux || s.name, text);
+    },
+    // Descarte manual de alerta desde la GUI (click en el globo): waiting/error -> idle.
+    onDismiss: (id) => {
+      const s = store.get(id);
+      if (s && dismissAlert(s, () => Date.now())) {
+        store.upsert(s);
+        store.persist();
+        hub.broadcast({ type: 'session', session: snapOf(s) });
+      }
     },
   });
   attachTerm(server, store, { token: config.TOKEN });
