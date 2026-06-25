@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useSessions } from './stores/sessions'
 import { startSocket } from './composables/useSocket'
+import { useTabAlert } from './composables/useTabAlert'
 import HabitatLayout from './components/HabitatLayout.vue'
 import SpawnMenu from './components/SpawnMenu.vue'
 import SettingsView from './components/SettingsView.vue'
@@ -9,6 +10,7 @@ import SettingsView from './components/SettingsView.vue'
 const store = useSessions()
 const view = ref<'sessions' | 'settings'>('sessions')
 onMounted(startSocket)
+useTabAlert()
 </script>
 
 <template>
