@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -14,7 +14,7 @@ import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch } from './git.js';
 import { worktreePaths, worktreeName } from './worktree.js';
-import { resolveWithinRoot } from './files.js';
+import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
 import { CHARACTERS, autoName } from './characters.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
@@ -33,6 +33,24 @@ function readBody(req) {
     req.on('data', (c) => { b += c; if (b.length > 1e6) req.destroy(); });
     req.on('end', () => res(b));
     req.on('error', rej);
+  });
+}
+
+// Lee el body como Buffer, abortando si supera `maxBytes` (cap real de upload,
+// no solo el header Content-Length). Rechaza con 'too large' si se pasa.
+function readBodyCapped(req, maxBytes) {
+  return new Promise((resolveP, reject) => {
+    const chunks = [];
+    let size = 0;
+    let tooBig = false;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > maxBytes) { tooBig = true; req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolveP(Buffer.concat(chunks)));
+    req.on('error', () => reject(new Error('body error')));
+    req.on('close', () => { if (tooBig) reject(new Error('too large')); });
   });
 }
 
@@ -216,6 +234,34 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/files/upload') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      let rawName = req.headers['x-filename'] || '';
+      try { rawName = decodeURIComponent(rawName); } catch { /* dejar tal cual */ }
+      const name = sanitizeFilename(rawName);
+      const max = maxUploadBytes({
+        cap: config.UPLOAD_MAX_BYTES,
+        configuredPassword: config.UPLOAD_PASSWORD,
+        providedPassword: req.headers['x-upload-password'] || '',
+      });
+      let body;
+      try { body = await readBodyCapped(req, max); }
+      catch (e) { res.writeHead(e.message === 'too large' ? 413 : 400).end(); return; }
+      const dir = resolveWithinRoot(root, '.habitat-uploads');
+      if (!dir) { res.writeHead(400).end(); return; }
+      await mkdir(dir, { recursive: true });
+      let taken;
+      try { taken = new Set(await readdir(dir)); } catch { taken = new Set(); }
+      const finalName = uniqueName(name, taken);
+      await writeFile(join(dir, finalName), body);
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ rel: join('.habitat-uploads', finalName) }));
       return;
     }
 
