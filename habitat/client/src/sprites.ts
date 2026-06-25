@@ -43,8 +43,10 @@ export const POSE_RENDER: Record<Pose, PoseRender> = {
   walk: { file: 'walk', mode: 'grid', duration: 600 },
   jump: { file: 'jump', mode: 'static', frame: 0 },
   dead: { file: 'dead', mode: 'static', frame: 0 },
-  // combate: strip de 2 frames (guardia + golpe) mirando al monstruo; ver build-combat.mjs.
-  combat: { file: 'anim_combat', mode: 'strip', duration: 360 },
+  // combate: strip de 2 frames (frame 0 = guardia/idle mirando a la derecha, frame 1 = golpe);
+  // ver build-combat.mjs. Se muestra estático en el frame 0 (idle) y MiniArena conmuta al
+  // frame 1 solo durante el golpe (cuando sube combat.tokens).
+  combat: { file: 'anim_combat', mode: 'static', frame: 0 },
 }
 
 export function heroSprite(name: string, char: string | undefined, pose: Pose): string {

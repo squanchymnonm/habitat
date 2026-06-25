@@ -38,10 +38,11 @@ describe('heroSprite', () => {
 })
 
 describe('POSE_RENDER', () => {
-  it('rest y combat animan (strip), walk es grid', () => {
+  it('rest anima (strip), walk es grid, combat es estático en idle (frame 0)', () => {
     expect(POSE_RENDER.rest.mode).toBe('strip')
     expect(POSE_RENDER.walk.mode).toBe('grid')
-    expect(POSE_RENDER.combat.mode).toBe('strip')
+    expect(POSE_RENDER.combat.mode).toBe('static')
+    expect(POSE_RENDER.combat.frame).toBe(0)
     expect(POSE_RENDER.combat.file).toBe('anim_combat')
   })
 })

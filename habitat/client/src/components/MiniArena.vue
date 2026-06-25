@@ -26,10 +26,13 @@ const monH = computed(() => Math.round(props.height * (monster.value?.isBoss ? 1
 const stam = computed(() => Math.max(0, Math.min(100, props.session.stamina ?? 100)))
 const stamColor = computed(() => (stam.value > 50 ? 'green' : stam.value > 20 ? 'yellow' : 'red'))
 
-// Número de daño flotante cuando sube combat.tokens.
+// Número de daño flotante + golpe del héroe cuando sube combat.tokens.
 const floats = ref<{ key: number; text: string; big: boolean }[]>([])
 let fkey = 0
 let lastTokens = props.session.combat?.tokens ?? 0
+// attacking: true durante el golpe (frame 1 de anim_combat); fuera de eso el héroe queda en idle.
+const attacking = ref(false)
+let atkTimer: ReturnType<typeof setTimeout> | null = null
 watch(
   () => props.session.combat?.tokens ?? 0,
   (tok) => {
@@ -38,6 +41,9 @@ watch(
       const key = ++fkey
       floats.value.push({ key, text: fmt(dmg), big: !!monster.value?.isBoss })
       setTimeout(() => (floats.value = floats.value.filter((f) => f.key !== key)), 850)
+      attacking.value = true
+      if (atkTimer) clearTimeout(atkTimer)
+      atkTimer = setTimeout(() => (attacking.value = false), 300)
     }
     lastTokens = tok
   },
@@ -76,6 +82,10 @@ const pose = computed(() =>
 )
 const render = computed(() => POSE_RENDER[pose.value])
 const heroSrc = computed(() => heroSprite(props.session.name, props.session.char, pose.value))
+// En combate: frame 1 (golpe) mientras attacking, si no frame 0 (idle a la derecha).
+const heroFrame = computed(() =>
+  pose.value === 'combat' && attacking.value ? 1 : render.value.frame ?? 0,
+)
 </script>
 
 <template>
@@ -92,7 +102,7 @@ const heroSrc = computed(() => heroSprite(props.session.name, props.session.char
       :src="heroSrc"
       :height="height"
       :mode="render.mode"
-      :frame="render.frame ?? 0"
+      :frame="heroFrame"
       :duration="render.duration ?? 900"
     />
     <Sprite
