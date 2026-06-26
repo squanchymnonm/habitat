@@ -500,6 +500,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
 
   hub = attachWs(server, store, {
     token: config.TOKEN,
+    sessionStore,
     onChat: (id, text) => {
       const s = store.get(id);
       if (s) sendKeys(s.tmux || s.name, text);
@@ -514,7 +515,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       }
     },
   });
-  attachTerm(server, store, { token: config.TOKEN });
+  attachTerm(server, store, { token: config.TOKEN, sessionStore });
   return { server, get hub() { return hub; } };
 }
 

@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
+import { isAuthenticated } from './auth.js';
 
-export function attachWs(httpServer, store, { token, onChat, onDismiss } = {}) {
+export function attachWs(httpServer, store, { token, sessionStore, onChat, onDismiss } = {}) {
   // noServer + ruteo manual por pathname: si usáramos { server, path }, este WSS
   // abortaría con 400 cualquier upgrade que no sea /ws (incluido /term), pisando
   // al otro WSS montado sobre el mismo http server. Acá cedemos los paths ajenos.
@@ -12,12 +13,7 @@ export function attachWs(httpServer, store, { token, onChat, onDismiss } = {}) {
   });
 
   wss.on('connection', (ws, req) => {
-    if (token) {
-      const url = new URL(req.url, 'http://x');
-      const q = url.searchParams.get('token');
-      const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-      if (q !== token && hdr !== token) { ws.close(1008, 'unauthorized'); return; }
-    }
+    if (!isAuthenticated(req, { sessionStore, token })) { ws.close(1008, 'unauthorized'); return; }
     ws.send(JSON.stringify({ type: 'snapshot', sessions: store.snapshot() }));
 
     ws.on('message', (data) => {
