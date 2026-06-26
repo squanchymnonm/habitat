@@ -481,10 +481,22 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
     }
 
     if (req.method === 'GET' && url.pathname === '/auth/me') {
-      if (!isAuthenticated(req, { sessionStore, token: config.TOKEN })) { res.writeHead(401).end(); return; }
       const sid = parseCookies(req.headers.cookie)[COOKIE_NAME];
       const sess = sid ? sessionStore.validate(sid) : null;
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ user: sess ? sess.user : config.USER }));
+      if (sess) {
+        // Re-emitimos la cookie para que el Max-Age del browser deslice junto con la
+        // sesión server-side: mientras entres al panel al menos una vez por TTL, no
+        // te vuelve a pedir login.
+        setSessionCookie(res, sid);
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ user: sess.user }));
+        return;
+      }
+      // Sin cookie de sesión válida: back-compat con token (Bearer / ?token=).
+      if (isAuthenticated(req, { sessionStore, token: config.TOKEN })) {
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ user: config.USER }));
+        return;
+      }
+      res.writeHead(401).end();
       return;
     }
 

@@ -987,6 +987,22 @@ test('GET /auth/me sin cookie -> 401; con cookie de /login -> 200 {user}', async
   server.close();
 });
 
+test('GET /auth/me con cookie válida re-emite Set-Cookie con habitat_session= y Max-Age=86400', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const me = await fetch(`http://127.0.0.1:${port}/auth/me`, { headers: { cookie } });
+  assert.equal(me.status, 200);
+  const setCookie = me.headers.get('set-cookie');
+  assert.ok(setCookie && setCookie.includes('habitat_session='), `Set-Cookie debe incluir habitat_session=, got: ${setCookie}`);
+  assert.ok(setCookie.includes('Max-Age=86400'), `Set-Cookie debe incluir Max-Age=86400, got: ${setCookie}`);
+  server.close();
+});
+
 test('POST /logout vence la cookie y /auth/me vuelve a 401', async () => {
   const { server } = appWithLogin();
   const port = await listen(server);
