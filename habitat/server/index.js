@@ -22,7 +22,6 @@ import { isAuthenticated, parseCookies, COOKIE_NAME } from './auth.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
-const LOCAL = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 function snapOf(session) {
   const out = {};
@@ -62,12 +61,11 @@ function readBodyCapped(req, maxBytes) {
 export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
+  // Autoriza endpoints sensibles (hooks, spawn, gestión, upload). Antes exigía loopback
+  // (LOCAL); detrás de Tailscale Serve toda conexión llega como loopback, así que ese gate
+  // dejó de aislar. La barrera real es la auth: cookie de sesión o token (Bearer/?token=).
   function authorize(req, res) {
-    if (config.TOKEN) {
-      const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-      if (hdr !== config.TOKEN) { res.writeHead(401).end(); return false; }
-    }
-    if (!LOCAL.has(req.socket.remoteAddress)) { res.writeHead(403).end(); return false; }
+    if (!isAuthenticated(req, { sessionStore, token: config.TOKEN })) { res.writeHead(401).end(); return false; }
     return true;
   }
 

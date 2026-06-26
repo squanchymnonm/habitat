@@ -1001,6 +1001,34 @@ test('POST /logout vence la cookie y /auth/me vuelve a 401', async () => {
   server.close();
 });
 
+test('endpoint protegido acepta cookie de sesión (sin Bearer)', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  // /sessions/order está protegido por authorize()
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: [] }),
+  });
+  assert.equal(res.status, 200);
+  server.close();
+});
+
+test('endpoint protegido sin cookie ni token -> 401', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ order: [] }),
+  });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
 test('lockout: tras 5 fallos seguidos -> 429', async () => {
   const { server } = appWithLogin();
   const port = await listen(server);
