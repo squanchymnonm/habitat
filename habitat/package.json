@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "hash-password": "node server/scripts/hash-password.js"
   },
   "dependencies": {
     "node-pty": "^1.1.0",

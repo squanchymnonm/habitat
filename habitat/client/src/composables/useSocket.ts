@@ -2,10 +2,27 @@ import { useSessions } from '../stores/sessions'
 import type { ServerMessage, ClientMessage } from '../types'
 import { applyServerSettings } from './useSettings'
 import { applyServerProjects } from './useProjects'
+import { useAuth } from './useAuth'
 
 // Socket único a nivel de app. Bidireccional: recibe estado y permite enviar (chat, fase 2).
 let ws: WebSocket | null = null
 let started = false
+
+/**
+ * Procesa el cierre del WebSocket. Devuelve `true` cuando el caller debe
+ * reconectar, `false` cuando no debe (sesión expirada → volver al login).
+ * Efecto secundario en code===1008: marca authed=false y resetea `started`
+ * para que un re-login posterior re-arme el socket.
+ */
+export function onSocketClose(code: number): boolean {
+  if (code === 1008) {
+    const { authed } = useAuth()
+    authed.value = false
+    started = false
+    return false
+  }
+  return true
+}
 
 function connect() {
   const store = useSessions()
@@ -23,7 +40,7 @@ function connect() {
     else if (msg.type === 'projects') applyServerProjects(msg.projects)
     else if (msg.type === 'reorder') store.reorder(msg.order)
   }
-  ws.onclose = () => setTimeout(connect, 1500) // reconexión
+  ws.onclose = (ev) => { if (onSocketClose(ev.code)) setTimeout(connect, 1500) }
 }
 
 export function send(msg: ClientMessage) {
