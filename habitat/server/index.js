@@ -16,6 +16,9 @@ import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWor
 import { worktreePaths, worktreeName } from './worktree.js';
 import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
 import { CHARACTERS, autoName } from './characters.js';
+import { createSessionStore } from './sessions.js';
+import { verifyPassword } from './password.js';
+import { isAuthenticated, parseCookies, COOKIE_NAME } from './auth.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
@@ -56,7 +59,7 @@ function readBodyCapped(req, maxBytes) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   function authorize(req, res) {
@@ -91,6 +94,22 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   }
   function broadcastProjects() {
     if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
+  }
+
+  const loginEnabled = !!(config.USER && config.PASSWORD_HASH);
+  const fails = new Map(); // user -> { count, lockedUntil }
+  const LOCK_AFTER = 5;
+  const LOCK_MS = 60_000;
+
+  function setSessionCookie(res, id) {
+    const attrs = [`${COOKIE_NAME}=${id}`, 'HttpOnly', 'Path=/', 'SameSite=Strict', `Max-Age=${Math.floor(config.SESSION_TTL_MS / 1000)}`];
+    if (config.COOKIE_SECURE) attrs.push('Secure');
+    res.setHeader('Set-Cookie', attrs.join('; '));
+  }
+  function clearSessionCookie(res) {
+    const attrs = [`${COOKIE_NAME}=`, 'HttpOnly', 'Path=/', 'SameSite=Strict', 'Max-Age=0'];
+    if (config.COOKIE_SECURE) attrs.push('Secure');
+    res.setHeader('Set-Cookie', attrs.join('; '));
   }
 
   const server = createServer(async (req, res) => {
@@ -429,6 +448,45 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       store.reorder(order);
       hub.broadcast({ type: 'reorder', order }); // sincroniza el orden a todos los clientes
       res.writeHead(200).end();
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/login') {
+      if (!loginEnabled) { res.writeHead(404).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const user = body && typeof body.user === 'string' ? body.user : '';
+      const password = body && typeof body.password === 'string' ? body.password : '';
+      const f = fails.get(user) || { count: 0, lockedUntil: 0 };
+      if (f.lockedUntil > Date.now()) { res.writeHead(429).end(); return; }
+      const ok = user === config.USER && verifyPassword(password, config.PASSWORD_HASH);
+      if (!ok) {
+        f.count += 1;
+        if (f.count >= LOCK_AFTER) { f.lockedUntil = Date.now() + LOCK_MS; f.count = 0; }
+        fails.set(user, f);
+        res.writeHead(401).end();
+        return;
+      }
+      fails.delete(user);
+      const id = sessionStore.create(user);
+      setSessionCookie(res, id);
+      res.writeHead(204).end();
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/logout') {
+      const sid = parseCookies(req.headers.cookie)[COOKIE_NAME];
+      if (sid) sessionStore.destroy(sid);
+      clearSessionCookie(res);
+      res.writeHead(204).end();
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/auth/me') {
+      if (!isAuthenticated(req, { sessionStore, token: config.TOKEN })) { res.writeHead(401).end(); return; }
+      const sid = parseCookies(req.headers.cookie)[COOKIE_NAME];
+      const sess = sid ? sessionStore.validate(sid) : null;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ user: sess ? sess.user : config.USER }));
       return;
     }
 
