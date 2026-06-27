@@ -18,6 +18,23 @@ const draggableList = computed<Session[]>({
     postOrder(ids)
   },
 })
+
+// La rueda del mouse scrollea el riel de pods en el eje que tenga overflow.
+// En modo horizontal (portrait wide) el navegador no scrollea solo con deltaY,
+// así que traducimos el delta vertical a scroll horizontal.
+function onWheel(e: WheelEvent) {
+  const el = e.currentTarget as HTMLElement
+  const canScrollY = el.scrollHeight > el.clientHeight
+  const canScrollX = el.scrollWidth > el.clientWidth
+  const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX
+  if (canScrollY) {
+    el.scrollTop += delta
+    e.preventDefault()
+  } else if (canScrollX) {
+    el.scrollLeft += delta
+    e.preventDefault()
+  }
+}
 </script>
 
 <template>
@@ -30,6 +47,7 @@ const draggableList = computed<Session[]>({
     :delay="200"
     :delay-on-touch-only="true"
     ghost-class="pod-ghost"
+    @wheel="onWheel"
   >
     <template #header>
       <div v-if="!store.list.length" class="empty">
