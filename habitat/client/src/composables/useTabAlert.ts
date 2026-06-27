@@ -4,7 +4,7 @@ import { newlyWaiting } from './tabAlert'
 
 const BASE_TITLE = 'Hábitat · El Mono'
 const ICON_HREF = '/assets/char/Monkey/face.png'
-const SOUND_HREF = '/assets/sfx/alert.wav' // jingle "Secret" de Ninja Adventure (CC0)
+const SOUND_HREF = '/assets/sfx/alert.mp3' // combo "clear" de GameStudio (freesound)
 const SIZE = 64
 
 // --- favicon: dibuja el rostro del Monkey en un canvas y, si hay alerta,
@@ -55,7 +55,7 @@ function drawFavicon(needCount: number) {
   ensureIconLink().href = canvas.toDataURL('image/png')
 }
 
-// --- sonido: jingle corto (asset .wav). Un único elemento <audio> reusado. ---
+// --- sonido: jingle corto (asset .mp3). Un único elemento <audio> reusado. ---
 const ALERT_VOLUME = 0.5
 let alertAudio: HTMLAudioElement | null = null
 
