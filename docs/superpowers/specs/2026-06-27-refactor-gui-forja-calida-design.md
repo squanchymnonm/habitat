@@ -42,7 +42,11 @@ acento      brass #E0A94B   brass-2 #C98A33
 semánticos  ember #E8773A (working)   amber #F2C94C (waiting)
             moss #8FB85C (done)   crimson #D14B3C (error)
             faint (idle/offline)
+arcano      mana #3FA8FF (uso global de Claude) — acento FRÍO deliberado
 ```
+
+El **maná** es lo único frío de la paleta: contrasta a propósito con la forja
+("magia fría" sobre metal caliente) y distingue el recurso global del de sesión.
 
 Los **semánticos de estado** son independientes del acento latón. El estado de una
 sesión se codifica de forma redundante: color + chip de texto + stripe lateral +
@@ -104,6 +108,33 @@ las esquinas + pozo recortado redondeado que **suaviza las esquinas duras** del
 sprite (la cara va con `border-radius` y el contenedor con `overflow:hidden` para
 recortar base+rim+grade juntos).
 
+### 3.4 Recursos globales: maná, ciclo día/noche y reset (uso de Claude)
+
+Elementos ya existentes en `main` (composables `useUsage` / `useDayNight`,
+componente `UsageHud`). **No cambia su lógica**; sólo su presentación, y se integran
+a la top bar.
+
+- **Maná** (`UsageHud .mana-box`): medidor del uso global de Claude restante
+  (`mana = 100 − usage.pct`) en la ventana de 5h. Barra **arcana azul** (acento
+  frío) con label "Maná" y un **mote** (emote pixel) que aparece cuando queda poco
+  (≥75% usado → 21; ≥90% → 22). Vive en la top bar, separado visualmente de la
+  vitalidad por sesión.
+- **Ciclo día/noche** (`App.vue .sky-ambient` + `useDayNight.skyGradient`): fondo
+  ambiental a pantalla completa cuyo gradiente avanza con `cyclePos`
+  (amanecer→día→atardecer→noche) según cuán avanzada esté la ventana de 5h.
+- **Dial ☀️/🌙 + reset** (`UsageHud .time-box`): dial vertical sol/luna que sigue
+  `cyclePos`, "próxima" y `resetLabel` (countdown al reset). Tipo **Máquina** mono
+  con `tabular-nums`.
+
+**Reconciliación de fondo (clave):** hoy el refactor usa un fondo cálido fijo; debe
+**convivir** con `.sky-ambient`. Modelo:
+1. `.sky-ambient` (día/noche) es la **base** ambiental (`z-index:-1`).
+2. La **calidez de forja** pasa a ser capa superior: viñeta + glows radiales de
+   brasa/latón en los bordes (no un fondo opaco que tape el cielo).
+3. Re-gradar los `STOPS` de `useDayNight` hacia **cálido/forja** (manteniendo el
+   arco amanecer→noche) para que el ciclo no rompa la dirección. Cambio acotado a
+   las constantes de color de `useDayNight.ts`.
+
 ## 4. Cambios por componente
 
 Estructura actual: `App.vue`, `HabitatLayout`, `SessionRail`, `SessionPod`,
@@ -113,8 +144,11 @@ Estructura actual: `App.vue`, `HabitatLayout`, `SessionRail`, `SessionPod`,
 | Componente | Cambio |
 |------------|--------|
 | `style.css` | Se reemplaza por: entry de Tailwind + tokens + `@layer` para elementos firma. Se retiran scanlines CRT, bevels pixel, glows neón. |
-| `App.vue` | HUD flotante + footer → integrados a una **top bar** real (ver AppMenu). |
-| `AppMenu` | Pasa a ser la **top bar**: wordmark (Lore), HUD en vivo (sesiones / tokens-min / "te necesita" pulsante), botón primario "Nueva sesión", menú y ajustes. |
+| `App.vue` | `hud-stack` (stats + UsageHud) + footer → integrados a una **top bar** real. Mantiene `.sky-ambient` (día/noche) como base de fondo. |
+| `AppMenu` | Pasa a ser la **top bar**: wordmark (Lore), HUD en vivo (sesiones / "te necesita" pulsante / **maná** / **reset + dial día-noche**), botón primario "Nueva sesión" (SpawnMenu), menú y ajustes. |
+| `UsageHud` | Re-skin (lógica intacta): barra de **maná** arcana azul + mote, dial ☀️/🌙 y countdown de **reset**, integrados a la top bar. |
+| `useDayNight` | Sólo se re-gradan los `STOPS` de color hacia cálido/forja; helpers intactos. |
+| `useUsage` | Sin cambios (lógica). |
 | `HabitatLayout` | Se mantiene master-detail + resize; se re-estilan divisor, scrim y overlay narrow. |
 | `SessionRail` | Igual lógica (draggable, wheel-scroll); re-estilo del contenedor y `empty`. |
 | `SessionPod` | Card premium: stripe de estado, nicho de duelo, nombre (Lore), chip, repo/branch (Máquina), acción, "activa hace". Variante `compact` re-estilada. |
@@ -133,10 +167,14 @@ Estructura actual: `App.vue`, `HabitatLayout`, `SessionRail`, `SessionPod`,
 ### Fase 1 — Fundación
 - Setup de Tailwind + theme "forja cálida" (tokens) + fuentes self-hosted.
 - `@layer` con elementos firma base (`<GameSprite>`, utilidades de nicho/medallón).
-- **Top bar** (AppMenu + HUD + spawn) y shell (`HabitatLayout`).
+- **Top bar** (AppMenu + HUD + spawn + **UsageHud**: maná, dial día/noche, reset) y
+  shell (`HabitatLayout`).
+- **Reconciliación de fondo**: `.sky-ambient` (día/noche) de base + viñeta/glows de
+  forja encima; re-gradar `STOPS` de `useDayNight` a cálido.
 - `LoginView`.
-- Criterio de salida: la app levanta con el nuevo shell, login y top bar; tema
-  aplicado globalmente; sin regresiones de layout master-detail.
+- Criterio de salida: la app levanta con el nuevo shell, login y top bar (incluido
+  maná + reset + ciclo día/noche funcionando con data real); tema aplicado
+  globalmente; sin regresiones de layout master-detail.
 
 ### Fase 2 — Núcleo (lo que más se ve)
 - `SessionPod` (card + nicho) + variante compact.
