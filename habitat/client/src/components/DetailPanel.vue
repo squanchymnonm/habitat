@@ -211,18 +211,68 @@ defineExpose({ fit })
   text-overflow: ellipsis;
 }
 .repo .br { color: var(--color-brass); }
-.action {
+.dpanel .action {
   margin-top: 7px;
   font-size: 14.5px;
   color: var(--color-ink-2);
 }
-.since {
+.dpanel .since {
   margin-top: 8px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--color-faint);
+}
+
+/* ===== Status chip ===== */
+.dpanel .chip {
+  margin-left: auto;
+  font-family: var(--font-system);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.dpanel .chip.working {
+  color: var(--color-ember);
+  background: rgba(232,119,58,.12);
+  border-color: rgba(232,119,58,.4);
+}
+
+.dpanel .chip.waiting {
+  color: #1b1407;
+  background: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+.dpanel .chip.done {
+  color: var(--color-moss);
+  background: rgba(143,184,92,.12);
+  border-color: rgba(143,184,92,.4);
+}
+
+.dpanel .chip.idle {
+  color: var(--color-dim);
+  background: rgba(174,153,122,.1);
+  border-color: var(--color-edge);
+}
+
+.dpanel .chip.error {
+  color: var(--color-crimson);
+  background: rgba(209,75,60,.12);
+  border-color: rgba(209,75,60,.4);
+}
+
+.dpanel .chip.offline {
+  color: var(--color-dim);
+  background: rgba(174,153,122,.1);
+  border-color: var(--color-edge);
+  opacity: .65;
 }
 
 /* ===== Tools ===== */

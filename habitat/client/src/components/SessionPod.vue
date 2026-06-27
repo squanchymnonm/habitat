@@ -113,6 +113,8 @@ function dismiss() {
   box-shadow: var(--shadow-sh2), var(--shadow-glow-brass);
 }
 
+.pod.selected::after { display: none; }
+
 .pod.working {
   box-shadow: var(--shadow-sh1), 0 0 30px -16px rgba(232,119,58,.7);
 }
@@ -294,9 +296,6 @@ function dismiss() {
   padding: 8px 10px;
 }
 
-.pod.compact .stripe {
-  /* stripe still present as absolute left bar */
-}
 
 .pod.compact .face-mini {
   flex: 0 0 auto;
