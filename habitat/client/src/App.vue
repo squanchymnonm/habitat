@@ -8,6 +8,7 @@ import HabitatLayout from './components/HabitatLayout.vue'
 import AppMenu from './components/AppMenu.vue'
 import SettingsView from './components/SettingsView.vue'
 import LoginView from './components/LoginView.vue'
+import UsageHud from './components/UsageHud.vue'
 
 const store = useSessions()
 const view = ref<'sessions' | 'settings'>('sessions')
@@ -26,6 +27,7 @@ useTabAlert()
       <span><b>{{ store.list.length }}</b> SESIONES</span>
       <span class="need"><b>{{ store.needCount }}</b> TE NECESITAN</span>
     </div>
+    <UsageHud />
     <HabitatLayout v-if="view === 'sessions'" />
     <SettingsView v-else />
     <footer>SPRITES: NINJA ADVENTURE — PIXEL-BOY / AAA — CC0</footer>
