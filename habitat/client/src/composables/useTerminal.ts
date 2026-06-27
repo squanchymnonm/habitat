@@ -27,8 +27,24 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   let fitAddon: FitAddon | null = null
   let ws: WebSocket | null = null
   let linkProvider: IDisposable | null = null
+  let mouseEl: HTMLElement | null = null
+  // Última selección no vacía vista. tmux (mouse on) suele redibujar al soltar el mouse
+  // o al hacer click derecho, lo que limpia la selección de xterm ANTES de que la leamos;
+  // por eso guardamos el último texto seleccionado para no perderlo.
+  let lastSelection = ''
+
+  // En captura: el click derecho llega a xterm y le borra la selección antes del menú.
+  // Snapshot de la selección + frenar la propagación para que xterm no la limpie.
+  function onTermMouseDownCapture(e: MouseEvent) {
+    if (e.button === 2) {
+      const s = term?.getSelection()
+      if (s) lastSelection = s
+      e.stopPropagation()
+    }
+  }
 
   function teardown() {
+    if (mouseEl) { mouseEl.removeEventListener('mousedown', onTermMouseDownCapture, true); mouseEl = null }
     if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
     if (linkProvider) { linkProvider.dispose(); linkProvider = null }
     if (term) { term.dispose(); term = null }
@@ -47,14 +63,14 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     if (ws && ws.readyState === 1) ws.send(enc.encode(text))
   }
 
-  // Texto actualmente seleccionado en la terminal ('' si no hay selección).
+  // Texto seleccionado en la terminal: el actual o, si tmux ya lo borró, el último visto.
   function getSelection() {
-    return term?.getSelection() ?? ''
+    return term?.getSelection() || lastSelection
   }
 
-  // Copia la selección actual al portapapeles. Devuelve true si había algo que copiar.
+  // Copia la selección (actual o la última vista) al portapapeles. Devuelve true si copió.
   function copySelection() {
-    const sel = term?.getSelection()
+    const sel = getSelection()
     if (sel) { navigator.clipboard?.writeText(sel).catch(() => {}); return true }
     return false
   }
@@ -85,6 +101,8 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     term.loadAddon(fitAddon)
     term.open(el)
     fitAddon.fit()
+    mouseEl = el
+    el.addEventListener('mousedown', onTermMouseDownCapture, true)
     linkProvider = term.registerLinkProvider(
       createLinkProvider(term, (url) => window.open(url, '_blank', 'noopener,noreferrer')),
     )
@@ -97,7 +115,13 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     // Linux/Win no se puede depender de ese atajo; copy-on-select + el menú de click derecho
     // (en DetailPanel) son los caminos confiables. El atajo de teclado queda igual como bonus
     // (útil sobre todo para Cmd+C/V en Mac, que sí funciona).
-    term.onSelectionChange(() => { copySelection() })
+    term.onSelectionChange(() => {
+      const sel = term?.getSelection()
+      if (sel && sel !== lastSelection) {
+        lastSelection = sel
+        navigator.clipboard?.writeText(sel).catch(() => {})
+      }
+    })
     term.attachCustomKeyEventHandler((e) => {
       const intent = copyPasteIntent(e)
       if (!intent) return true
