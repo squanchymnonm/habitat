@@ -119,9 +119,10 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   }
 
   // Copia la selección (actual o la última vista) al portapapeles. Devuelve true si copió.
+  // Usa copyText para que ande también en contexto inseguro (la usa el menú de click derecho).
   function copySelection() {
     const sel = getSelection()
-    if (sel) { navigator.clipboard?.writeText(sel).catch(() => {}); return true }
+    if (sel) { copyText(sel); return true }
     return false
   }
 
@@ -173,19 +174,20 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
       }
     })
     term.attachCustomKeyEventHandler((e) => {
-      const intent = copyPasteIntent(e)
-      if (!intent) return true
-      if (intent === 'copy') {
+      const action = decideKeyAction(copyPasteIntent(e), !!getSelection())
+      if (action === 'passthrough') return true // p. ej. Ctrl+C sin selección -> SIGINT
+      if (action === 'copy') {
         e.preventDefault()
-        copySelection()
+        copyText(getSelection())
+        term?.clearSelection()
+        lastSelection = ''
+        term?.focus()
         return false
       }
-      // Paste: en contexto seguro lo leemos nosotros con readText(). En contexto
-      // inseguro readText no existe; NO hacemos preventDefault para que el paste
-      // nativo del navegador dispare y xterm lo pegue con clipboardData.
-      if (!canReadClipboard()) return true
-      e.preventDefault()
-      pasteClipboard()
+      // action === 'paste': NO hacemos preventDefault. Devolver false evita que xterm
+      // emita ^V al pty, pero deja que el navegador dispare el evento `paste` nativo,
+      // que el textarea oculto de xterm pega con clipboardData. Funciona igual en
+      // https y en HTTP/LAN, sin leer el portapapeles por API.
       return false
     })
 
