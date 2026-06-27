@@ -79,11 +79,11 @@ async function remove(dir: string, name: string) {
             @click="setColor(p.dir, c)"
           />
         </span>
-        <button class="ctl del" @click="remove(p.dir, p.name)">quitar</button>
+        <button class="btn del" @click="remove(p.dir, p.name)">quitar</button>
       </li>
     </ul>
 
-    <button v-if="canManage && !browsing" class="ctl" @click="openBrowser">+ Agregar proyecto</button>
+    <button v-if="canManage && !browsing" class="btn" @click="openBrowser">+ Agregar proyecto</button>
 
     <div v-if="browsing" class="browser">
       <div class="crumbs">
@@ -130,12 +130,12 @@ async function remove(dir: string, name: string) {
           </span>
         </div>
         <div class="actions">
-          <button class="ctl" :disabled="busy" @click="submitAdd">Agregar</button>
-          <button class="ctl" :disabled="busy" @click="draftDir = ''">cancelar</button>
+          <button class="btn" :disabled="busy" @click="submitAdd">Agregar</button>
+          <button class="btn" :disabled="busy" @click="draftDir = ''">cancelar</button>
         </div>
       </div>
 
-      <button class="ctl close" @click="browsing = false">cerrar navegador</button>
+      <button class="btn close" @click="browsing = false">cerrar navegador</button>
     </div>
 
     <p class="err" v-if="error">{{ error }}</p>
@@ -144,29 +144,35 @@ async function remove(dir: string, name: string) {
 
 <style scoped>
 .projects { max-width: 720px; padding: clamp(18px, 3.5vw, 38px); }
-.projects h3 { font-family: var(--f-logo); margin: 0 0 12px; }
-.hint, .err { color: var(--dim); font-size: 12px; }
-.err { color: #e06; }
+.projects h3 { font-family: var(--font-lore); margin: 0 0 12px; }
+.hint, .err { color: var(--color-dim); font-size: 12px; }
+.err { color: var(--color-crimson); }
 .plist { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
 .pitem { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sw, .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0006; cursor: pointer; }
-.plabel { font-family: var(--f-ui); font-weight: 700; }
-.pdir { color: var(--dim); font-size: 11px; }
+.plabel { font-family: var(--font-system); font-weight: 700; }
+.pdir { color: var(--color-dim); font-size: 11px; font-family: var(--font-machine); }
 .swatches { display: inline-flex; gap: 3px; flex-wrap: wrap; }
-.swatch.on { outline: 2px solid var(--ink); outline-offset: 1px; }
+.swatch.on { outline: 2px solid var(--color-brass); outline-offset: 1px; }
 .del { font-size: 11px; }
-.browser { margin-top: 10px; border: 2px solid #3a3a4a; border-radius: 6px; padding: 10px; }
+.browser { margin-top: 10px; border: 2px solid var(--color-edge); border-radius: 6px; padding: 10px; }
 .crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.crumb { background: transparent; border: 1px solid #3a3a4a; border-radius: 4px; color: var(--ink); padding: 2px 6px; cursor: pointer; }
+.crumb { background: var(--color-surface-2); border: 1px solid var(--color-edge); border-radius: 4px; color: var(--color-ink); padding: 2px 6px; cursor: pointer; }
 .entries { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
 .entries li { display: flex; justify-content: space-between; gap: 8px; }
-.enter { background: transparent; border: none; color: var(--ink); cursor: pointer; text-align: left; flex: 1; }
-.enter .repo { color: var(--gold); font-size: 10px; margin-left: 6px; }
-.draft { border-top: 1px solid #3a3a4a; margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.enter { background: transparent; border: none; color: var(--color-ink); cursor: pointer; text-align: left; flex: 1; }
+.enter .repo { color: var(--color-brass); font-size: 10px; margin-left: 6px; font-family: var(--font-machine); }
+.draft { border-top: 1px solid var(--color-edge); margin-top: 8px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .draft .row { display: flex; flex-direction: column; gap: 4px; }
 .charlist { display: flex; flex-wrap: wrap; gap: 4px; }
-.charbtn { background: #1a1a24; border: 1px solid #3a3a4a; border-radius: 4px; color: var(--dim); font-size: 10px; padding: 2px 5px; cursor: pointer; }
-.charbtn.on { color: #2a1c0a; background: var(--gold); border-color: var(--gold); }
+.charbtn { background: var(--color-bg); border: 1px solid var(--color-edge); border-radius: 4px; color: var(--color-dim); font-size: 10px; padding: 2px 5px; cursor: pointer; }
+.charbtn.on { color: #1B1308; background: var(--color-brass); border-color: var(--color-brass); }
 .actions { display: flex; gap: 6px; }
 .close { margin-top: 6px; }
+
+/* Premium button */
+.btn { font: inherit; font-size: 13px; padding: 8px 12px; background: var(--color-surface-2); color: var(--color-ink); border: 1px solid var(--color-edge); border-radius: 9px; cursor: pointer; }
+.btn:hover { border-color: var(--color-brass-2); color: var(--color-brass); }
+.btn:focus-visible { outline: 2px solid var(--color-brass); outline-offset: 2px; }
+.btn:disabled { opacity: .6; cursor: default; }
 </style>
