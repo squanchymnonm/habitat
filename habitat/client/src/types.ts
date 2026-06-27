@@ -58,9 +58,12 @@ export interface Project {
   chars?: string[]
 }
 
+export interface Usage { pct: number; resetAt: number } // resetAt: epoch en segundos
+
 // server -> client
 export type ServerMessage =
-  | { type: 'snapshot'; sessions: Session[] }
+  | { type: 'snapshot'; sessions: Session[]; usage?: Usage | null }
+  | { type: 'usage'; usage: Usage | null }
   | { type: 'session'; session: Session }
   | { type: 'remove'; id: string }
   | { type: 'rekey'; from: string; to: string; session: Session }
