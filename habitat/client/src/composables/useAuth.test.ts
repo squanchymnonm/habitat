@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useAuth } from './useAuth'
 
-beforeEach(() => { vi.restoreAllMocks() })
+beforeEach(() => { vi.restoreAllMocks(); vi.stubGlobal('location', { search: '' }) })
+afterEach(() => { vi.unstubAllGlobals() })
 
 describe('useAuth', () => {
   it('checkAuth pone authed=true si /auth/me responde 200', async () => {
@@ -9,6 +10,15 @@ describe('useAuth', () => {
     const a = useAuth()
     await a.checkAuth()
     expect(a.authed.value).toBe(true)
+  })
+
+  it('checkAuth manda el token de la query a /auth/me (back-compat sin login)', async () => {
+    vi.stubGlobal('location', { search: '?token=secreto' })
+    const fetchMock = vi.fn(async () => ({ status: 200, ok: true }))
+    vi.stubGlobal('fetch', fetchMock as any)
+    const a = useAuth()
+    await a.checkAuth()
+    expect(fetchMock).toHaveBeenCalledWith('/auth/me', { headers: { authorization: 'Bearer secreto' } })
   })
 
   it('checkAuth pone authed=false si /auth/me responde 401', async () => {
