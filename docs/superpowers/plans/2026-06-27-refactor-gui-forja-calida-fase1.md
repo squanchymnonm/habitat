@@ -19,7 +19,7 @@
 - **No tocar:** backend, protocolo WS, hooks, lógica de combate/telemetría, ni la lógica de `useUsage`/`useDayNight` (salvo las **constantes de color** `STOPS`).
 - **No romper tests.** `npm test` (vitest) del cliente debe quedar verde. (Las fallas pre-existentes de módulos del server por `pngjs`/`ws` no aplican al cliente; validar solo lo tocado.)
 - `npm run typecheck` (vue-tsc) y `npm run build` deben pasar al cerrar cada tarea que toca código.
-- **Convivencia:** no borrar `src/style.css` en esta fase; los componentes de Fase 2/3 siguen dependiendo de él.
+- **Convivencia:** no borrar `src/style.css` en esta fase; los componentes de Fase 2/3 siguen dependiendo de él. **Tailwind sin preflight** (importar `theme.css` + `utilities.css`, NO `@import "tailwindcss"` completo) para no resetear los componentes legacy.
 - **Responsive:** preservar breakpoints master-detail (wide ≥900px / narrow) y portrait/landscape ya existentes (`HabitatLayout`/`style.css`).
 - **A11y:** foco visible (ring latón), respetar `prefers-reduced-motion`.
 - Tokens de color (hex exactos), tipografía (3 voces) y stops del ciclo: ver spec §2 y §3.4.
@@ -74,7 +74,12 @@ Expected: existe `docs/superpowers/assets/forja-mockup.html` (referencia visual 
 
 Create `habitat/client/src/styles/theme.css`:
 ```css
-@import "tailwindcss";
+/* Tailwind v4 SIN preflight: convivencia con style.css legacy (Fase 1–3).
+   El preflight resetea botones/inputs/headings y rompería los componentes
+   aún no migrados. Importamos solo theme (para @theme) + utilities. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
 /* Fuentes self-hosted (variables: un solo woff2 por familia cubre los pesos del rango) */
 @font-face{ font-family:"Fraunces"; font-style:normal; font-weight:400 560; font-display:swap; src:url("/fonts/Fraunces.woff2") format("woff2"); }
