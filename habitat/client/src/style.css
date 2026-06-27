@@ -35,18 +35,18 @@
   .crt::after{content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
     background:repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); opacity:.5}
 
-  header{display:flex; align-items:center; gap:18px; flex-wrap:wrap;
-    padding:20px clamp(16px,4vw,40px); border-bottom:3px solid var(--line);
-    position:sticky; top:0; z-index:5;
-    background:linear-gradient(180deg,#2c2012,#190f07);
-    box-shadow:0 2px 0 rgba(201,143,46,.28), 0 6px 22px rgba(0,0,0,.55)}
   .brand{display:flex; align-items:center; gap:12px}
   .brand b{font-family:var(--f-logo); font-size:16px; letter-spacing:0; color:var(--ink)}
   .brand .dot{color:var(--gold); text-shadow:var(--glow-gold)}
   .brand small{color:var(--dim); font-family:var(--f-ui); font-size:11px; letter-spacing:.5px}
   .demo-badge{font-family:var(--f-ui); font-size:11px; letter-spacing:1px; color:#2a1c0a; background:var(--gold); padding:5px 7px; box-shadow:var(--bevel), var(--glow-gold)}
-  .count{margin-left:auto; display:flex; gap:18px; align-items:center; font-family:var(--f-ui); font-size:13px; color:var(--dim)}
-  .count b{color:var(--ink)} .count .need{color:var(--coral)}
+  /* --- Stats flotantes (HUD) --- */
+  .stats-hud{position:fixed; top:12px; right:12px; z-index:30; display:flex; gap:14px; align-items:center;
+    font-family:var(--f-ui); font-size:12px; color:var(--dim);
+    padding:7px 11px; background:linear-gradient(180deg,#2c2012,#190f07);
+    border:2px solid var(--line); box-shadow:var(--bevel), 4px 4px 0 #0b0703}
+  .stats-hud b{color:var(--ink)}
+  .stats-hud .need{color:var(--coral)}
   .controls{display:flex; gap:10px; flex-wrap:wrap}
   button.ctl{font-family:var(--f-ui); font-size:11px; text-transform:uppercase; letter-spacing:.5px;
     background:var(--surface2); color:var(--ink); border:2px solid var(--line); border-radius:0;
