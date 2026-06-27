@@ -133,7 +133,16 @@ a la top bar.
    brasa/latón en los bordes (no un fondo opaco que tape el cielo).
 3. Re-gradar los `STOPS` de `useDayNight` hacia **cálido/forja** (manteniendo el
    arco amanecer→noche) para que el ciclo no rompa la dirección. Cambio acotado a
-   las constantes de color de `useDayNight.ts`.
+   las constantes de color de `useDayNight.ts`. Valores aprobados (demo
+   https://claude.ai/code/artifact/608fe968-3a2a-431c-accb-e9868c3e7ed6):
+
+   ```
+   p 0.00 amanecer      top #3b2a30  bot #5e3a22   (plum cálido → brasa)
+   p 0.16 día           top #473828  bot #5d421f   (ámbar tostado)
+   p 0.52 media tarde   top #3f3024  bot #52381d
+   p 0.78 atardecer     top #3a2130  bot #4d1e0f   (carmesí cálido)
+   p 1.00 noche         top #191320  bot #130d08   (negro cálido de fragua)
+   ```
 
 ## 4. Cambios por componente
 
