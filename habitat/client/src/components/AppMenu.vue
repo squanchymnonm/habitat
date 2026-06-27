@@ -2,7 +2,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useCompactPods } from '../composables/useCompactPods'
-import SpawnMenu from './SpawnMenu.vue'
 
 type View = 'sessions' | 'settings'
 defineProps<{ view: View }>()
@@ -36,7 +35,6 @@ onUnmounted(() => {
       <button class="ctl" :class="{ active: view === 'sessions' }" @click="pickView('sessions')">Sesiones</button>
       <button class="ctl" :class="{ active: view === 'settings' }" @click="pickView('settings')">⚙ Settings</button>
       <button class="ctl" :class="{ active: compact }" @click="toggleCompact" title="Pods compactos">▭ Compacto</button>
-      <SpawnMenu />
       <button class="ctl" @click="logout">Salir</button>
     </div>
   </div>
