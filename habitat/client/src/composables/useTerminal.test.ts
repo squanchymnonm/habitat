@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent } from './useTerminal'
+import { copyPasteIntent, canReadClipboard } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
@@ -26,5 +26,19 @@ describe('copyPasteIntent', () => {
   it('otras teclas con el modificador no disparan intent', () => {
     expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyA' }))).toBe(null)
     expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyK' }))).toBe(null)
+  })
+})
+
+describe('canReadClipboard', () => {
+  it('true cuando la Async Clipboard API está disponible (contexto seguro)', () => {
+    expect(canReadClipboard({ clipboard: { readText: () => Promise.resolve('') } })).toBe(true)
+  })
+
+  it('false en contexto inseguro: navigator.clipboard es undefined (http por LAN)', () => {
+    expect(canReadClipboard({})).toBe(false)
+  })
+
+  it('false si readText no existe (p. ej. navegadores sin soporte)', () => {
+    expect(canReadClipboard({ clipboard: {} })).toBe(false)
   })
 })

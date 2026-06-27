@@ -21,6 +21,17 @@ export function copyPasteIntent(
   return null
 }
 
+// ¿Podemos leer el portapapeles vía Async Clipboard API? Solo existe en contexto
+// seguro (https o localhost). Servido por HTTP plano (p. ej. la tablet entrando por
+// LAN a http://192.168.x.x) `navigator.clipboard` es undefined: ahí NO interceptamos
+// el paste y dejamos que el navegador dispare el `paste` nativo, que xterm pega con
+// clipboardData (sí funciona sin contexto seguro).
+export function canReadClipboard(
+  nav: { clipboard?: { readText?: unknown } } = navigator,
+): boolean {
+  return typeof nav.clipboard?.readText === 'function'
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string | null | undefined>) {
   let term: Terminal | null = null
@@ -125,9 +136,17 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     term.attachCustomKeyEventHandler((e) => {
       const intent = copyPasteIntent(e)
       if (!intent) return true
+      if (intent === 'copy') {
+        e.preventDefault()
+        copySelection()
+        return false
+      }
+      // Paste: en contexto seguro lo leemos nosotros con readText(). En contexto
+      // inseguro readText no existe; NO hacemos preventDefault para que el paste
+      // nativo del navegador dispare y xterm lo pegue con clipboardData.
+      if (!canReadClipboard()) return true
       e.preventDefault()
-      if (intent === 'copy') copySelection()
-      else pasteClipboard()
+      pasteClipboard()
       return false
     })
 
