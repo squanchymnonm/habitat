@@ -30,6 +30,9 @@
       linear-gradient(160deg, var(--bg), var(--bg2));
     background-attachment:fixed; min-height:100%; image-rendering:pixelated;
   }
+  /* --- Ciclo día/noche global (capa de fondo; detrás del contenido) --- */
+  .sky-ambient{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.85; transition:background .6s linear}
+
   /* CRT scanlines — solo en zonas con .crt (rail, cabecera del detalle). NO en la terminal. */
   .crt{position:relative}
   .crt::after{content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
