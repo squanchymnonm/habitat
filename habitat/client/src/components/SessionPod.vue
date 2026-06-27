@@ -5,6 +5,7 @@ import { useProjects } from '../composables/useProjects'
 import { useCompactPods } from '../composables/useCompactPods'
 import { STATUS_LABEL, type Session } from '../types'
 import { ago, faceFor, staminaHue } from '../sprites'
+import { send } from '../composables/useSocket'
 import MiniArena from './MiniArena.vue'
 
 const props = defineProps<{ session: Session }>()
@@ -26,6 +27,13 @@ const stamStyle = computed(() => {
 function select() {
   store.select(props.session.id)
 }
+
+const dismissable = computed(
+  () => props.session.status === 'waiting' || props.session.status === 'error',
+)
+function dismiss() {
+  if (dismissable.value) send({ type: 'dismiss', id: props.session.id })
+}
 </script>
 
 <template>
@@ -45,7 +53,12 @@ function select() {
     <template v-if="compact">
       <img class="face-mini" :src="faceFor(session.name, session.char)" alt="" />
       <div class="meta">
-        <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span></div>
+        <div class="name">{{ session.name }} <span
+  class="chip"
+  :class="[session.status, { dismissable }]"
+  :title="dismissable ? 'marcar como quieta' : ''"
+  @click.stop="dismiss"
+>{{ STATUS_LABEL[session.status] }}</span></div>
         <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
       </div>
       <div class="stam">
