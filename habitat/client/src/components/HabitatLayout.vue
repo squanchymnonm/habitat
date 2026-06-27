@@ -77,8 +77,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.hdiv{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.35)); }
-.hdiv:hover{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.6)); }
-.scrim{ background:rgba(8,6,4,.6); }
-.hpanelhost{ border-left:1px solid var(--color-edge); }
+.hlayout .hdiv{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.35)); }
+.hlayout .hdiv:hover{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.6)); }
+.hlayout .scrim{ background:rgba(8,6,4,.6); }
+.hlayout .hpanelhost{ border-left:1px solid var(--color-edge); }
 </style>
