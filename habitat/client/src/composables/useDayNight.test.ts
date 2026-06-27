@@ -13,4 +13,12 @@ describe('useDayNight', () => {
     expect(skyGradient(0)).toMatch(/^linear-gradient\(180deg, /)
     expect(skyGradient(1)).toMatch(/^linear-gradient\(180deg, /)
   })
+  it('skyGradient: noche usa negro cálido de fragua (no púrpura frío)', () => {
+    // p=1.0 → STOP noche cálido top #191320 / bot #130d08
+    expect(skyGradient(1)).toBe('linear-gradient(180deg, rgb(25, 19, 32), rgb(19, 13, 8))')
+  })
+  it('skyGradient: día tiende a ámbar tostado cálido', () => {
+    // p=0.16 → STOP día top #473828 / bot #5d421f
+    expect(skyGradient(0.16)).toBe('linear-gradient(180deg, rgb(71, 56, 40), rgb(93, 66, 31))')
+  })
 })

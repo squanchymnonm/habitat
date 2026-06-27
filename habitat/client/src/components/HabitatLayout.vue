@@ -75,3 +75,10 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.hlayout .hdiv{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.35)); }
+.hlayout .hdiv:hover{ background:linear-gradient(90deg, transparent, rgba(224,169,75,.6)); }
+.hlayout .scrim{ background:rgba(8,6,4,.6); }
+.hlayout .hpanelhost{ border-left:1px solid var(--color-edge); }
+</style>

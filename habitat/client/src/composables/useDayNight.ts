@@ -1,11 +1,11 @@
 // Helpers puros del ciclo día/noche (mismo modelo que el mock aprobado).
 
 const STOPS = [
-  { p: 0.00, top: '#3f2c40', bot: '#62381f' }, // amanecer
-  { p: 0.16, top: '#33445c', bot: '#3d3318' }, // día
-  { p: 0.52, top: '#384a60', bot: '#42371b' }, // día (media tarde)
-  { p: 0.78, top: '#47283b', bot: '#4c2010' }, // atardecer
-  { p: 1.00, top: '#131028', bot: '#191020' }, // noche
+  { p: 0.00, top: '#3b2a30', bot: '#5e3a22' }, // amanecer (plum cálido → brasa)
+  { p: 0.16, top: '#473828', bot: '#5d421f' }, // día (ámbar tostado)
+  { p: 0.52, top: '#3f3024', bot: '#52381d' }, // media tarde
+  { p: 0.78, top: '#3a2130', bot: '#4d1e0f' }, // atardecer (carmesí cálido)
+  { p: 1.00, top: '#191320', bot: '#130d08' }, // noche (negro cálido de fragua)
 ]
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t }
 function hex(h: string) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] }

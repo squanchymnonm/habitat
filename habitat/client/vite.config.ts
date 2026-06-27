@@ -1,11 +1,9 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 
-// El build sale a ../web, que es lo que sirve el server Node (habitat/server/index.js).
-// En dev, Vite sirve en :5173 y proxea /ws y /term al backend en :8377.
 export default defineConfig({
-  plugins: [vue()],
-  // assetsDir 'build' separa el bundle JS/CSS de los sprites en public/assets.
+  plugins: [vue(), tailwindcss()],
   build: { outDir: '../web', emptyOutDir: true, assetsDir: 'build' },
   server: {
     proxy: {
