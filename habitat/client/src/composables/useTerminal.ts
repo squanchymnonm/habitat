@@ -122,7 +122,7 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   // Usa copyText para que ande también en contexto inseguro (la usa el menú de click derecho).
   function copySelection() {
     const sel = getSelection()
-    if (sel) { copyText(sel); return true }
+    if (sel) { copyText(sel); term?.focus(); return true }
     return false
   }
 
