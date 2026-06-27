@@ -71,6 +71,8 @@ export function createStore({ persistPath } = {}) {
     renameSync(tmp, persistPath); // escritura atómica: nunca dejamos un JSON a medias
   }
 
+  let usage = null;
+
   return {
     get: (id) => map.get(id),
     all: () => [...map.values()],
@@ -90,6 +92,8 @@ export function createStore({ persistPath } = {}) {
     persist,
     setPendingChar: (name, char) => { pendingChars.set(name, char); },
     takePendingChar: (name) => { const c = pendingChars.get(name); pendingChars.delete(name); return c; },
+    getUsage: () => usage,
+    setUsage: (u) => { usage = u; },
   };
 }
 

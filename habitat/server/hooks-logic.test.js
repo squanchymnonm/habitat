@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, newSession } from './state.js';
-import { applyEvent, staminaFromStatus, dismissAlert } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus, dismissAlert, usageFromStatus } from './hooks-logic.js';
 import { worktreeName } from './worktree.js';
 
 const deps = (usage) => ({
@@ -500,4 +500,20 @@ test('UserPromptSubmit no pisa un monstruo de quest activo', () => {
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
   assert.equal(r.session.monster.source, 'todo');
   assert.equal(r.session.monster.label, 'arreglar auth');
+});
+
+test('usageFromStatus extrae five_hour y clampea pct', () => {
+  const u = usageFromStatus({ rate_limits: { five_hour: { used_percentage: 23.5, resets_at: 1738425600 } } });
+  assert.deepEqual(u, { pct: 23.5, resetAt: 1738425600 });
+});
+
+test('usageFromStatus devuelve null sin rate_limits', () => {
+  assert.equal(usageFromStatus({}), null);
+  assert.equal(usageFromStatus({ rate_limits: {} }), null);
+});
+
+test('usageFromStatus null si campos no numéricos; clampea >100', () => {
+  assert.equal(usageFromStatus({ rate_limits: { five_hour: { used_percentage: 'x', resets_at: 1 } } }), null);
+  assert.equal(usageFromStatus({ rate_limits: { five_hour: { used_percentage: 5 } } }), null);
+  assert.deepEqual(usageFromStatus({ rate_limits: { five_hour: { used_percentage: 150, resets_at: 9 } } }), { pct: 100, resetAt: 9 });
 });

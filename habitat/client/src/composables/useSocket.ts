@@ -3,6 +3,7 @@ import type { ServerMessage, ClientMessage } from '../types'
 import { applyServerSettings } from './useSettings'
 import { applyServerProjects } from './useProjects'
 import { useAuth } from './useAuth'
+import { setUsage } from './useUsage'
 
 // Socket único a nivel de app. Bidireccional: recibe estado y permite enviar (chat, fase 2).
 let ws: WebSocket | null = null
@@ -31,7 +32,8 @@ function connect() {
   ws = new WebSocket(`${proto}://${location.host}/ws${token ? '?token=' + encodeURIComponent(token) : ''}`)
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data) as ServerMessage
-    if (msg.type === 'snapshot') store.setAll(msg.sessions)
+    if (msg.type === 'snapshot') { store.setAll(msg.sessions); setUsage(msg.usage ?? null) }
+    else if (msg.type === 'usage') setUsage(msg.usage)
     else if (msg.type === 'session') store.upsert(msg.session)
     else if (msg.type === 'remove') store.remove(msg.id)
     else if (msg.type === 'rekey') store.rekey(msg.from, msg.to, msg.session)
