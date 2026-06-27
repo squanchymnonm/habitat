@@ -23,11 +23,13 @@ useTabAlert()
   <LoginView v-if="authed === false" />
   <template v-else-if="authed === true">
     <AppMenu v-model:view="view" />
-    <div class="stats-hud">
-      <span><b>{{ store.list.length }}</b> SESIONES</span>
-      <span class="need"><b>{{ store.needCount }}</b> TE NECESITAN</span>
+    <div class="hud-stack">
+      <div class="stats-hud">
+        <span><b>{{ store.list.length }}</b> SESIONES</span>
+        <span class="need"><b>{{ store.needCount }}</b> TE NECESITAN</span>
+      </div>
+      <UsageHud />
     </div>
-    <UsageHud />
     <HabitatLayout v-if="view === 'sessions'" />
     <SettingsView v-else />
     <footer>SPRITES: NINJA ADVENTURE — PIXEL-BOY / AAA — CC0</footer>
