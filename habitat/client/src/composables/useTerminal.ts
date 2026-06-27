@@ -47,6 +47,23 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     if (ws && ws.readyState === 1) ws.send(enc.encode(text))
   }
 
+  // Texto actualmente seleccionado en la terminal ('' si no hay selección).
+  function getSelection() {
+    return term?.getSelection() ?? ''
+  }
+
+  // Copia la selección actual al portapapeles. Devuelve true si había algo que copiar.
+  function copySelection() {
+    const sel = term?.getSelection()
+    if (sel) { navigator.clipboard?.writeText(sel).catch(() => {}); return true }
+    return false
+  }
+
+  // Pega el portapapeles en la terminal (lo manda al pty vía term.paste).
+  function pasteClipboard() {
+    navigator.clipboard?.readText().then((t) => t && term?.paste(t)).catch(() => {})
+  }
+
   function fit() {
     if (fitAddon) { fitAddon.fit(); sendResize() }
   }
@@ -75,17 +92,18 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     // Copiar/pegar: tmux corre con `mouse on`, así que arrastrar va a tmux y la rueda
     // scrollea su copy-mode. Para seleccionar en xterm hay que forzar su selección nativa:
     // Shift+arrastrar en Linux/Win, Option(Alt)+arrastrar en Mac (ver macOptionClickForcesSelection).
-    // Sobre esa selección cableamos copiar/pegar: Ctrl+Shift+C/V (Linux/Win) o Cmd+C/V (Mac).
-    // Devolver false evita que xterm mande la tecla al pty.
+    // Copy-on-select: al soltar la selección la copiamos sola al portapapeles. El navegador
+    // RESERVA Ctrl+Shift+C para DevTools y una página no lo puede cancelar, así que en
+    // Linux/Win no se puede depender de ese atajo; copy-on-select + el menú de click derecho
+    // (en DetailPanel) son los caminos confiables. El atajo de teclado queda igual como bonus
+    // (útil sobre todo para Cmd+C/V en Mac, que sí funciona).
+    term.onSelectionChange(() => { copySelection() })
     term.attachCustomKeyEventHandler((e) => {
       const intent = copyPasteIntent(e)
       if (!intent) return true
-      if (intent === 'copy') {
-        const sel = term?.getSelection()
-        if (sel) navigator.clipboard?.writeText(sel)
-      } else {
-        navigator.clipboard?.readText().then((t) => t && term?.paste(t))
-      }
+      e.preventDefault()
+      if (intent === 'copy') copySelection()
+      else pasteClipboard()
       return false
     })
 
@@ -114,5 +132,5 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   )
 
   onUnmounted(teardown)
-  return { fit, insert }
+  return { fit, insert, getSelection, copySelection, pasteClipboard }
 }
