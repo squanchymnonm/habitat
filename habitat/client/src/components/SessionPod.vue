@@ -53,12 +53,15 @@ function dismiss() {
     <template v-if="compact">
       <img class="face-mini" :src="faceFor(session.name, session.char)" alt="" />
       <div class="meta">
-        <div class="name">{{ session.name }} <span
-  class="chip"
-  :class="[session.status, { dismissable }]"
-  :title="dismissable ? 'marcar como quieta' : ''"
-  @click.stop="dismiss"
->{{ STATUS_LABEL[session.status] }}</span></div>
+        <div class="name">
+          {{ session.name }}
+          <span
+            class="chip"
+            :class="[session.status, { dismissable }]"
+            :title="dismissable ? 'marcar como quieta' : ''"
+            @click.stop="dismiss"
+          >{{ STATUS_LABEL[session.status] }}</span>
+        </div>
         <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
       </div>
       <div class="stam">
