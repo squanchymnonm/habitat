@@ -6,7 +6,7 @@ import { quotePath } from '../composables/useFiles'
 import { useSessions } from '../stores/sessions'
 import { STATUS_LABEL, type FightResult } from '../types'
 import { faceFor, ago, fmt } from '../sprites'
-import { useTerminal } from '../composables/useTerminal'
+import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
 
 const store = useSessions()
@@ -14,6 +14,9 @@ const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
 const { fit, insert, getSelection, copySelection, pasteClipboard } = useTerminal(termEl, selectedId)
+// En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
+// el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
+const canPaste = canReadClipboard()
 const headTint = computed(() => {
   const c = store.selected ? colorForProject(store.selected.project) : ''
   return c ? { background: `color-mix(in srgb, ${c} 14%, var(--surface))` } : {}
@@ -90,8 +93,10 @@ defineExpose({ fit })
       <template v-if="menu">
         <div class="menu-backdrop" @click="menu = null" @contextmenu.prevent="menu = null"></div>
         <div class="ctxmenu" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
-          <button :disabled="!menu.hasSel" @click="menuCopy">Copiar</button>
-          <button @click="menuPaste">Pegar</button>
+          <button :disabled="!menu.hasSel" @click="menuCopy">Copiar <span class="sc">⌃C</span></button>
+          <button :disabled="!canPaste" :title="canPaste ? '' : 'Pegá con Ctrl+V'" @click="menuPaste">
+            Pegar <span class="sc">⌃V</span>
+          </button>
         </div>
       </template>
       <QuestBook v-if="bookOpen" :id="store.selected.id" @close="bookOpen = false" />
@@ -128,4 +133,6 @@ defineExpose({ fit })
 }
 .ctxmenu button:hover:not(:disabled) { background: #3a2a14; }
 .ctxmenu button:disabled { opacity: 0.4; cursor: default; }
+.ctxmenu button { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.ctxmenu .sc { opacity: 0.5; font-size: 11px; }
 </style>
