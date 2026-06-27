@@ -49,7 +49,7 @@ async function create() {
 
 <template>
   <div class="spawn" v-if="canSpawn">
-    <button class="ctl" @click="toggle" :disabled="busy">+ NUEVA SESIÓN</button>
+    <button class="spawn-add" @click="toggle" :disabled="busy" title="Nueva sesión" aria-label="Nueva sesión">+</button>
     <div class="spawn-menu" v-if="open">
       <!-- Paso 1: elegir proyecto -->
       <template v-if="step === 'proj'">
@@ -99,6 +99,29 @@ async function create() {
 </template>
 
 <style scoped>
+.spawn-add {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid #7a1414;
+  border-radius: 50%;
+  background: var(--red, #d33);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.spawn-add:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.spawn-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .spawn-chars {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

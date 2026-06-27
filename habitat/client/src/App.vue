@@ -6,6 +6,7 @@ import { useTabAlert } from './composables/useTabAlert'
 import { useAuth } from './composables/useAuth'
 import HabitatLayout from './components/HabitatLayout.vue'
 import AppMenu from './components/AppMenu.vue'
+import SpawnMenu from './components/SpawnMenu.vue'
 import SettingsView from './components/SettingsView.vue'
 import LoginView from './components/LoginView.vue'
 
@@ -24,6 +25,7 @@ useTabAlert()
     <AppMenu v-model:view="view" />
     <div class="stats-hud">
       <span><b>{{ store.list.length }}</b> SESIONES</span>
+      <SpawnMenu />
       <span class="need"><b>{{ store.needCount }}</b> TE NECESITAN</span>
     </div>
     <HabitatLayout v-if="view === 'sessions'" />
