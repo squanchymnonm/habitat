@@ -14,7 +14,7 @@ export function attachWs(httpServer, store, { token, sessionStore, onChat, onDis
 
   wss.on('connection', (ws, req) => {
     if (!isAuthenticated(req, { sessionStore, token })) { ws.close(1008, 'unauthorized'); return; }
-    ws.send(JSON.stringify({ type: 'snapshot', sessions: store.snapshot() }));
+    ws.send(JSON.stringify({ type: 'snapshot', sessions: store.snapshot(), usage: store.getUsage() }));
 
     ws.on('message', (data) => {
       let msg;
