@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import { useSessions } from '../stores/sessions'
-import { newlyWaiting } from './tabAlert'
+import { newlyWaiting, alertActions } from './tabAlert'
 
 const BASE_TITLE = 'Hábitat · El Mono'
 const ICON_HREF = '/assets/char/Monkey/face.png'
@@ -142,7 +142,7 @@ export function useTabAlert(): void {
     { immediate: true },
   )
 
-  // transición a waiting → notif + sonido (solo en background)
+  // transición a waiting → sonido siempre; notif del SO solo en background
   let prevWaiting = new Set(store.list.filter((s) => s.status === 'waiting').map((s) => s.id))
   let initialized = false
   watch(
@@ -157,10 +157,11 @@ export function useTabAlert(): void {
       }
       const fresh = newlyWaiting(prevWaiting, current)
       prevWaiting = current
-      if (fresh.length && document.hidden) {
+      const { sound, notify: doNotify } = alertActions(fresh.length, document.hidden)
+      if (sound) playChime()
+      if (doNotify) {
         const names = fresh.map((id) => store.list.find((s) => s.id === id)?.name ?? id)
         notify(names)
-        playChime()
       }
     },
   )
