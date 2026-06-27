@@ -13,7 +13,7 @@ const store = useSessions()
 const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
-const { fit, insert } = useTerminal(termEl, selectedId)
+const { fit, insert, getSelection, copySelection, pasteClipboard } = useTerminal(termEl, selectedId)
 const headTint = computed(() => {
   const c = store.selected ? colorForProject(store.selected.project) : ''
   return c ? { background: `color-mix(in srgb, ${c} 14%, var(--surface))` } : {}
@@ -25,9 +25,18 @@ function closeSession() {
   if (confirm(`¿Cerrar la sesión "${s.name}"? Se perderá el trabajo en curso.`)) kill(s.id)
 }
 
+// Menú contextual de la terminal (copiar / pegar). El navegador reserva Ctrl+Shift+C
+// para DevTools, así que el click derecho es la vía explícita de copiar/pegar.
+const menu = ref<{ x: number; y: number; hasSel: boolean } | null>(null)
+function openMenu(e: MouseEvent) {
+  menu.value = { x: e.clientX, y: e.clientY, hasSel: !!getSelection() }
+}
+function menuCopy() { copySelection(); menu.value = null }
+function menuPaste() { pasteClipboard(); menu.value = null }
+
 const bookOpen = ref(false)
 watch(selectedId, () => { bookOpen.value = false }) // cerrar el libro al cambiar de sesión
-function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false } }
+function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false; menu.value = null } }
 onMounted(() => document.addEventListener('keydown', onKey))
 onUnmounted(() => document.removeEventListener('keydown', onKey))
 
@@ -77,7 +86,14 @@ defineExpose({ fit })
         </button>
         <button v-if="canSpawn" class="killsession" @click="closeSession">✕ CERRAR</button>
       </div>
-      <div ref="termEl" class="term" aria-label="terminal de la sesión"></div>
+      <div ref="termEl" class="term" aria-label="terminal de la sesión" @contextmenu.prevent="openMenu"></div>
+      <template v-if="menu">
+        <div class="menu-backdrop" @click="menu = null" @contextmenu.prevent="menu = null"></div>
+        <div class="ctxmenu" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
+          <button :disabled="!menu.hasSel" @click="menuCopy">Copiar</button>
+          <button @click="menuPaste">Pegar</button>
+        </div>
+      </template>
       <QuestBook v-if="bookOpen" :id="store.selected.id" @close="bookOpen = false" />
       <FileBrowser v-if="filesOpen" :id="store.selected.id" @close="filesOpen = false" @pick="onPickFile" />
       <div class="dloot" :class="{ show: lootShown }" v-if="loot">
@@ -100,4 +116,16 @@ defineExpose({ fit })
   font-family: var(--f-ui); font-size: 11px; padding: 6px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
 }
 .killsession:hover { background: #7a2a2a; }
+.menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.ctxmenu {
+  position: fixed; z-index: 41; min-width: 120px; display: flex; flex-direction: column;
+  background: #2a1d0e; border: 1px solid #c8a860; border-radius: 6px; padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.ctxmenu button {
+  background: transparent; border: 0; color: #f0d9a8; font-family: var(--f-ui); font-size: 12px;
+  text-align: left; padding: 6px 10px; border-radius: 4px; cursor: pointer;
+}
+.ctxmenu button:hover:not(:disabled) { background: #3a2a14; }
+.ctxmenu button:disabled { opacity: 0.4; cursor: default; }
 </style>
