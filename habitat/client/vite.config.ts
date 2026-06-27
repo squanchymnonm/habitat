@@ -11,4 +11,7 @@ export default defineConfig({
       '/term': { target: 'ws://127.0.0.1:8377', ws: true },
     },
   },
+  test: {
+    environment: 'happy-dom',
+  },
 })
