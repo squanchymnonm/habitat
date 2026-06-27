@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heroPoseFor, heroSprite, POSE_RENDER } from './sprites'
+import { heroPoseFor, heroSprite, POSE_RENDER, staminaHue } from './sprites'
 import type { Status } from './types'
 
 const base = { status: 'idle' as Status, inCombat: false, celebrating: false }
@@ -44,5 +44,20 @@ describe('POSE_RENDER', () => {
     expect(POSE_RENDER.combat.mode).toBe('static')
     expect(POSE_RENDER.combat.frame).toBe(0)
     expect(POSE_RENDER.combat.file).toBe('anim_combat')
+  })
+})
+
+describe('staminaHue', () => {
+  it('mapea 0/50/100 a rojo/amarillo/verde', () => {
+    expect(staminaHue(0)).toBe(0)
+    expect(staminaHue(50)).toBe(60)
+    expect(staminaHue(100)).toBe(120)
+  })
+  it('clampa fuera de rango', () => {
+    expect(staminaHue(-10)).toBe(0)
+    expect(staminaHue(150)).toBe(120)
+  })
+  it('redondea a entero', () => {
+    expect(staminaHue(33)).toBe(40) // 33 * 1.2 = 39.6 -> 40
   })
 })

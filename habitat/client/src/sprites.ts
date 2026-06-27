@@ -85,3 +85,10 @@ export function ago(ts: number): string {
   if (m < 60) return m + 'm'
   return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'
 }
+
+// Hue HSL para la pelotita de stamina: gradiente continuo rojo->amarillo->verde.
+// 0%=hue 0 (rojo), 50%=hue 60 (amarillo), 100%=hue 120 (verde).
+export function staminaHue(stamina: number): number {
+  const s = Math.max(0, Math.min(100, stamina))
+  return Math.round(s * 1.2)
+}
