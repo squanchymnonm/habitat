@@ -188,3 +188,10 @@ test('reorder ignora ids inexistentes', () => {
   store.reorder(['x', 'b', 'a']);
   assert.deepEqual(store.all().map((s) => s.id), ['b', 'a']);
 });
+
+test('store.getUsage default null; setUsage guarda', () => {
+  const s = createStore({});
+  assert.equal(s.getUsage(), null);
+  s.setUsage({ pct: 40, resetAt: 123 });
+  assert.deepEqual(s.getUsage(), { pct: 40, resetAt: 123 });
+});

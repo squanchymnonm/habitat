@@ -8,7 +8,7 @@ import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
 import { createProjects } from './projects.js';
 import { readUsage, readLastAssistantText } from './transcript.js';
-import { applyEvent, staminaFromStatus, dismissAlert } from './hooks-logic.js';
+import { applyEvent, staminaFromStatus, usageFromStatus, dismissAlert } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
@@ -150,6 +150,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
           s.stamina = stamina;
           hub.broadcast({ type: 'session', session: snapOf(s) });
           store.persist();
+        }
+        const usage = usageFromStatus(body);
+        if (usage) {
+          store.setUsage(usage);
+          hub.broadcast({ type: 'usage', usage });
         }
       }
       res.writeHead(204).end();
