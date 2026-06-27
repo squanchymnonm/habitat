@@ -19,7 +19,7 @@ const { fit, insert, getSelection, copySelection, pasteClipboard } = useTerminal
 const canPaste = canReadClipboard()
 const headTint = computed(() => {
   const c = store.selected ? colorForProject(store.selected.project) : ''
-  return c ? { background: `color-mix(in srgb, ${c} 14%, var(--surface))` } : {}
+  return c ? { background: `color-mix(in srgb, ${c} 14%, var(--color-surface))` } : {}
 })
 
 function closeSession() {
@@ -133,10 +133,10 @@ defineExpose({ fit })
   gap: 16px;
   align-items: center;
   padding: 14px;
-  border-radius: var(--r);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  border: 1px solid var(--edge);
-  box-shadow: var(--sh-1);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
+  border: 1px solid var(--color-edge);
+  box-shadow: var(--shadow-sh1);
 }
 
 /* ===== Brass medallion portrait ===== */
@@ -205,16 +205,16 @@ defineExpose({ fit })
   margin-top: 6px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 13px;
-  color: var(--dim);
+  color: var(--color-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.repo .br { color: var(--brass); }
+.repo .br { color: var(--color-brass); }
 .action {
   margin-top: 7px;
   font-size: 14.5px;
-  color: var(--ink-2);
+  color: var(--color-ink-2);
 }
 .since {
   margin-top: 8px;
@@ -222,7 +222,7 @@ defineExpose({ fit })
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .05em;
-  color: var(--faint);
+  color: var(--color-faint);
 }
 
 /* ===== Tools ===== */
@@ -236,18 +236,18 @@ defineExpose({ fit })
   align-items: center;
   gap: 7px;
   padding: 8px 12px;
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--edge);
-  color: var(--ink-2);
+  border-radius: 9px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-edge);
+  color: var(--color-ink-2);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: .15s;
 }
-.tool:hover { border-color: var(--brass-2); color: var(--brass); }
+.tool:hover { border-color: var(--color-brass-2); color: var(--color-brass); }
 .tool img { width: 16px; height: 16px; image-rendering: pixelated; }
-.tool.danger:hover { border-color: var(--crimson); color: var(--crimson); }
+.tool.danger:hover { border-color: var(--color-crimson); color: var(--color-crimson); }
 
 /* ===== Terminal (hero surface) ===== */
 .term {
@@ -256,10 +256,10 @@ defineExpose({ fit })
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: var(--r);
+  border-radius: var(--radius-card);
   overflow: hidden;
-  border: 1px solid var(--edge);
-  box-shadow: var(--sh-2);
+  border: 1px solid var(--color-edge);
+  box-shadow: var(--shadow-sh2);
   background: #0E0A06;
 }
 .term-bar {
@@ -267,23 +267,23 @@ defineExpose({ fit })
   align-items: center;
   gap: 10px;
   padding: 9px 14px;
-  border-bottom: 1px solid var(--edge);
+  border-bottom: 1px solid var(--color-edge);
   background: linear-gradient(180deg, #1b150e, #15100a);
   flex-shrink: 0;
 }
 .term-bar .tt {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
-  color: var(--dim);
+  color: var(--color-dim);
 }
-.term-bar .tt b { color: var(--ink-2); }
+.term-bar .tt b { color: var(--color-ink-2); }
 .term-bar .live {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--ember);
+  color: var(--color-ember);
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -291,8 +291,8 @@ defineExpose({ fit })
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ember);
-  box-shadow: 0 0 8px var(--ember);
+  background: var(--color-ember);
+  box-shadow: 0 0 8px var(--color-ember);
   animation: pulse 1.6s infinite;
 }
 @keyframes pulse {
@@ -316,11 +316,11 @@ defineExpose({ fit })
   min-width: 140px;
   display: flex;
   flex-direction: column;
-  background: var(--surface-2);
-  border: 1px solid var(--edge-soft);
-  border-radius: var(--r-sm);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-edge-soft);
+  border-radius: 9px;
   padding: 4px;
-  box-shadow: var(--sh-2);
+  box-shadow: var(--shadow-sh2);
 }
 .ctxmenu button {
   display: flex;
@@ -329,7 +329,7 @@ defineExpose({ fit })
   gap: 16px;
   background: transparent;
   border: 0;
-  color: var(--ink-2);
+  color: var(--color-ink-2);
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
   text-align: left;
@@ -337,7 +337,7 @@ defineExpose({ fit })
   border-radius: 5px;
   cursor: pointer;
 }
-.ctxmenu button:hover:not(:disabled) { background: var(--raise); color: var(--brass); }
+.ctxmenu button:hover:not(:disabled) { background: var(--color-raise); color: var(--color-brass); }
 .ctxmenu button:disabled { opacity: 0.4; cursor: default; }
 .ctxmenu .sc { opacity: 0.5; font-size: 11px; }
 
@@ -348,11 +348,11 @@ defineExpose({ fit })
   align-items: center;
   gap: 14px;
   padding: 13px 16px;
-  border-radius: var(--r);
+  border-radius: var(--radius-card);
   background: radial-gradient(200px 80px at 12% 50%, rgba(224,169,75,.16), transparent 70%),
-              linear-gradient(180deg, var(--surface-2), var(--surface));
+              linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
   border: 1px solid rgba(224,169,75,.35);
-  box-shadow: var(--sh-1);
+  box-shadow: var(--shadow-sh1);
 }
 .loot.show {
   display: flex;
@@ -369,20 +369,20 @@ defineExpose({ fit })
   font-family: "Fraunces", Georgia, serif;
   font-weight: 560;
   font-size: 15px;
-  color: var(--brass);
+  color: var(--color-brass);
 }
 .loot .ls {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
-  color: var(--dim);
+  color: var(--color-dim);
 }
-.loot .ls b { color: var(--ink-2); }
+.loot .ls b { color: var(--color-ink-2); }
 .loot .lf {
   margin-left: auto;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
-  color: var(--moss);
+  color: var(--color-moss);
   text-align: right;
 }
-.loot .lf span { color: var(--faint); }
+.loot .lf span { color: var(--color-faint); }
 </style>
