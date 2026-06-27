@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import type { Session, Status } from '../types'
 import { heroSprite, heroPoseFor, POSE_RENDER, monsterSprite, bossSprite, fmt } from '../sprites'
-import Sprite from './Sprite.vue'
+import GameSprite from './GameSprite.vue'
 import { useSessions } from '../stores/sessions'
 import { send } from '../composables/useSocket'
 
@@ -106,7 +106,7 @@ const heroFrame = computed(() =>
       :title="dismissable ? 'marcar como quieta' : ''"
       @click.stop="dismiss"
     ></div>
-    <Sprite
+    <GameSprite
       class="fighter phero"
       :class="{ flinch }"
       :src="heroSrc"
@@ -115,7 +115,7 @@ const heroFrame = computed(() =>
       :frame="heroFrame"
       :duration="render.duration ?? 900"
     />
-    <Sprite
+    <GameSprite
       v-if="monster"
       :key="monsterUrl"
       class="fighter pmon"
@@ -146,22 +146,13 @@ const heroFrame = computed(() =>
 }
 .fighter { image-rendering: pixelated; background-repeat: no-repeat; }
 .pmon { align-self: flex-end; }
-.stamina-bar {
-  position: absolute; left: 4px; right: 4px; bottom: 1px; height: 9px;
-  display: flex; align-items: center; gap: 4px; z-index: 3; pointer-events: none;
-}
-.stamina-track {
-  flex: 1; height: 6px; border: 1px solid var(--line); background: #160e07;
-  box-shadow: var(--bevel); border-radius: 2px; overflow: hidden;
-}
-.stamina-fill { height: 100%; transition: width 0.4s steps(8); }
-.stamina-fill.green { background: linear-gradient(90deg, #5f9c3e, var(--green)); box-shadow: var(--glow-green); }
-.stamina-fill.yellow { background: linear-gradient(90deg, #b8902a, var(--gold)); }
-.stamina-fill.red { background: linear-gradient(90deg, #7a2a2a, var(--red)); }
-.stamina-pct {
-  flex: 0 0 auto; font-family: var(--f-ui); font-size: 9px; line-height: 1;
-  color: #d8c39a; text-shadow: 1px 1px 0 #000;
-}
+.stamina-bar { position:absolute; left:4px; right:4px; bottom:1px; height:9px; display:flex; align-items:center; gap:4px; z-index:3; pointer-events:none; }
+.stamina-track { flex:1; height:6px; border:1px solid var(--color-line); background:#0b0805; border-radius:3px; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(0,0,0,.5); }
+.stamina-fill { height:100%; transition:width .4s steps(8); }
+.stamina-fill.green { background:linear-gradient(90deg,#6f9e44,var(--color-moss)); }
+.stamina-fill.yellow { background:linear-gradient(90deg,#b8902a,var(--color-brass)); }
+.stamina-fill.red { background:linear-gradient(90deg,#8a2f24,var(--color-crimson)); }
+.stamina-pct { flex:0 0 auto; font-family:var(--font-machine); font-size:9px; line-height:1; color:var(--color-dim); }
 .pemote {
   position: absolute; left: 0; top: -4px; width: 26px; height: 24px;
   background-repeat: no-repeat; background-size: 26px 24px; image-rendering: pixelated; z-index: 4;
@@ -169,11 +160,7 @@ const heroFrame = computed(() =>
 .pemote.alert { animation: emoteBounce 0.7s steps(2) infinite; }
 .pemote.dismissable { cursor: pointer; }
 @keyframes emoteBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-.pdmg {
-  position: absolute; right: 18%; top: 0; font-family: var(--f-ui); font-size: 12px; color: var(--gold);
-  text-shadow: 2px 2px 0 #000; pointer-events: none; white-space: nowrap;
-  animation: bdmgfloat 0.85s ease-out forwards;
-}
-.pdmg.big { font-size: 15px; color: #fff; }
+.pdmg { position:absolute; right:18%; top:0; font-family:var(--font-machine); font-weight:600; font-size:12px; color:var(--color-amber); text-shadow:0 1px 3px #000; pointer-events:none; white-space:nowrap; animation:bdmgfloat .85s ease-out forwards; }
+.pdmg.big { font-size:15px; color:#fff; }
 .phero.flinch { animation: bflinch 0.3s steps(2) 2; }
 </style>
