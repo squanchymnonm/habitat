@@ -27,8 +27,24 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   let fitAddon: FitAddon | null = null
   let ws: WebSocket | null = null
   let linkProvider: IDisposable | null = null
+  let mouseEl: HTMLElement | null = null
+  // Última selección no vacía vista. tmux (mouse on) suele redibujar al soltar el mouse
+  // o al hacer click derecho, lo que limpia la selección de xterm ANTES de que la leamos;
+  // por eso guardamos el último texto seleccionado para no perderlo.
+  let lastSelection = ''
+
+  // En captura: el click derecho llega a xterm y le borra la selección antes del menú.
+  // Snapshot de la selección + frenar la propagación para que xterm no la limpie.
+  function onTermMouseDownCapture(e: MouseEvent) {
+    if (e.button === 2) {
+      const s = term?.getSelection()
+      if (s) lastSelection = s
+      e.stopPropagation()
+    }
+  }
 
   function teardown() {
+    if (mouseEl) { mouseEl.removeEventListener('mousedown', onTermMouseDownCapture, true); mouseEl = null }
     if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
     if (linkProvider) { linkProvider.dispose(); linkProvider = null }
     if (term) { term.dispose(); term = null }
@@ -45,6 +61,23 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   // el path de un archivo en el prompt de Claude). No-op si el WS no está abierto.
   function insert(text: string) {
     if (ws && ws.readyState === 1) ws.send(enc.encode(text))
+  }
+
+  // Texto seleccionado en la terminal: el actual o, si tmux ya lo borró, el último visto.
+  function getSelection() {
+    return term?.getSelection() || lastSelection
+  }
+
+  // Copia la selección (actual o la última vista) al portapapeles. Devuelve true si copió.
+  function copySelection() {
+    const sel = getSelection()
+    if (sel) { navigator.clipboard?.writeText(sel).catch(() => {}); return true }
+    return false
+  }
+
+  // Pega el portapapeles en la terminal (lo manda al pty vía term.paste).
+  function pasteClipboard() {
+    navigator.clipboard?.readText().then((t) => t && term?.paste(t)).catch(() => {})
   }
 
   function fit() {
@@ -68,6 +101,8 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     term.loadAddon(fitAddon)
     term.open(el)
     fitAddon.fit()
+    mouseEl = el
+    el.addEventListener('mousedown', onTermMouseDownCapture, true)
     linkProvider = term.registerLinkProvider(
       createLinkProvider(term, (url) => window.open(url, '_blank', 'noopener,noreferrer')),
     )
@@ -75,17 +110,24 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     // Copiar/pegar: tmux corre con `mouse on`, así que arrastrar va a tmux y la rueda
     // scrollea su copy-mode. Para seleccionar en xterm hay que forzar su selección nativa:
     // Shift+arrastrar en Linux/Win, Option(Alt)+arrastrar en Mac (ver macOptionClickForcesSelection).
-    // Sobre esa selección cableamos copiar/pegar: Ctrl+Shift+C/V (Linux/Win) o Cmd+C/V (Mac).
-    // Devolver false evita que xterm mande la tecla al pty.
+    // Copy-on-select: al soltar la selección la copiamos sola al portapapeles. El navegador
+    // RESERVA Ctrl+Shift+C para DevTools y una página no lo puede cancelar, así que en
+    // Linux/Win no se puede depender de ese atajo; copy-on-select + el menú de click derecho
+    // (en DetailPanel) son los caminos confiables. El atajo de teclado queda igual como bonus
+    // (útil sobre todo para Cmd+C/V en Mac, que sí funciona).
+    term.onSelectionChange(() => {
+      const sel = term?.getSelection()
+      if (sel && sel !== lastSelection) {
+        lastSelection = sel
+        navigator.clipboard?.writeText(sel).catch(() => {})
+      }
+    })
     term.attachCustomKeyEventHandler((e) => {
       const intent = copyPasteIntent(e)
       if (!intent) return true
-      if (intent === 'copy') {
-        const sel = term?.getSelection()
-        if (sel) navigator.clipboard?.writeText(sel)
-      } else {
-        navigator.clipboard?.readText().then((t) => t && term?.paste(t))
-      }
+      e.preventDefault()
+      if (intent === 'copy') copySelection()
+      else pasteClipboard()
       return false
     })
 
@@ -114,5 +156,5 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   )
 
   onUnmounted(teardown)
-  return { fit, insert }
+  return { fit, insert, getSelection, copySelection, pasteClipboard }
 }
