@@ -11,6 +11,15 @@ export function staminaFromStatus(body) {
   return Math.max(0, Math.min(100, Math.round(100 - used)));
 }
 
+export function usageFromStatus(body) {
+  const r = body && body.rate_limits && body.rate_limits.five_hour;
+  if (!r) return null;
+  const pct = r.used_percentage, resetAt = r.resets_at;
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return null;
+  if (typeof resetAt !== 'number' || !Number.isFinite(resetAt)) return null;
+  return { pct: Math.max(0, Math.min(100, pct)), resetAt };
+}
+
 function ensure(store, payload) {
   let s = store.get(payload.session_id);
   if (!s) {
