@@ -4,6 +4,10 @@ import { createServer } from 'node:http';
 import { WebSocket } from 'ws';
 import { createStore, newSession } from './state.js';
 import { attachWs } from './ws.js';
+import { createSessionStore } from './sessions.js';
+import { createApp } from './index.js';
+
+const config = { TOKEN: '', USER: '', PASSWORD_HASH: '', COOKIE_SECURE: false, SESSION_TTL_MS: 86400000 };
 
 function listen(server) {
   return new Promise((res) => server.listen(0, '127.0.0.1', () => res(server.address().port)));
@@ -82,4 +86,24 @@ test('token inválido cierra la conexión', async () => {
   assert.equal(code, 1008);
 
   hub.close(); server.close();
+});
+
+test('/ws acepta conexión con cookie de sesión válida', async () => {
+  const sessionStore = createSessionStore({ ttlMs: 100000 });
+  const id = sessionStore.create('nico');
+  const { server } = createApp({ config: { ...config, USER: 'nico', PASSWORD_HASH: 'x', COOKIE_SECURE: false }, store: createStore(), sessionStore });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { cookie: `habitat_session=${id}` } });
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); });
+  ws.close(); server.close();
+});
+
+test('/ws rechaza sin cookie ni token', async () => {
+  // TOKEN: 'secret' activa la guardia de auth; la conexión sin cookie ni token → 1008.
+  const { server } = createApp({ config: { ...config, TOKEN: 'secret', USER: 'nico', PASSWORD_HASH: 'x' }, store: createStore(), sessionStore: createSessionStore({}) });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  const closed = await new Promise((r) => ws.on('close', (code) => r(code)));
+  assert.equal(closed, 1008);
+  server.close();
 });

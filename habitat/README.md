@@ -12,6 +12,41 @@ Monitor pixel-art de sesiones de Claude Code. Ver `docs/superpowers/specs/2026-0
     HABITAT_TOKEN=<tu-token> npm start
     # GUI en http://127.0.0.1:8377/?token=<tu-token>  (bind loopback; exponer solo por VPN)
 
+## Acceso remoto desde tablet/celular (Tailscale Serve + login)
+
+El panel sigue bindeado a loopback (`127.0.0.1:8377`). Para llegar desde una tablet
+sin SSH ni exponer a internet, se publica vía **Tailscale Serve** (HTTPS dentro del tailnet):
+
+1. Instalar la app de Tailscale en la tablet y unirla al tailnet (misma cuenta).
+2. En el admin de Tailscale: habilitar **MagicDNS** y **HTTPS**.
+3. En el server: `tailscale serve --bg --https=443 http://127.0.0.1:8377`
+   (verificar con `tailscale serve status`).
+4. Abrir en la tablet `https://<host>.<tailnet>.ts.net/`.
+
+No hace falta tocar `HABITAT_BIND`: Serve proxea desde loopback. Como todas las conexiones
+llegan a la app como loopback, la autorización de endpoints sensibles ya **no** se apoya en
+la IP de origen, sino en la autenticación (abajo) + las ACLs de Tailscale.
+
+### Login con usuario y contraseña
+
+Por defecto el panel usa solo `HABITAT_TOKEN`. Para entrar desde el navegador con
+usuario+contraseña (en vez de pegar el token en la URL), setear:
+
+    export HABITAT_USER=nico
+    export HABITAT_PASSWORD_HASH="$(cd habitat && printf 'TU_CLAVE\n' | npm run --silent hash-password | sed 's/^HABITAT_PASSWORD_HASH=//')"
+    # o correr `npm run hash-password` interactivo y pegar la línea en el env del servicio
+
+El login emite una **cookie de sesión** (`HttpOnly; Secure; SameSite=Strict`) de **1 día**
+con renovación deslizante, persistida en `.sessions.json` (sobrevive reinicios). Variables:
+
+- `HABITAT_USER`, `HABITAT_PASSWORD_HASH` — credenciales (login opt-in; si faltan, solo token).
+- `HABITAT_SESSION_TTL_MS` — duración de sesión (default `86400000` = 1 día).
+- `HABITAT_COOKIE_SECURE` — `false` solo para pruebas en http plano (default `true`).
+- `HABITAT_SESSIONS` — ruta del archivo de sesiones (default `.sessions.json`).
+
+`HABITAT_TOKEN` sigue válido como `Authorization: Bearer` (hooks, statusline) y `?token=`
+sigue funcionando como fallback de navegador.
+
 ## Producción bajo systemd (IMPORTANTE: no matar las sesiones al reiniciar)
 
 El server crea las sesiones con `tmux new-session -d`, así que el **daemon de tmux queda

@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { createRequire } from 'node:module';
 import { tmuxArgs } from './tmux.js';
+import { isAuthenticated } from './auth.js';
 
 const require = createRequire(import.meta.url);
 
@@ -27,7 +28,7 @@ function defaultSpawnPty(target, { cols, rows }) {
   });
 }
 
-export function attachTerm(httpServer, store, { token, spawnPty = defaultSpawnPty } = {}) {
+export function attachTerm(httpServer, store, { token, sessionStore, spawnPty = defaultSpawnPty } = {}) {
   // noServer + ruteo manual: ver nota en ws.js. Con { server, path } este WSS
   // pisaría a /ws (abortaría su upgrade con 400) y viceversa.
   const wss = new WebSocketServer({ noServer: true });
@@ -39,11 +40,7 @@ export function attachTerm(httpServer, store, { token, spawnPty = defaultSpawnPt
 
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url, 'http://x');
-    if (token) {
-      const q = url.searchParams.get('token');
-      const hdr = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-      if (q !== token && hdr !== token) { ws.close(1008, 'unauthorized'); return; }
-    }
+    if (!isAuthenticated(req, { sessionStore, token })) { ws.close(1008, 'unauthorized'); return; }
     const s = store.get(url.searchParams.get('id'));
     if (!s) { ws.close(1008, 'unknown session'); return; }
 

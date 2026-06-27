@@ -30,3 +30,16 @@ test('palette: PALETTE son 12 hex y pickColor es determinístico y miembro', asy
   assert.equal(a, b);
   assert.ok(PALETTE.includes(a));
 });
+
+test('config expone USER/PASSWORD_HASH/SESSIONS_PATH/SESSION_TTL_MS/COOKIE_SECURE con defaults', async () => {
+  delete process.env.HABITAT_USER;
+  delete process.env.HABITAT_PASSWORD_HASH;
+  delete process.env.HABITAT_SESSION_TTL_MS;
+  delete process.env.HABITAT_COOKIE_SECURE;
+  const { default: cfg } = await import(`./config.js?cfg=${Math.random()}`);
+  assert.equal(cfg.USER, '');
+  assert.equal(cfg.PASSWORD_HASH, '');
+  assert.equal(cfg.SESSION_TTL_MS, 86_400_000);
+  assert.equal(cfg.COOKIE_SECURE, true);
+  assert.ok(cfg.SESSIONS_PATH.endsWith('.sessions.json'));
+});

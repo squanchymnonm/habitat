@@ -10,6 +10,8 @@ import { createSettings } from './settings.js';
 import { PALETTE } from './palette.js';
 import { createProjects } from './projects.js';
 import { NAMES } from './characters.js';
+import { createSessionStore } from './sessions.js';
+import { hashPassword } from './password.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -923,5 +925,139 @@ test('GET /questbook libro vacío si la sesión no tiene _questbook', async () =
   const body = await r.json();
   assert.equal(r.status, 200);
   assert.deepEqual(body, { synopsis: '', quests: [], events: [] });
+  server.close();
+});
+
+// --- Login / logout / auth/me ---
+
+const loginConfig = {
+  ...config,
+  USER: 'nico',
+  PASSWORD_HASH: hashPassword('clave123'),
+  SESSION_TTL_MS: 86_400_000,
+  COOKIE_SECURE: false, // tests sobre http plano
+};
+
+function appWithLogin() {
+  const store = createStore();
+  const sessionStore = createSessionStore({ ttlMs: 86_400_000 });
+  const { server } = createApp({ config: loginConfig, store, sessionStore });
+  return { server, sessionStore };
+}
+
+test('POST /login con credenciales correctas -> 204 + Set-Cookie habitat_session', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  assert.equal(res.status, 204);
+  const cookie = res.headers.get('set-cookie');
+  assert.ok(cookie && cookie.includes('habitat_session='));
+  assert.ok(cookie.includes('HttpOnly'));
+  assert.ok(cookie.includes('SameSite=Strict'));
+  server.close();
+});
+
+test('POST /login con password incorrecta -> 401, sin cookie', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'mala' }),
+  });
+  assert.equal(res.status, 401);
+  assert.equal(res.headers.get('set-cookie'), null);
+  server.close();
+});
+
+test('GET /auth/me sin cookie -> 401; con cookie de /login -> 200 {user}', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/auth/me`)).status, 401);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const me = await fetch(`http://127.0.0.1:${port}/auth/me`, { headers: { cookie } });
+  assert.equal(me.status, 200);
+  assert.deepEqual(await me.json(), { user: 'nico' });
+  server.close();
+});
+
+test('GET /auth/me con cookie válida re-emite Set-Cookie con habitat_session= y Max-Age=86400', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const me = await fetch(`http://127.0.0.1:${port}/auth/me`, { headers: { cookie } });
+  assert.equal(me.status, 200);
+  const setCookie = me.headers.get('set-cookie');
+  assert.ok(setCookie && setCookie.includes('habitat_session='), `Set-Cookie debe incluir habitat_session=, got: ${setCookie}`);
+  assert.ok(setCookie.includes('Max-Age=86400'), `Set-Cookie debe incluir Max-Age=86400, got: ${setCookie}`);
+  server.close();
+});
+
+test('POST /logout vence la cookie y /auth/me vuelve a 401', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  await fetch(`http://127.0.0.1:${port}/logout`, { method: 'POST', headers: { cookie } });
+  const me = await fetch(`http://127.0.0.1:${port}/auth/me`, { headers: { cookie } });
+  assert.equal(me.status, 401);
+  server.close();
+});
+
+test('endpoint protegido acepta cookie de sesión (sin Bearer)', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const login = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  // /sessions/order está protegido por authorize()
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ order: [] }),
+  });
+  assert.equal(res.status, 200);
+  server.close();
+});
+
+test('endpoint protegido sin cookie ni token -> 401', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/sessions/order`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ order: [] }),
+  });
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('lockout: tras 5 fallos seguidos -> 429', async () => {
+  const { server } = appWithLogin();
+  const port = await listen(server);
+  for (let i = 0; i < 5; i++) {
+    await fetch(`http://127.0.0.1:${port}/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ user: 'nico', password: 'mala' }),
+    });
+  }
+  const res = await fetch(`http://127.0.0.1:${port}/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'nico', password: 'clave123' }),
+  });
+  assert.equal(res.status, 429);
   server.close();
 });
