@@ -37,7 +37,8 @@ function select() {
     role="button"
     :aria-pressed="selected"
     @click="select"
-    @keydown.enter="select"
+    @keydown.enter.prevent="select"
+    @keydown.space.prevent="select"
   >
     <div class="ring"></div>
 
