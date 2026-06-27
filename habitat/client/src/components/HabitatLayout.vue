@@ -67,7 +67,7 @@ onUnmounted(() => {
 
 <template>
   <div class="hlayout" :class="isNarrow ? 'narrow' : 'wide'" :style="{ '--rail-w': railW + 'px' }">
-    <SessionRail class="hrail crt" />
+    <SessionRail class="hrail" />
     <div v-if="!isNarrow" class="hdiv" @mousedown="startResize" aria-hidden="true"></div>
     <div v-if="isNarrow" class="scrim" :class="{ open: mobileOpen }" @click="closeOverlay"></div>
     <div class="hpanelhost" :class="{ open: isNarrow ? mobileOpen : true }">

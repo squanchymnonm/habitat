@@ -28,16 +28,19 @@ function onChange(e: Event) {
     </div>
     <p class="desc">{{ MODES.find((m) => m.value === permissionMode)?.desc }}</p>
     <p class="err" v-if="error">{{ error }}</p>
+    <p class="credit">Sprites: Ninja Adventure — Pixel-Boy / AAA · CC0</p>
   </section>
   <ProjectsManager />
 </template>
 
 <style scoped>
-.settings { max-width: 560px; padding: clamp(18px, 3.5vw, 38px); padding-top: 52px; }
-.settings h2 { font-family: var(--f-logo); margin: 0 0 18px; }
+.settings { max-width: 560px; padding: clamp(18px, 3.5vw, 38px); }
+.settings h2 { font-family: var(--font-lore); margin: 0 0 18px; }
 .row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.row label { font-family: var(--f-ui); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
-.row select { font-family: var(--f-ui); font-size: 13px; padding: 8px 10px; background: #1a1a24; color: var(--ink); border: 2px solid #3a3a4a; border-radius: 6px; }
-.desc { color: var(--dim); font-size: 12px; margin: 4px 0 0; }
-.err { color: #e06; font-size: 12px; }
+.row label { font-family: var(--font-system); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--color-dim); }
+.row select { font-family: var(--font-system); font-size: 13px; padding: 8px 10px; background: var(--color-bg); color: var(--color-ink); border: 2px solid var(--color-edge); border-radius: 6px; }
+.row select:focus-visible { outline: 2px solid var(--color-brass); }
+.desc { color: var(--color-dim); font-size: 12px; margin: 4px 0 0; }
+.err { color: var(--color-crimson); font-size: 12px; }
+.credit { margin-top: 28px; color: var(--color-faint); font-family: var(--font-machine); font-size: 11px; }
 </style>
