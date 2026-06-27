@@ -1,31 +1,62 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent, canReadClipboard } from './useTerminal'
+import { copyPasteIntent, decideKeyAction, canReadClipboard } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
 
 describe('copyPasteIntent', () => {
-  it('Linux/Windows: Ctrl+Shift+C copia, Ctrl+Shift+V pega', () => {
-    expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyC' }))).toBe('copy')
-    expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyV' }))).toBe('paste')
+  it('pega con Ctrl+V (semántica web, dispara el paste nativo)', () => {
+    expect(copyPasteIntent(ev({ ctrlKey: true, code: 'KeyV' }))).toBe('paste')
   })
 
-  it('Mac: Cmd+C copia, Cmd+V pega (metaKey)', () => {
-    expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyC' }))).toBe('copy')
+  it('pega con Shift+Insert', () => {
+    expect(copyPasteIntent(ev({ shiftKey: true, code: 'Insert' }))).toBe('paste')
+  })
+
+  it('pega con Cmd+V en Mac (metaKey)', () => {
     expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyV' }))).toBe('paste')
   })
 
-  it('Ctrl+C pelado (sin shift) no se intercepta: debe llegar al pty como SIGINT', () => {
-    expect(copyPasteIntent(ev({ ctrlKey: true, code: 'KeyC' }))).toBe(null)
+  it('pega con Ctrl+Shift+V (alias por compatibilidad)', () => {
+    expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyV' }))).toBe('paste')
+  })
+
+  it('copia con Ctrl+C y con Cmd+C', () => {
+    expect(copyPasteIntent(ev({ ctrlKey: true, code: 'KeyC' }))).toBe('copy')
+    expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyC' }))).toBe('copy')
+  })
+
+  it('Ctrl+Shift+C NO dispara copia (el navegador lo reserva para DevTools)', () => {
+    expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyC' }))).toBe(null)
   })
 
   it('ignora eventos que no son keydown', () => {
-    expect(copyPasteIntent(ev({ type: 'keyup', metaKey: true, code: 'KeyC' }))).toBe(null)
+    expect(copyPasteIntent(ev({ type: 'keyup', ctrlKey: true, code: 'KeyV' }))).toBe(null)
   })
 
   it('otras teclas con el modificador no disparan intent', () => {
-    expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyA' }))).toBe(null)
-    expect(copyPasteIntent(ev({ ctrlKey: true, shiftKey: true, code: 'KeyK' }))).toBe(null)
+    expect(copyPasteIntent(ev({ ctrlKey: true, code: 'KeyA' }))).toBe(null)
+    expect(copyPasteIntent(ev({ metaKey: true, code: 'KeyK' }))).toBe(null)
+  })
+})
+
+describe('decideKeyAction', () => {
+  it('copy con selección copia', () => {
+    expect(decideKeyAction('copy', true)).toBe('copy')
+  })
+
+  it('copy sin selección pasa al pty (SIGINT con Ctrl+C)', () => {
+    expect(decideKeyAction('copy', false)).toBe('passthrough')
+  })
+
+  it('paste siempre pega, haya o no selección', () => {
+    expect(decideKeyAction('paste', false)).toBe('paste')
+    expect(decideKeyAction('paste', true)).toBe('paste')
+  })
+
+  it('sin intent, pasa al pty', () => {
+    expect(decideKeyAction(null, true)).toBe('passthrough')
+    expect(decideKeyAction(null, false)).toBe('passthrough')
   })
 })
 

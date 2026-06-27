@@ -7,18 +7,33 @@ import '@xterm/xterm/css/xterm.css'
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
 const enc = new TextEncoder()
 
-// Intent de copiar/pegar desde el teclado, agnóstico de plataforma: Linux/Windows
-// usan Ctrl+Shift+C/V; Mac usa Cmd (metaKey) +C/V. Ctrl+C pelado (sin Shift) NO
-// se intercepta para que siga llegando al pty como SIGINT.
+// Intent de copiar/pegar desde el teclado, agnóstico de plataforma.
+// PEGAR: el navegador dispara su evento `paste` nativo con Ctrl+V, Cmd+V y
+// Shift+Insert. Ctrl+Shift+V NO dispara paste nativo, pero lo aceptamos como alias.
+// COPIAR: Ctrl+C (sin Shift) o Cmd+C. La decisión copiar-vs-SIGINT NO vive acá:
+// depende de si hay selección y se resuelve en decideKeyAction.
 export function copyPasteIntent(
   e: Pick<KeyboardEvent, 'type' | 'ctrlKey' | 'shiftKey' | 'metaKey' | 'code'>,
 ): 'copy' | 'paste' | null {
   if (e.type !== 'keydown') return null
-  const mod = (e.ctrlKey && e.shiftKey) || e.metaKey
-  if (!mod) return null
-  if (e.code === 'KeyC') return 'copy'
-  if (e.code === 'KeyV') return 'paste'
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') return 'paste'
+  if (e.shiftKey && e.code === 'Insert') return 'paste'
+  if (e.ctrlKey && !e.shiftKey && e.code === 'KeyC') return 'copy'
+  if (e.metaKey && e.code === 'KeyC') return 'copy'
   return null
+}
+
+// Resuelve qué hacer con una tecla de copy/paste según el estado de selección.
+// 'copy'        -> copiar la selección y NO mandar la tecla al pty.
+// 'paste'       -> dejar que el navegador pegue (evento paste nativo).
+// 'passthrough' -> mandar la tecla al pty (p. ej. Ctrl+C sin selección = SIGINT).
+export function decideKeyAction(
+  intent: 'copy' | 'paste' | null,
+  hasSelection: boolean,
+): 'copy' | 'paste' | 'passthrough' {
+  if (intent === 'paste') return 'paste'
+  if (intent === 'copy') return hasSelection ? 'copy' : 'passthrough'
+  return 'passthrough'
 }
 
 // ¿Podemos leer el portapapeles vía Async Clipboard API? Solo existe en contexto
