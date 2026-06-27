@@ -47,6 +47,30 @@ export function canReadClipboard(
   return typeof nav.clipboard?.readText === 'function'
 }
 
+// Copia texto al portapapeles. En contexto seguro usa la Async Clipboard API; en
+// contexto inseguro (HTTP/LAN) writeText no existe, así que cae a execCommand('copy')
+// con un textarea temporal. DEBE llamarse dentro de un gesto del usuario.
+export function copyText(text: string): void {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
+    return
+  }
+  execCommandCopy(text)
+}
+
+function execCommandCopy(text: string): void {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.top = '-1000px'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  try { document.execCommand('copy') } catch { /* sin soporte: no-op */ }
+  ta.remove()
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string | null | undefined>) {
   let term: Terminal | null = null
