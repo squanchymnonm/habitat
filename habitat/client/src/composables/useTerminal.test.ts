@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent, decideKeyAction, canReadClipboard } from './useTerminal'
+import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
@@ -57,6 +57,24 @@ describe('decideKeyAction', () => {
   it('sin intent, pasa al pty', () => {
     expect(decideKeyAction(null, true)).toBe('passthrough')
     expect(decideKeyAction(null, false)).toBe('passthrough')
+  })
+})
+
+describe('joinBufferLines', () => {
+  it('une líneas con saltos', () => {
+    expect(joinBufferLines(['a', 'b', 'c'])).toBe('a\nb\nc')
+  })
+
+  it('recorta líneas en blanco al final (relleno del viewport)', () => {
+    expect(joinBufferLines(['hola', 'mundo', '', '   ', ''])).toBe('hola\nmundo')
+  })
+
+  it('conserva líneas en blanco internas', () => {
+    expect(joinBufferLines(['a', '', 'b'])).toBe('a\n\nb')
+  })
+
+  it('todo en blanco devuelve cadena vacía', () => {
+    expect(joinBufferLines(['', '  ', ''])).toBe('')
   })
 })
 

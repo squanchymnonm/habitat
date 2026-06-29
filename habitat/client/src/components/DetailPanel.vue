@@ -13,10 +13,20 @@ const store = useSessions()
 const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
-const { fit, insert, getSelection, copySelection, pasteClipboard } = useTerminal(termEl, selectedId)
+const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible } = useTerminal(termEl, selectedId)
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
+
+// Toast efímero "copiado" (para copiar-visible y, más adelante, modo selección).
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+function flashCopied() {
+  copied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copied.value = false), 1500)
+}
+function onCopyVisible() { if (copyVisible()) flashCopied() }
 const headTint = computed(() => {
   const c = store.selected ? colorForProject(store.selected.project) : ''
   return c ? { background: `color-mix(in srgb, ${c} 14%, var(--color-surface))` } : {}
@@ -92,9 +102,11 @@ defineExpose({ fit })
       <div class="term">
         <div class="term-bar">
           <span class="tt"><b>{{ store.selected.project }}</b><span v-if="store.selected.branch"> · {{ store.selected.branch }}</span> · tmux</span>
+          <button class="termbtn" @click="onCopyVisible" title="Copiar todo lo visible">copiar visible</button>
           <span class="live"><span class="d"></span> en vivo</span>
         </div>
         <div ref="termEl" class="term-body" aria-label="terminal de la sesión" @contextmenu.prevent="openMenu"></div>
+        <div class="copied-toast" :class="{ show: copied }">copiado ✓</div>
       </div>
       <template v-if="menu">
         <div class="menu-backdrop" @click="menu = null" @contextmenu.prevent="menu = null"></div>
@@ -301,6 +313,7 @@ defineExpose({ fit })
 
 /* ===== Terminal (hero surface) ===== */
 .term {
+  position: relative;
   margin-top: 16px;
   flex: 1;
   min-height: 0;
@@ -328,7 +341,6 @@ defineExpose({ fit })
 }
 .term-bar .tt b { color: var(--color-ink-2); }
 .term-bar .live {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -357,6 +369,38 @@ defineExpose({ fit })
   padding: 0;
   background: #0E0A06;
 }
+.termbtn {
+  margin-left: auto;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-edge);
+  color: var(--color-ink-2);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.termbtn:hover { border-color: var(--color-brass-2); color: var(--color-brass); }
+/* La barra ya empuja .live a la derecha con margin-left:auto; al meter un botón
+   con margin-left:auto, .live deja de necesitarlo. Quitar el margin de .live. */
+.copied-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: var(--color-surface-2);
+  border: 1px solid rgba(224,169,75,.4);
+  color: var(--color-brass);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+  z-index: 30;
+}
+.copied-toast.show { opacity: 1; }
 
 /* ===== Context menu ===== */
 .menu-backdrop { position: fixed; inset: 0; z-index: 40; }

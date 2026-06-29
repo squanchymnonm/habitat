@@ -71,6 +71,14 @@ function execCommandCopy(text: string): void {
   ta.remove()
 }
 
+// Une las líneas de un volcado del buffer en texto, recortando las líneas en
+// blanco del final (xterm rellena el viewport con líneas vacías).
+export function joinBufferLines(lines: string[]): string {
+  let end = lines.length
+  while (end > 0 && lines[end - 1].trim() === '') end--
+  return lines.slice(0, end).join('\n')
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string | null | undefined>) {
   let term: Terminal | null = null
@@ -124,6 +132,24 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     const sel = getSelection()
     if (sel) { copyText(sel); term?.focus(); return true }
     return false
+  }
+
+  // Copia toda la salida visible del viewport (sin necesidad de seleccionar).
+  // Útil en touch. Devuelve true si había texto. Usa copyText (anda en HTTP/LAN).
+  function copyVisible(): boolean {
+    if (!term) return false
+    const buf = term.buffer.active
+    const top = buf.viewportY
+    const lines: string[] = []
+    for (let i = 0; i < term.rows; i++) {
+      const line = buf.getLine(top + i)
+      lines.push(line ? line.translateToString(true) : '')
+    }
+    const text = joinBufferLines(lines)
+    if (!text) return false
+    copyText(text)
+    term.focus()
+    return true
   }
 
   // Pega el portapapeles en la terminal (lo manda al pty vía term.paste).
@@ -216,5 +242,5 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   )
 
   onUnmounted(teardown)
-  return { fit, insert, getSelection, copySelection, pasteClipboard }
+  return { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible }
 }
