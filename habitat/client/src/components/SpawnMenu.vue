@@ -56,7 +56,7 @@ async function create() {
         <button
           v-for="p in projects"
           :key="p.dir"
-          class="ctl spawn-item"
+          class="sbtn spawn-item"
           :disabled="busy"
           @click="pickProject(p.dir)"
         >
@@ -66,7 +66,7 @@ async function create() {
 
       <!-- Paso 2: nombre + sprite -->
       <template v-else>
-        <button class="ctl spawn-back" :disabled="busy" @click="back">← volver</button>
+        <button class="sbtn spawn-back" :disabled="busy" @click="back">← volver</button>
         <input
           class="spawn-input spawn-name"
           v-model="name"
@@ -86,11 +86,11 @@ async function create() {
           >
             <img :src="faceFor('', c)" alt="" />
           </button>
-          <button class="ctl spawn-auto" :class="{ sel: !pickedChar }" :disabled="busy" @click="pickedChar = undefined">
+          <button class="sbtn spawn-auto" :class="{ sel: !pickedChar }" :disabled="busy" @click="pickedChar = undefined">
             Auto
           </button>
         </div>
-        <button class="ctl spawn-create" :disabled="busy" @click="create">Crear</button>
+        <button class="sbtn spawn-create" :disabled="busy" @click="create">Crear</button>
       </template>
 
       <div class="spawn-err" v-if="error">{{ error }}</div>
@@ -99,13 +99,19 @@ async function create() {
 </template>
 
 <style scoped>
+/* ── Wrapper ── */
+.spawn {
+  position: relative;
+}
+
+/* ── Trigger button ── */
 .spawn-add {
   width: 26px;
   height: 26px;
   padding: 0;
   border: 2px solid #7a1414;
   border-radius: 50%;
-  background: var(--red, #d33);
+  background: var(--color-crimson);
   color: #fff;
   font-size: 18px;
   font-weight: 700;
@@ -122,6 +128,74 @@ async function create() {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── Dropdown panel ── */
+.spawn-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  background: var(--color-surface);
+  border: 1px solid var(--color-edge);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sh2);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+/* ── Premium menu button ── */
+.sbtn {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 9px 11px;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  border: 1px solid var(--color-edge);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sbtn:hover:not(:disabled) {
+  border-color: var(--color-brass);
+  color: var(--color-brass);
+}
+.sbtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-brass);
+}
+.sbtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Input ── */
+.spawn-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-edge);
+  border-radius: 8px;
+  color: var(--color-ink);
+  font: inherit;
+}
+.spawn-input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-brass);
+}
+
+/* ── Error ── */
+.spawn-err {
+  color: var(--color-crimson);
+  font-family: var(--font-system);
+  font-size: 13px;
+  padding: 4px 2px;
+}
+
+/* ── Character grid ── */
 .spawn-chars {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -130,13 +204,16 @@ async function create() {
 }
 .spawn-char {
   background: transparent;
-  border: 2px solid #3a3a4a;
+  border: 2px solid var(--color-edge);
   border-radius: 6px;
   padding: 3px;
   cursor: pointer;
 }
-.spawn-char:hover {
-  border-color: #e7c14a;
+.spawn-char:hover:not(:disabled) {
+  border-color: var(--color-brass-2);
+}
+.spawn-char.sel {
+  border-color: var(--color-brass-2);
 }
 .spawn-char img {
   width: 32px;
@@ -147,6 +224,12 @@ async function create() {
 .spawn-auto {
   grid-column: span 4;
 }
+.spawn-auto.sel {
+  border-color: var(--color-brass);
+  color: var(--color-brass);
+}
+
+/* ── Misc ── */
 .proj-dot {
   display: inline-block;
   width: 10px;
@@ -156,11 +239,10 @@ async function create() {
   vertical-align: middle;
 }
 .spawn-name {
-  width: 100%;
   margin-top: 6px;
-  box-sizing: border-box;
 }
-.spawn-char.sel { border-color: #e7c14a; }
-.spawn-auto.sel { border-color: #e7c14a; }
-.spawn-create { margin-top: 6px; width: 100%; }
+.spawn-create {
+  margin-top: 6px;
+  width: 100%;
+}
 </style>
