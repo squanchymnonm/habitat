@@ -73,3 +73,36 @@ describe('findLinks', () => {
     expect(line.slice(m.start, m.end)).toBe('localhost:65535')
   })
 })
+
+import { createLinkProvider } from './terminalLinks'
+import type { Terminal, ILink } from '@xterm/xterm'
+
+function termWith(line: string): Terminal {
+  return {
+    buffer: { active: { getLine: (_n: number) => ({ translateToString: (_t?: boolean) => line }) } },
+  } as unknown as Terminal
+}
+
+function firstLink(line: string, openLink: (url: string) => void): ILink {
+  const provider = createLinkProvider(termWith(line), openLink)
+  let links: ILink[] | undefined
+  provider.provideLinks(1, (l) => { links = l })
+  if (!links || links.length === 0) throw new Error('sin links')
+  return links[0]
+}
+
+describe('createLinkProvider.activate', () => {
+  it('abre el link con click simple (sin Ctrl/Cmd)', () => {
+    let opened = ''
+    const link = firstLink('ver https://ejemplo.com', (u) => { opened = u })
+    link.activate({ ctrlKey: false, metaKey: false } as MouseEvent, 'https://ejemplo.com')
+    expect(opened).toBe('https://ejemplo.com')
+  })
+
+  it('sigue abriendo con Ctrl+click', () => {
+    let opened = ''
+    const link = firstLink('ver https://ejemplo.com', (u) => { opened = u })
+    link.activate({ ctrlKey: true, metaKey: false } as MouseEvent, 'https://ejemplo.com')
+    expect(opened).toBe('https://ejemplo.com')
+  })
+})
