@@ -57,6 +57,7 @@ function onTouchStart(e: TouchEvent) {
   if (t) lp.start(t.clientX, t.clientY)
 }
 function onTouchMove(e: TouchEvent) {
+  if (selectMode.value) return
   const t = e.touches[0]
   if (t) lp.move(t.clientX, t.clientY)
 }
@@ -65,7 +66,10 @@ const bookOpen = ref(false)
 watch(selectedId, () => { bookOpen.value = false }) // cerrar el libro al cambiar de sesión
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false; menu.value = null } }
 onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKey)
+  if (copiedTimer) clearTimeout(copiedTimer)
+})
 
 const filesOpen = ref(false)
 watch(selectedId, () => { filesOpen.value = false }) // cerrar al cambiar de sesión

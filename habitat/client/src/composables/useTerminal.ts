@@ -166,6 +166,8 @@ export function useTerminal(
     if (linkProvider) { linkProvider.dispose(); linkProvider = null }
     if (term) { term.dispose(); term = null }
     fitAddon = null
+    selectMode.value = false
+    selStart = null
   }
 
   function sendResize() {

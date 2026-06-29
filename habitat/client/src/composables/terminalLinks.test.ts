@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { findLinks } from './terminalLinks'
+import { findLinks, createLinkProvider } from './terminalLinks'
+import type { Terminal, ILink } from '@xterm/xterm'
 
 describe('findLinks', () => {
   it('detecta una URL https y conserva texto y rango', () => {
@@ -73,9 +74,6 @@ describe('findLinks', () => {
     expect(line.slice(m.start, m.end)).toBe('localhost:65535')
   })
 })
-
-import { createLinkProvider } from './terminalLinks'
-import type { Terminal, ILink } from '@xterm/xterm'
 
 function termWith(line: string): Terminal {
   return {
