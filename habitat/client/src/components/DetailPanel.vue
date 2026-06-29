@@ -8,6 +8,7 @@ import { STATUS_LABEL, type FightResult } from '../types'
 import { faceFor, ago, fmt } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
+import { createLongPress } from '../composables/longPress'
 
 const store = useSessions()
 const { canSpawn, kill, colorForProject } = useProjects()
@@ -41,11 +42,22 @@ function closeSession() {
 // Menú contextual de la terminal (copiar / pegar). El navegador reserva Ctrl+Shift+C
 // para DevTools, así que el click derecho es la vía explícita de copiar/pegar.
 const menu = ref<{ x: number; y: number; hasSel: boolean } | null>(null)
-function openMenu(e: MouseEvent) {
-  menu.value = { x: e.clientX, y: e.clientY, hasSel: !!getSelection() }
+function openMenu(p: { clientX: number; clientY: number }) {
+  menu.value = { x: p.clientX, y: p.clientY, hasSel: !!getSelection() }
 }
 function menuCopy() { copySelection(); menu.value = null }
 function menuPaste() { pasteClipboard(); menu.value = null }
+
+// En touch no hay click derecho: un long-press sobre la terminal abre el mismo menú.
+const lp = createLongPress((x, y) => openMenu({ clientX: x, clientY: y }))
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]
+  if (t) lp.start(t.clientX, t.clientY)
+}
+function onTouchMove(e: TouchEvent) {
+  const t = e.touches[0]
+  if (t) lp.move(t.clientX, t.clientY)
+}
 
 const bookOpen = ref(false)
 watch(selectedId, () => { bookOpen.value = false }) // cerrar el libro al cambiar de sesión
@@ -105,7 +117,16 @@ defineExpose({ fit })
           <button class="termbtn" @click="onCopyVisible" title="Copiar todo lo visible">copiar visible</button>
           <span class="live"><span class="d"></span> en vivo</span>
         </div>
-        <div ref="termEl" class="term-body" aria-label="terminal de la sesión" @contextmenu.prevent="openMenu"></div>
+        <div
+          ref="termEl"
+          class="term-body"
+          aria-label="terminal de la sesión"
+          @contextmenu.prevent="openMenu"
+          @touchstart="onTouchStart"
+          @touchmove="onTouchMove"
+          @touchend="lp.cancel()"
+          @touchcancel="lp.cancel()"
+        ></div>
         <div class="copied-toast" :class="{ show: copied }">copiado ✓</div>
       </div>
       <template v-if="menu">
