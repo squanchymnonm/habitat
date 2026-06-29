@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent, decideKeyAction, canReadClipboard } from './useTerminal'
+import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines, rowFromY } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
@@ -57,6 +57,48 @@ describe('decideKeyAction', () => {
   it('sin intent, pasa al pty', () => {
     expect(decideKeyAction(null, true)).toBe('passthrough')
     expect(decideKeyAction(null, false)).toBe('passthrough')
+  })
+})
+
+describe('joinBufferLines', () => {
+  it('une líneas con saltos', () => {
+    expect(joinBufferLines(['a', 'b', 'c'])).toBe('a\nb\nc')
+  })
+
+  it('recorta líneas en blanco al final (relleno del viewport)', () => {
+    expect(joinBufferLines(['hola', 'mundo', '', '   ', ''])).toBe('hola\nmundo')
+  })
+
+  it('conserva líneas en blanco internas', () => {
+    expect(joinBufferLines(['a', '', 'b'])).toBe('a\n\nb')
+  })
+
+  it('todo en blanco devuelve cadena vacía', () => {
+    expect(joinBufferLines(['', '  ', ''])).toBe('')
+  })
+})
+
+describe('rowFromY', () => {
+  // term de 24 filas, rect de 0..480 (20px por fila), viewport arrancando en 0.
+  it('mapea el medio del rect a la fila del medio', () => {
+    expect(rowFromY(250, 0, 480, 24, 0)).toBe(12)
+  })
+
+  it('clampa por arriba a la primera fila visible', () => {
+    expect(rowFromY(-50, 0, 480, 24, 0)).toBe(0)
+  })
+
+  it('clampa por abajo a la última fila visible', () => {
+    expect(rowFromY(9999, 0, 480, 24, 0)).toBe(23)
+  })
+
+  it('suma el desplazamiento del viewport (scrollback)', () => {
+    expect(rowFromY(10, 0, 480, 24, 100)).toBe(100)
+    expect(rowFromY(9999, 0, 480, 24, 100)).toBe(123)
+  })
+
+  it('rect degenerado (alto 0) cae a la primera fila del viewport', () => {
+    expect(rowFromY(10, 0, 0, 24, 5)).toBe(5)
   })
 })
 

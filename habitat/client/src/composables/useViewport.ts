@@ -1,15 +1,19 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
-// `isNarrow` = true bajo ~900px. Ahí el detalle pasa a overlay en vez de embebido.
-export function useViewport(query = '(max-width: 899px)') {
+// Narrow (el detalle pasa a overlay y el rail muestra solo pods) cuando es un
+// teléfono: ancho U alto menor a 600px. Las tablets —incluso en portrait— tienen
+// ambas dimensiones >= 600 y usan el layout desktop (rail + panel lado a lado).
+export function isNarrowViewport(width: number, height: number, limit = 600): boolean {
+  return width < limit || height < limit
+}
+
+export function useViewport() {
   const isNarrow = ref(false)
-  let mq: MediaQueryList | null = null
-  const update = () => { if (mq) isNarrow.value = mq.matches }
+  const update = () => { isNarrow.value = isNarrowViewport(window.innerWidth, window.innerHeight) }
   onMounted(() => {
-    mq = window.matchMedia(query)
     update()
-    mq.addEventListener('change', update)
+    window.addEventListener('resize', update)
   })
-  onUnmounted(() => mq?.removeEventListener('change', update))
+  onUnmounted(() => window.removeEventListener('resize', update))
   return { isNarrow }
 }

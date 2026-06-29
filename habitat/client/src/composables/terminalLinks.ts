@@ -44,7 +44,7 @@ export function findLinks(lineText: string): LinkMatch[] {
 }
 
 // Provider de links para xterm v6: por cada línea pedida, mapea findLinks() a ILink[].
-// La activación abre el link solo con Ctrl/Cmd+click (el click simple va a la terminal).
+// La activación abre el link con un tap/click simple (sirve en touch y desktop).
 export function createLinkProvider(term: Terminal, openLink: (url: string) => void): ILinkProvider {
   return {
     provideLinks(bufferLineNumber, callback) {
@@ -59,8 +59,8 @@ export function createLinkProvider(term: Terminal, openLink: (url: string) => vo
           end: { x: m.end, y: bufferLineNumber },
         },
         text: m.url,
-        activate(event: MouseEvent, url: string) {
-          if (event.ctrlKey || event.metaKey) openLink(url)
+        activate(_event: MouseEvent, url: string) {
+          openLink(url)
         },
       }))
       callback(links)

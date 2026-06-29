@@ -1,4 +1,4 @@
-import { watch, onUnmounted, type Ref } from 'vue'
+import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { Terminal, type IDisposable } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { createLinkProvider } from './terminalLinks'
@@ -71,8 +71,35 @@ function execCommandCopy(text: string): void {
   ta.remove()
 }
 
+// Índice de línea ABSOLUTO del buffer bajo una coordenada Y (px de pantalla),
+// clampeado a las filas visibles. Sirve para seleccionar líneas con el dedo.
+export function rowFromY(
+  clientY: number,
+  rectTop: number,
+  rectHeight: number,
+  rows: number,
+  viewportY: number,
+): number {
+  if (rectHeight <= 0 || rows <= 0) return viewportY
+  const r = Math.floor(((clientY - rectTop) / rectHeight) * rows)
+  const clamped = Math.max(0, Math.min(rows - 1, r))
+  return viewportY + clamped
+}
+
+// Une las líneas de un volcado del buffer en texto, recortando las líneas en
+// blanco del final (xterm rellena el viewport con líneas vacías).
+export function joinBufferLines(lines: string[]): string {
+  let end = lines.length
+  while (end > 0 && lines[end - 1].trim() === '') end--
+  return lines.slice(0, end).join('\n')
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
-export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string | null | undefined>) {
+export function useTerminal(
+  container: Ref<HTMLElement | null>,
+  id: Ref<string | null | undefined>,
+  opts: { onCopied?: () => void } = {},
+) {
   let term: Terminal | null = null
   let fitAddon: FitAddon | null = null
   let ws: WebSocket | null = null
@@ -82,6 +109,8 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   // o al hacer click derecho, lo que limpia la selección de xterm ANTES de que la leamos;
   // por eso guardamos el último texto seleccionado para no perderlo.
   let lastSelection = ''
+  const selectMode = ref(false) // modo selección táctil: arrastrar selecciona líneas
+  let selStart: number | null = null
 
   // En captura: el click derecho llega a xterm y le borra la selección antes del menú.
   // Snapshot de la selección + frenar la propagación para que xterm no la limpie.
@@ -93,12 +122,52 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     }
   }
 
+  // Modo selección: mientras está activo, arrastrar con el dedo selecciona líneas
+  // en xterm (preventDefault evita que tmux/scroll se coman el gesto). Al soltar,
+  // copiamos con copyText —el copy-on-select por API no anda en HTTP/LAN—.
+  function onTouchStartSel(e: TouchEvent) {
+    if (!selectMode.value || !term) return
+    const t = e.touches[0]
+    if (!t) return
+    const rect = (mouseEl ?? container.value!).getBoundingClientRect()
+    selStart = rowFromY(t.clientY, rect.top, rect.height, term.rows, term.buffer.active.viewportY)
+    e.preventDefault()
+  }
+  function onTouchMoveSel(e: TouchEvent) {
+    if (!selectMode.value || selStart === null || !term) return
+    const t = e.touches[0]
+    if (!t) return
+    const rect = (mouseEl ?? container.value!).getBoundingClientRect()
+    const cur = rowFromY(t.clientY, rect.top, rect.height, term.rows, term.buffer.active.viewportY)
+    term.selectLines(Math.min(selStart, cur), Math.max(selStart, cur))
+    e.preventDefault()
+  }
+  function onTouchEndSel() {
+    if (!selectMode.value || selStart === null || !term) return
+    selStart = null
+    const sel = term.getSelection()
+    if (sel) {
+      copyText(sel)
+      term.clearSelection()
+      lastSelection = ''
+      opts.onCopied?.()
+    }
+  }
+
   function teardown() {
-    if (mouseEl) { mouseEl.removeEventListener('mousedown', onTermMouseDownCapture, true); mouseEl = null }
+    if (mouseEl) {
+      mouseEl.removeEventListener('mousedown', onTermMouseDownCapture, true)
+      mouseEl.removeEventListener('touchstart', onTouchStartSel)
+      mouseEl.removeEventListener('touchmove', onTouchMoveSel)
+      mouseEl.removeEventListener('touchend', onTouchEndSel)
+      mouseEl = null
+    }
     if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
     if (linkProvider) { linkProvider.dispose(); linkProvider = null }
     if (term) { term.dispose(); term = null }
     fitAddon = null
+    selectMode.value = false
+    selStart = null
   }
 
   function sendResize() {
@@ -124,6 +193,24 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     const sel = getSelection()
     if (sel) { copyText(sel); term?.focus(); return true }
     return false
+  }
+
+  // Copia toda la salida visible del viewport (sin necesidad de seleccionar).
+  // Útil en touch. Devuelve true si había texto. Usa copyText (anda en HTTP/LAN).
+  function copyVisible(): boolean {
+    if (!term) return false
+    const buf = term.buffer.active
+    const top = buf.viewportY
+    const lines: string[] = []
+    for (let i = 0; i < term.rows; i++) {
+      const line = buf.getLine(top + i)
+      lines.push(line ? line.translateToString(true) : '')
+    }
+    const text = joinBufferLines(lines)
+    if (!text) return false
+    copyText(text)
+    term.focus()
+    return true
   }
 
   // Pega el portapapeles en la terminal (lo manda al pty vía term.paste).
@@ -154,6 +241,9 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
     fitAddon.fit()
     mouseEl = el
     el.addEventListener('mousedown', onTermMouseDownCapture, true)
+    el.addEventListener('touchstart', onTouchStartSel, { passive: false })
+    el.addEventListener('touchmove', onTouchMoveSel, { passive: false })
+    el.addEventListener('touchend', onTouchEndSel)
     linkProvider = term.registerLinkProvider(
       createLinkProvider(term, (url) => window.open(url, '_blank', 'noopener,noreferrer')),
     )
@@ -216,5 +306,5 @@ export function useTerminal(container: Ref<HTMLElement | null>, id: Ref<string |
   )
 
   onUnmounted(teardown)
-  return { fit, insert, getSelection, copySelection, pasteClipboard }
+  return { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode }
 }
