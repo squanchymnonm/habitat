@@ -1157,3 +1157,31 @@ test('GET /tree sin sesión -> 409; path fuera de root -> 400', async () => {
   server.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test('GET /file devuelve texto, binario y tooLarge', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'file-'));
+  writeFileSync(join(dir, 'a.txt'), 'hola mundo');
+  writeFileSync(join(dir, 'bin'), Buffer.from([0x00, 0x01, 0x02]));
+  writeFileSync(join(dir, 'big'), Buffer.alloc(20));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  // cap chico para forzar tooLarge en 'big'
+  const { server } = createApp({ config: { ...config, FILE_MAX_BYTES: 10 }, store });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret' };
+
+  const txt = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=a.txt`, { headers: h })).json();
+  assert.equal(txt.text, 'hola mundo');
+
+  const bin = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=bin`, { headers: h })).json();
+  assert.equal(bin.binary, true);
+
+  const big = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=big`, { headers: h })).json();
+  assert.equal(big.tooLarge, true);
+
+  const bad = await fetch(`http://127.0.0.1:${port}/file?id=s1&path=../x`, { headers: h });
+  assert.equal(bad.status, 400);
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});

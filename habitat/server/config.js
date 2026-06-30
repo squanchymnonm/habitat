@@ -23,6 +23,7 @@ export default {
   SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
   UPLOAD_PASSWORD: process.env.HABITAT_UPLOAD_PASSWORD || '',
   UPLOAD_MAX_BYTES: num(process.env.HABITAT_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
+  FILE_MAX_BYTES: num(process.env.HABITAT_FILE_MAX_BYTES, 1024 * 1024),
   USER: process.env.HABITAT_USER || '',
   PASSWORD_HASH: process.env.HABITAT_PASSWORD_HASH || '',
   SESSION_TTL_MS: num(process.env.HABITAT_SESSION_TTL_MS, 86_400_000),

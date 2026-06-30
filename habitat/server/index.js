@@ -295,6 +295,28 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/file') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot, st;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); st = await stat(realTarget); }
+      catch { res.writeHead(404).end(); return; }
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      if (!st.isFile()) { res.writeHead(400).end(); return; }
+      const send = (obj) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(obj));
+      if (st.size > config.FILE_MAX_BYTES) { send({ tooLarge: true, size: st.size }); return; }
+      let buf;
+      try { buf = await readFile(realTarget); } catch { res.writeHead(404).end(); return; }
+      if (buf.includes(0)) { send({ binary: true, size: st.size }); return; }
+      send({ text: buf.toString('utf8'), size: st.size });
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/git/status') {
       if (!authorize(req, res)) return;
       const s = store.get(url.searchParams.get('id') || '');
