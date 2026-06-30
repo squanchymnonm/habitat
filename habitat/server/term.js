@@ -9,10 +9,16 @@ const require = createRequire(import.meta.url);
 // rueda del mouse entre a copy-mode y scrollee el historial. El ';' se pasa como argumento
 // literal: tmux lo trata como separador de comandos (invocado sin shell). Exportada para test.
 // Va con `-L <socket>` (tmuxArgs) para attachear al MISMO socket dedicado donde el server
-// crea las sesiones; si no, node-pty arrancaría un tmux en el socket default y no encontraría
+// crea las sesiones; si no, node-pty arrancarría un tmux en el socket default y no encontraría
 // la sesión.
 export function attachArgs(target) {
   return tmuxArgs('set-option', '-t', target, 'mouse', 'on', ';', 'attach-session', '-t', target);
+}
+
+// Sesión tmux dedicada a editar (nvim) para una sesión dada. Derivada del store,
+// nunca de input del cliente.
+export function editTarget(base) {
+  return `${base}-edit`;
 }
 
 // Factory por defecto: PTY real que attachea a la sesión tmux por nombre.
@@ -44,7 +50,9 @@ export function attachTerm(httpServer, store, { token, sessionStore, spawnPty = 
     const s = store.get(url.searchParams.get('id'));
     if (!s) { ws.close(1008, 'unknown session'); return; }
 
-    const target = s.tmux || s.name;
+    const base = s.tmux || s.name;
+    const role = url.searchParams.get('role');
+    const target = role === 'edit' ? editTarget(base) : base;
     let pty;
     try {
       pty = spawnPty(target, { cols: 80, rows: 24 });

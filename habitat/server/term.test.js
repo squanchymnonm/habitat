@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { WebSocket } from 'ws';
 import { createStore, newSession } from './state.js';
-import { attachTerm, attachArgs } from './term.js';
+import { attachTerm, attachArgs, editTarget } from './term.js';
 
 function listen(server) {
   return new Promise((res) => server.listen(0, '127.0.0.1', () => res(server.address().port)));
@@ -110,6 +110,25 @@ test('attachTerm: un PTY que tira en write/resize NO propaga (no tumba el server
   await new Promise((r) => setTimeout(r, 50));
   // Si seguimos vivos y el ws sigue abierto, el handler no propagó.
   assert.equal(ws.readyState, WebSocket.OPEN);
+
+  ws.close(); hub.close(); server.close();
+});
+
+test('editTarget sufija -edit', () => {
+  assert.equal(editTarget('api'), 'api-edit');
+});
+
+test('attachTerm con role=edit atachea a <tmux>-edit', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'api' }));
+  const server = createServer();
+  const log = { writes: [], resizes: [] };
+  const hub = attachTerm(server, store, { token: '', spawnPty: fakePtyFactory(log) });
+  const port = await listen(server);
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/term?id=s1&role=edit`);
+  await new Promise((r) => ws.once('open', r));
+  assert.equal(log.target, 'api-edit');
 
   ws.close(); hub.close(); server.close();
 });
