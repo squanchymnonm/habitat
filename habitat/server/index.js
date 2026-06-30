@@ -13,6 +13,7 @@ import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
 import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch } from './git.js';
+import { workingStatus, branchOverview, commits as gitCommits, filePatch } from './git-read.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
 import { CHARACTERS, autoName } from './characters.js';
@@ -258,6 +259,34 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/git/status') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      try {
+        const [working, overview, log] = await Promise.all([
+          workingStatus(s.cwd), branchOverview(s.cwd), gitCommits(s.cwd),
+        ]);
+        res.writeHead(200, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ working, overview, commits: log, canWrite: !!config.ALLOW_GIT_WRITE }));
+      } catch { res.writeHead(500).end(); }
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/git/diff') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const file = url.searchParams.get('file') || '';
+      const base = url.searchParams.get('base') || 'working';
+      if (!file || resolveWithinRoot(s.cwd, file) === null) { res.writeHead(400).end(); return; }
+      try {
+        const out = await filePatch(s.cwd, file, base);
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
+      } catch { res.writeHead(500).end(); }
       return;
     }
 
