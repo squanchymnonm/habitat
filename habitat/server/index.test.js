@@ -1171,7 +1171,7 @@ test('POST /editor/open llama openInEditor con base/dir/file y valida path', asy
 
   const ok = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: 'src/a.js' }) });
   assert.equal(ok.status, 200);
-  assert.deepEqual(calls[0], { base: 'p-feat', dir, file: 'src/a.js' });
+  assert.deepEqual(calls[0], { base: 'p-feat', dir, file: 'src/a.js', cmd: config.EDITOR });
 
   const bad = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }) });
   assert.equal(bad.status, 400);
