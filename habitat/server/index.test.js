@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
@@ -481,7 +481,8 @@ test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { 
   const m = await removeMsg;
   assert.equal(m.id, 's1');
   assert.equal(store.get('s1'), undefined);
-  assert.deepEqual(killed, ['proj-api']);
+  assert.ok(killed.includes('proj-api'), 'mata la sesión del agente');
+  assert.ok(killed.includes('proj-api-edit'), 'mata la sesión de editor');
   ws.close();
   server.close();
 });
@@ -1118,4 +1119,156 @@ test('POST /git/action con gate on rechaza path fuera de root -> 400', async () 
   });
   assert.equal(res.status, 400);
   server.close();
+});
+
+test('GET /tree lista todo incluyendo dotfiles y .git', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tree-'));
+  mkdirSync(join(dir, '.git'));
+  mkdirSync(join(dir, 'src'));
+  writeFileSync(join(dir, '.env'), 'X=1');
+  writeFileSync(join(dir, 'README.md'), 'hi');
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/tree?id=s1`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  const names = body.entries.map((e) => e.name);
+  assert.ok(names.includes('.git'));
+  assert.ok(names.includes('.env'));
+  assert.ok(names.includes('src'));
+  assert.ok(names.includes('README.md'));
+  // carpetas primero
+  assert.equal(body.entries[0].isDir, true);
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('GET /tree sin sesión -> 409; path fuera de root -> 400', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tree-'));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const r409 = await fetch(`http://127.0.0.1:${port}/tree?id=nope`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(r409.status, 409);
+  const r400 = await fetch(`http://127.0.0.1:${port}/tree?id=s1&path=../../etc`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(r400.status, 400);
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('POST /editor/open llama openInEditor con base/dir/file y valida path', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ed-'));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir, tmux: 'p-feat' }));
+  const calls = [];
+  const editor = { openInEditor: async (a) => { calls.push(a); return { ok: true, tmux: 'p-feat-edit' }; } };
+  const { server } = createApp({ config, store, editor });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret', 'content-type': 'application/json' };
+
+  const ok = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: 'src/a.js' }) });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(calls[0], { base: 'p-feat', dir, file: 'src/a.js' });
+
+  const bad = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }) });
+  assert.equal(bad.status, 400);
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('POST /editor/open rechaza symlink que escapa del cwd (guard anti-symlink)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ed-sym-'));
+  mkdirSync(join(dir, 'sub'));
+  const calls = [];
+  const editor = { openInEditor: async (a) => { calls.push(a); return { ok: true, tmux: 'p-edit' }; } };
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir, tmux: 'p-feat' }));
+  const { server } = createApp({ config, store, editor });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret', 'content-type': 'application/json' };
+
+  // Caso 1: path normal dentro del worktree -> 200, editor llamado
+  const ok = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+    method: 'POST', headers: h, body: JSON.stringify({ path: 'sub/newfile.txt' }),
+  });
+  assert.equal(ok.status, 200, 'path normal debe ser 200');
+  assert.equal(calls.length, 1, 'editor debe haber sido llamado una vez');
+
+  // Caso 2: escape sintáctico (../x) -> 400, editor NO llamado nuevamente
+  const badSyn = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+    method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }),
+  });
+  assert.equal(badSyn.status, 400, 'escape sintáctico debe ser 400');
+  assert.equal(calls.length, 1, 'editor NO debe ser llamado para escape sintáctico');
+
+  // Caso 3: symlink que apunta fuera del worktree (si el entorno lo permite)
+  let symlinkCreated = false;
+  try {
+    symlinkSync('/etc', join(dir, 'escape'));
+    symlinkCreated = true;
+  } catch { /* sin permisos en este entorno: omitimos */ }
+
+  if (symlinkCreated) {
+    const badSym = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+      method: 'POST', headers: h, body: JSON.stringify({ path: 'escape/passwd' }),
+    });
+    assert.equal(badSym.status, 400, 'path via symlink externo debe ser 400');
+    assert.equal(calls.length, 1, 'editor NO debe ser llamado para escape via symlink');
+  }
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('/kill también mata la sesión de editor -edit', async () => {
+  const killed = [];
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: '/wt/p', tmux: 'p-feat', project: 'p', branch: 'feat' }));
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async () => true,
+    killTmuxSession: async (n) => { killed.push(n); return true; },
+  };
+  const { server } = createApp({ config: { ...config, ALLOW_SPAWN: true, WORKTREES_DIR: '' }, store, tmux });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { authorization: 'Bearer secret', 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 's1' }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(killed.includes('p-feat'), 'mata la sesión del agente');
+  assert.ok(killed.includes('p-feat-edit'), 'mata la sesión de editor');
+  server.close();
+});
+
+test('GET /file devuelve texto, binario y tooLarge', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'file-'));
+  writeFileSync(join(dir, 'a.txt'), 'hola mundo');
+  writeFileSync(join(dir, 'bin'), Buffer.from([0x00, 0x01, 0x02]));
+  writeFileSync(join(dir, 'big'), Buffer.alloc(20));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  // cap chico para forzar tooLarge en 'big'
+  const { server } = createApp({ config: { ...config, FILE_MAX_BYTES: 10 }, store });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret' };
+
+  const txt = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=a.txt`, { headers: h })).json();
+  assert.equal(txt.text, 'hola mundo');
+
+  const bin = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=bin`, { headers: h })).json();
+  assert.equal(bin.binary, true);
+
+  const big = await (await fetch(`http://127.0.0.1:${port}/file?id=s1&path=big`, { headers: h })).json();
+  assert.equal(big.tooLarge, true);
+
+  const bad = await fetch(`http://127.0.0.1:${port}/file?id=s1&path=../x`, { headers: h });
+  assert.equal(bad.status, 400);
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
 });

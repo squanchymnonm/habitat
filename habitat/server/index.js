@@ -17,6 +17,7 @@ import { workingStatus, branchOverview, commits as gitCommits, filePatch } from 
 import * as gitWrite from './git-write.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
+import { openInEditor } from './editor.js';
 import { CHARACTERS, autoName } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { verifyPassword } from './password.js';
@@ -60,7 +61,7 @@ function readBodyCapped(req, maxBytes) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor } }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   // Autoriza endpoints sensibles (hooks, spawn, gestión, upload). Antes exigía loopback
@@ -260,6 +261,60 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/tree') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); }
+      catch { res.writeHead(404).end(); return; }
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = [];
+      for (const d of dirents) {
+        // Sin filtro: mostramos TODO (incluidos dotfiles y .git/).
+        const abs = join(realTarget, d.name);
+        let size = 0;
+        if (!d.isDirectory()) { try { size = (await stat(abs)).size; } catch { size = 0; } }
+        entries.push({ name: d.name, rel: relative(realRoot, abs), isDir: d.isDirectory(), size });
+      }
+      entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/file') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot, st;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); st = await stat(realTarget); }
+      catch { res.writeHead(404).end(); return; }
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      if (!st.isFile()) { res.writeHead(400).end(); return; }
+      const send = (obj) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(obj));
+      if (st.size > config.FILE_MAX_BYTES) { send({ tooLarge: true, size: st.size }); return; }
+      let buf;
+      try { buf = await readFile(realTarget); } catch { res.writeHead(404).end(); return; }
+      if (buf.includes(0)) { send({ binary: true, size: st.size }); return; }
+      send({ text: buf.toString('utf8'), size: st.size });
       return;
     }
 
@@ -469,6 +524,29 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/editor/open') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const path = body && body.path;
+      const target = (typeof path === 'string' && path) ? resolveWithinRoot(s.cwd, path) : null;
+      if (!target) { res.writeHead(400).end(); return; }
+      // Guard anti-symlink: el archivo puede no existir aún (nvim lo crea), así que
+      // realpathamos el ancestro existente más profundo (target → padre → … → root).
+      let checkPath = target;
+      while (checkPath !== s.cwd && !existsSync(checkPath)) { checkPath = dirname(checkPath); }
+      let realRoot, realCheck;
+      try { realRoot = await realpath(s.cwd); realCheck = await realpath(checkPath); }
+      catch { res.writeHead(400).end(); return; }
+      if (realCheck !== realRoot && !realCheck.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      const base = s.tmux || s.name;
+      const r = await editor.openInEditor({ base, dir: s.cwd, file: path });
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(r));
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/kill') {
       if (!authorize(req, res)) return;
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
@@ -479,6 +557,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      await tmux.killTmuxSession(`${s.tmux || s.name}-edit`); // best-effort: terminal de editor
       // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
       // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
       // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
