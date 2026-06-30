@@ -58,11 +58,14 @@
   .hlayout.wide .hpanelhost{min-height:0; min-width:0}
   .hlayout.wide .hdiv{background:linear-gradient(90deg, transparent, rgba(201,143,46,.35)); cursor:ew-resize}
   .hlayout.wide .hdiv:hover{background:linear-gradient(90deg, transparent, rgba(201,143,46,.6))}
-  @media (min-width:900px) and (orientation:landscape){
+  /* La clase .wide ya la decide el JS (useViewport: ambas dimensiones ≥600px),
+     así que estas queries solo distinguen orientación — sin min-width, para no
+     dejar fuera tablets en portrait (~768px de ancho < 900). */
+  @media (orientation:landscape){
     .hlayout.wide{grid-template-columns:var(--rail-w,340px) 6px 1fr; grid-template-rows:100%}
     .hlayout.wide .hdiv{height:100%}
   }
-  @media (min-width:900px) and (orientation:portrait){
+  @media (orientation:portrait){
     .hlayout.wide{grid-template-rows:minmax(140px,auto) 6px 1fr; grid-template-columns:100%}
     .hlayout.wide .hrail{flex-direction:row; overflow-x:auto; overflow-y:hidden}
     .hlayout.wide .hrail > .pod{width:280px}
