@@ -204,7 +204,7 @@ Design specs and plans live in `docs/superpowers/`.
 | Variable | Default | Purpose |
 |---|---|---|
 | `HABITAT_USER` | `''` | Username for password login. Login form is only shown when both `HABITAT_USER` and `HABITAT_PASSWORD_HASH` are set. |
-| `HABITAT_PASSWORD_HASH` | `''` | bcrypt hash of the login password. Generate with `npm run hash-password` in `habitat/`. |
+| `HABITAT_PASSWORD_HASH` | `''` | scrypt hash of the login password. Generate with `npm run hash-password` in `habitat/`. |
 | `HABITAT_SESSION_TTL_MS` | `86400000` | Cookie session lifetime in ms (default 1 day, sliding renewal). |
 | `HABITAT_COOKIE_SECURE` | `true` | Set to `false` only for plain-HTTP local testing (Tailscale uses HTTPS, keep `true`). |
 | `HABITAT_SESSIONS` | `.sessions.json` | Path to persisted login sessions file (survives server restarts). |
