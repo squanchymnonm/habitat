@@ -14,11 +14,17 @@ function nvimEscape(p) {
   return String(p).replace(/([ %#\\|!"'<>])/g, '\\$1');
 }
 
+// Cita para el shell con comillas simples (robusto: dentro de '' el shell no interpreta
+// nada salvo la propia comilla). La comilla simple se escapa cerrando, insertando \'  y
+// reabriendo: 'it'\''s' → it's.
+function shellQuote(s) { return `'${String(s).replace(/'/g, `'\\''`)}`+ `'`; }
+
 // Abre `file` (relativo a `dir`) en la sesión de editor de `base`. Si la sesión
-// `${base}-edit` no existe, la crea con tmux ejecutando nvim directamente (sin
-// shell, así el path no sufre word-splitting). Si existe, fuerza normal mode
-// (Escape) y abre el archivo con :e. `file` no puede empezar con '-'.
-export async function openInEditor({ base, dir, file, exec = defaultExec }) {
+// `${base}-edit` no existe, la crea como sesión persistente (shell) y lanza el editor
+// con send-keys, de modo que la sesión sobrevive aunque el editor falte o salga. Si
+// existe, fuerza normal mode (Escape) y abre el archivo con :e. `file` no puede empezar
+// con '-' ni contener caracteres de control.
+export async function openInEditor({ base, dir, file, cmd = 'nvim', exec = defaultExec }) {
   if (typeof file !== 'string' || !file || file.startsWith('-') || /[\x00-\x1f]/.test(file)) {
     return { ok: false, message: 'path inválido' };
   }
@@ -30,7 +36,10 @@ export async function openInEditor({ base, dir, file, exec = defaultExec }) {
       await exec('tmux', tmuxArgs('send-keys', '-t', name, 'Escape'));
       await sendKeys(name, `:e ${nvimEscape(file)}`, exec);
     } else {
-      await exec('tmux', tmuxArgs('new-session', '-d', '-s', name, '-c', dir, 'nvim', '--', file));
+      // Sesión persistente (shell): sobrevive aunque el editor falte o se cierre; el
+      // error queda visible en la terminal en vez de un "no such session" engañoso.
+      await exec('tmux', tmuxArgs('new-session', '-d', '-s', name, '-c', dir));
+      await sendKeys(name, `${cmd} -- ${shellQuote(file)}`, exec);
     }
     return { ok: true, tmux: name };
   } catch (e) {

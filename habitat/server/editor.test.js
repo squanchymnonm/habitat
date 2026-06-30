@@ -6,7 +6,7 @@ test('editorSessionName sufija -edit', () => {
   assert.equal(editorSessionName('proj-feat'), 'proj-feat-edit');
 });
 
-test('openInEditor crea la sesión con nvim si no existe', async () => {
+test('openInEditor crea sesión persistente (sin nvim en new-session) y lanza editor con send-keys', async () => {
   const calls = [];
   const exec = async (file, args) => {
     calls.push([file, ...args]);
@@ -16,11 +16,56 @@ test('openInEditor crea la sesión con nvim si no existe', async () => {
   const r = await openInEditor({ base: 'api', dir: '/wt/api', file: 'src/a.js', exec });
   assert.equal(r.ok, true);
   assert.equal(r.tmux, 'api-edit');
+
+  // new-session NO debe tener nvim en el argv (sesión persistente, sin comando)
   const created = calls.find((c) => c.includes('new-session'));
   assert.ok(created, 'debe crear la sesión');
-  // tmux ejecuta nvim directamente: ... new-session -d -s api-edit -c /wt/api nvim -- src/a.js
-  assert.deepEqual(created.slice(-7, -1), ['-s','api-edit','-c','/wt/api','nvim','--']);
-  assert.equal(created.at(-1), 'src/a.js');
+  assert.ok(!created.includes('nvim'), 'new-session no debe incluir nvim (sesión persistente)');
+  // forma: tmux new-session -d -s api-edit -c /wt/api  (sin comando trailing)
+  const nsIdx = created.indexOf('new-session');
+  const afterNs = created.slice(nsIdx + 1);
+  assert.ok(afterNs.includes('-d'), 'debe tener -d');
+  assert.ok(afterNs.includes('-s'), 'debe tener -s');
+  assert.ok(afterNs.includes('api-edit'), 'debe tener nombre api-edit');
+  assert.ok(afterNs.includes('-c'), 'debe tener -c');
+  assert.ok(afterNs.includes('/wt/api'), 'debe tener el directorio');
+
+  // send-keys debe llevar el comando del editor con el path shell-quoted
+  const sk = calls.find((c) => c.includes('send-keys') && c.some((a) => a.includes('nvim')));
+  assert.ok(sk, 'debe haber send-keys con nvim');
+  const cmd = sk.find((a) => a.includes('nvim'));
+  assert.ok(cmd.includes("'src/a.js'"), "el path debe estar entre comillas simples");
+});
+
+test('openInEditor shell-quoting: espacio y comilla simple en el nombre de archivo', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push([file, ...args]);
+    if (args.includes('ls')) return '';
+    return '';
+  };
+  const r = await openInEditor({ base: 'api', dir: '/wt/api', file: "a b'c.js", exec });
+  assert.equal(r.ok, true);
+  const sk = calls.find((c) => c.includes('send-keys') && c.some((a) => a.includes('nvim')));
+  assert.ok(sk, 'debe haber send-keys con nvim');
+  const cmd = sk.find((a) => a.includes('nvim'));
+  // shellQuote("a b'c.js") → 'a b'\''c.js'
+  assert.ok(cmd.includes("'a b'\\''c.js'"), "comilla simple debe escaparse como '\\''");
+});
+
+test('openInEditor cmd override: vim en vez de nvim', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push([file, ...args]);
+    if (args.includes('ls')) return '';
+    return '';
+  };
+  const r = await openInEditor({ base: 'api', dir: '/wt/api', file: 'src/a.js', cmd: 'vim', exec });
+  assert.equal(r.ok, true);
+  const sk = calls.find((c) => c.includes('send-keys') && c.some((a) => a.includes('vim')));
+  assert.ok(sk, 'debe haber send-keys con vim');
+  const cmd = sk.find((a) => a.includes('vim'));
+  assert.ok(cmd.startsWith('vim -- '), "el comando debe empezar con 'vim -- '");
 });
 
 test('openInEditor reusa con Escape + :e si la sesión existe', async () => {

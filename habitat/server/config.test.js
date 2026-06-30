@@ -53,3 +53,13 @@ test('ALLOW_GIT_WRITE: off por default, on con HABITAT_ALLOW_GIT_WRITE=1', async
   assert.equal(b.ALLOW_GIT_WRITE, true);
   delete process.env.HABITAT_ALLOW_GIT_WRITE;
 });
+
+test('EDITOR: nvim por default, configurable con HABITAT_EDITOR', async () => {
+  delete process.env.HABITAT_EDITOR;
+  const a = (await import(`./config.js?editor=off${Math.random()}`)).default;
+  assert.equal(a.EDITOR, 'nvim');
+  process.env.HABITAT_EDITOR = 'vim';
+  const b = (await import(`./config.js?editor=on${Math.random()}`)).default;
+  assert.equal(b.EDITOR, 'vim');
+  delete process.env.HABITAT_EDITOR;
+});

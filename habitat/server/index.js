@@ -542,7 +542,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       catch { res.writeHead(400).end(); return; }
       if (realCheck !== realRoot && !realCheck.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
       const base = s.tmux || s.name;
-      const r = await editor.openInEditor({ base, dir: s.cwd, file: path });
+      const r = await editor.openInEditor({ base, dir: s.cwd, file: path, cmd: config.EDITOR });
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(r));
       return;
     }
