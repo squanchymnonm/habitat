@@ -3,6 +3,8 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import QuestBook from './QuestBook.vue'
 import FileBrowser from './FileBrowser.vue'
 import ChangesPanel from './ChangesPanel.vue'
+import ProjectExplorer from './ProjectExplorer.vue'
+import EditorTerminal from './EditorTerminal.vue'
 import { quotePath } from '../composables/useFiles'
 import { useSessions } from '../stores/sessions'
 import { STATUS_LABEL, type FightResult } from '../types'
@@ -65,7 +67,7 @@ function onTouchMove(e: TouchEvent) {
 
 const bookOpen = ref(false)
 watch(selectedId, () => { bookOpen.value = false }) // cerrar el libro al cambiar de sesión
-function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false; changesOpen.value = false; menu.value = null } }
+function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false; changesOpen.value = false; explorerOpen.value = false; menu.value = null } }
 onMounted(() => document.addEventListener('keydown', onKey))
 onUnmounted(() => {
   document.removeEventListener('keydown', onKey)
@@ -76,6 +78,9 @@ const filesOpen = ref(false)
 watch(selectedId, () => { filesOpen.value = false }) // cerrar al cambiar de sesión
 const changesOpen = ref(false)
 watch(selectedId, () => { changesOpen.value = false })
+const explorerOpen = ref(false)
+const editorOpen = ref(false)
+watch(selectedId, () => { explorerOpen.value = false; editorOpen.value = false })
 function onPickFile(rel: string) {
   insert(quotePath(rel) + ' ') // escribir el path (con espacio final) en la terminal
   filesOpen.value = false
@@ -118,6 +123,7 @@ defineExpose({ fit })
           <button class="tool" @click="bookOpen = !bookOpen" title="Quest Book"><img src="/assets/ui/book.png" alt="" />Quest Book</button>
           <button class="tool" @click="filesOpen = !filesOpen" title="Archivos"><img :src="bagSrc" alt="" />Archivos</button>
           <button class="tool" @click="changesOpen = !changesOpen" title="Cambios git">⌥ Cambios</button>
+          <button class="tool" @click="explorerOpen = !explorerOpen" title="Explorador de proyecto">🗂 Proyecto</button>
           <button v-if="canSpawn" class="tool danger" @click="closeSession">✕ Cerrar</button>
         </div>
       </div>
@@ -158,6 +164,8 @@ defineExpose({ fit })
       <QuestBook v-if="bookOpen" :id="store.selected.id" @close="bookOpen = false" />
       <FileBrowser v-if="filesOpen" :id="store.selected.id" @close="filesOpen = false" @pick="onPickFile" />
       <ChangesPanel v-if="changesOpen" :id="store.selected.id" @close="changesOpen = false" />
+      <ProjectExplorer v-if="explorerOpen" :id="store.selected.id" @close="explorerOpen = false" @opened="editorOpen = true" />
+      <EditorTerminal v-if="editorOpen" :id="store.selected.id" @close="editorOpen = false" />
       <div class="loot" :class="{ show: lootShown }" v-if="loot">
         <img src="/assets/ui/chest.png" alt="" />
         <div><div class="lt">★ Vencido — {{ loot.monster }}</div><div class="ls">HP <b>{{ fmt(loot.hp) }}</b> · {{ loot.hits }} golpes</div></div>
