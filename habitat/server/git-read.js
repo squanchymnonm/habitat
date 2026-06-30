@@ -18,15 +18,7 @@ export function parsePorcelain(z) {
     const x = xy[0], y = xy[1];
     if (xy === '??') { out.untracked.push({ rel, status: '?' }); continue; }
     let old;
-    if (x === 'R' || x === 'C') {
-      old = rel;  // current entry is "XY oldpath"
-      const newRel = toks[++i];  // next token is newpath
-      const unmerged = x === 'U' || y === 'U' || (x === 'A' && y === 'A') || (x === 'D' && y === 'D');
-      if (unmerged) { out.conflicted.push({ rel: newRel, status: xy }); continue; }
-      if (x !== ' ') out.staged.push({ rel: newRel, status: x, old });
-      if (y !== ' ') out.unstaged.push({ rel: newRel, status: y });
-      continue;
-    }
+    if (x === 'R' || x === 'C') { old = toks[++i]; }
     const unmerged = x === 'U' || y === 'U' || (x === 'A' && y === 'A') || (x === 'D' && y === 'D');
     if (unmerged) { out.conflicted.push({ rel, status: xy }); continue; }
     if (x !== ' ') out.staged.push({ rel, status: x, old });

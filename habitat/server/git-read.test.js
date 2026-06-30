@@ -4,7 +4,7 @@ import { parsePorcelain, workingStatus } from './git-read.js';
 
 test('parsePorcelain separa staged/unstaged/untracked/conflicted', () => {
   // formato porcelain v1 -z: "XY path\0", rename agrega token de origen
-  const z = 'M  a.js\0 M b.js\0MM c.js\0?? new.txt\0UU conf.js\0R  old.js\0renamed.js\0';
+  const z = 'M  a.js\0 M b.js\0MM c.js\0?? new.txt\0UU conf.js\0R  renamed.js\0old.js\0';
   const r = parsePorcelain(z);
   assert.deepEqual(r.staged.map((e) => e.rel).sort(), ['a.js', 'c.js', 'renamed.js'].sort());
   assert.deepEqual(r.unstaged.map((e) => e.rel).sort(), ['b.js', 'c.js'].sort());
