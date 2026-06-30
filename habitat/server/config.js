@@ -14,6 +14,7 @@ export default {
   TOKEN: process.env.HABITAT_TOKEN || '',
   PREVIEW_LINES: num(process.env.HABITAT_PREVIEW_LINES, 30),
   ALLOW_SPAWN: bool(process.env.HABITAT_ALLOW_SPAWN),
+  ALLOW_GIT_WRITE: bool(process.env.HABITAT_ALLOW_GIT_WRITE),
   PROJECTS: list(process.env.HABITAT_PROJECTS),
   WORKTREES_DIR: process.env.HABITAT_WORKTREES_DIR || join(homedir(), 'habitat-worktrees'),
   PROJECTS_ROOT: process.env.HABITAT_PROJECTS_ROOT || '',

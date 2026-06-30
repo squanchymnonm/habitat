@@ -1061,3 +1061,61 @@ test('lockout: tras 5 fallos seguidos -> 429', async () => {
   assert.equal(res.status, 429);
   server.close();
 });
+
+test('GET /git/status sin token -> 401', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/status?id=s1`);
+  assert.equal(res.status, 401);
+  server.close();
+});
+
+test('GET /git/status sin sesion -> 409', async () => {
+  const { server } = createApp({ config, store: createStore() });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/status?id=nope`, {
+    headers: { authorization: 'Bearer secret' },
+  });
+  assert.equal(res.status, 409);
+  server.close();
+});
+
+test('GET /git/diff rechaza path fuera del root -> 400', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { cwd: '/home/u/proj', name: 'proj', status: 'working' }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/diff?id=s1&file=../../etc/passwd`, {
+    headers: { authorization: 'Bearer secret' },
+  });
+  assert.equal(res.status, 400);
+  server.close();
+});
+
+test('POST /git/action con gate off -> 403', async () => {
+  const store = createStore();
+  store.upsert({ id: 's1', cwd: '/home/u/proj', name: 'proj', status: 'working' });
+  const { server } = createApp({ config, store }); // config sin ALLOW_GIT_WRITE
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/action?id=s1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
+    body: JSON.stringify({ action: 'stage', paths: ['a.js'] }),
+  });
+  assert.equal(res.status, 403);
+  server.close();
+});
+
+test('POST /git/action con gate on rechaza path fuera de root -> 400', async () => {
+  const store = createStore();
+  store.upsert({ id: 's1', cwd: '/home/u/proj', name: 'proj', status: 'working' });
+  const { server } = createApp({ config: { ...config, ALLOW_GIT_WRITE: true }, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/action?id=s1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
+    body: JSON.stringify({ action: 'stage', paths: ['../../etc/passwd'] }),
+  });
+  assert.equal(res.status, 400);
+  server.close();
+});
