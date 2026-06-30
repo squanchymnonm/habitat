@@ -8,15 +8,27 @@ import { STATUS_LABEL, type FightResult } from '../types'
 import { faceFor, ago, fmt } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
+import { createLongPress } from '../composables/longPress'
 
 const store = useSessions()
 const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
-const { fit, insert, getSelection, copySelection, pasteClipboard } = useTerminal(termEl, selectedId)
+const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode } =
+  useTerminal(termEl, selectedId, { onCopied: flashCopied })
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
+
+// Toast efímero "copiado" (para copiar-visible y, más adelante, modo selección).
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+function flashCopied() {
+  copied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copied.value = false), 1500)
+}
+function onCopyVisible() { if (copyVisible()) flashCopied() }
 const headTint = computed(() => {
   const c = store.selected ? colorForProject(store.selected.project) : ''
   return c ? { background: `color-mix(in srgb, ${c} 14%, var(--color-surface))` } : {}
@@ -31,17 +43,33 @@ function closeSession() {
 // Menú contextual de la terminal (copiar / pegar). El navegador reserva Ctrl+Shift+C
 // para DevTools, así que el click derecho es la vía explícita de copiar/pegar.
 const menu = ref<{ x: number; y: number; hasSel: boolean } | null>(null)
-function openMenu(e: MouseEvent) {
-  menu.value = { x: e.clientX, y: e.clientY, hasSel: !!getSelection() }
+function openMenu(p: { clientX: number; clientY: number }) {
+  menu.value = { x: p.clientX, y: p.clientY, hasSel: !!getSelection() }
 }
 function menuCopy() { copySelection(); menu.value = null }
 function menuPaste() { pasteClipboard(); menu.value = null }
+
+// En touch no hay click derecho: un long-press sobre la terminal abre el mismo menú.
+const lp = createLongPress((x, y) => openMenu({ clientX: x, clientY: y }))
+function onTouchStart(e: TouchEvent) {
+  if (selectMode.value) return // en modo selección el gesto es para seleccionar, no long-press
+  const t = e.touches[0]
+  if (t) lp.start(t.clientX, t.clientY)
+}
+function onTouchMove(e: TouchEvent) {
+  if (selectMode.value) return
+  const t = e.touches[0]
+  if (t) lp.move(t.clientX, t.clientY)
+}
 
 const bookOpen = ref(false)
 watch(selectedId, () => { bookOpen.value = false }) // cerrar el libro al cambiar de sesión
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { bookOpen.value = false; filesOpen.value = false; menu.value = null } }
 onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKey)
+  if (copiedTimer) clearTimeout(copiedTimer)
+})
 
 const filesOpen = ref(false)
 watch(selectedId, () => { filesOpen.value = false }) // cerrar al cambiar de sesión
@@ -89,12 +117,30 @@ defineExpose({ fit })
           <button v-if="canSpawn" class="tool danger" @click="closeSession">✕ Cerrar</button>
         </div>
       </div>
-      <div class="term">
+      <div class="term" :class="{ selecting: selectMode }">
         <div class="term-bar">
           <span class="tt"><b>{{ store.selected.project }}</b><span v-if="store.selected.branch"> · {{ store.selected.branch }}</span> · tmux</span>
+          <button
+            class="termbtn"
+            :class="{ on: selectMode }"
+            style="margin-left:auto"
+            @click="selectMode = !selectMode"
+            title="Arrastrá con el dedo para seleccionar y copiar"
+          >{{ selectMode ? '✓ seleccionar' : 'seleccionar' }}</button>
+          <button class="termbtn" @click="onCopyVisible" title="Copiar todo lo visible">copiar visible</button>
           <span class="live"><span class="d"></span> en vivo</span>
         </div>
-        <div ref="termEl" class="term-body" aria-label="terminal de la sesión" @contextmenu.prevent="openMenu"></div>
+        <div
+          ref="termEl"
+          class="term-body"
+          aria-label="terminal de la sesión"
+          @contextmenu.prevent="openMenu"
+          @touchstart="onTouchStart"
+          @touchmove="onTouchMove"
+          @touchend="lp.cancel()"
+          @touchcancel="lp.cancel()"
+        ></div>
+        <div class="copied-toast" :class="{ show: copied }">copiado ✓</div>
       </div>
       <template v-if="menu">
         <div class="menu-backdrop" @click="menu = null" @contextmenu.prevent="menu = null"></div>
@@ -301,6 +347,7 @@ defineExpose({ fit })
 
 /* ===== Terminal (hero surface) ===== */
 .term {
+  position: relative;
   margin-top: 16px;
   flex: 1;
   min-height: 0;
@@ -328,7 +375,6 @@ defineExpose({ fit })
 }
 .term-bar .tt b { color: var(--color-ink-2); }
 .term-bar .live {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -357,6 +403,38 @@ defineExpose({ fit })
   padding: 0;
   background: #0E0A06;
 }
+.termbtn {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-edge);
+  color: var(--color-ink-2);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.termbtn:hover { border-color: var(--color-brass-2); color: var(--color-brass); }
+.termbtn.on { border-color: var(--color-brass); color: var(--color-brass); background: rgba(224,169,75,.12); }
+.term.selecting .term-body { cursor: crosshair; }
+/* La barra ya empuja .live a la derecha con margin-left:auto en el primer botón del grupo. */
+.copied-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: var(--color-surface-2);
+  border: 1px solid rgba(224,169,75,.4);
+  color: var(--color-brass);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+  z-index: 30;
+}
+.copied-toast.show { opacity: 1; }
 
 /* ===== Context menu ===== */
 .menu-backdrop { position: fixed; inset: 0; z-index: 40; }
