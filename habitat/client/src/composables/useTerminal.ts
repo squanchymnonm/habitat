@@ -94,6 +94,20 @@ export function joinBufferLines(lines: string[]): string {
   return lines.slice(0, end).join('\n')
 }
 
+// Cuántos "notches" enteros de rueda representa un desplazamiento vertical acumulado
+// (en px). Trunca hacia cero para no emitir un notch hasta cruzar una celda completa,
+// y conserva el signo: positivo = dedo hacia abajo = revelar historial (scroll up).
+// Devuelve 0 si cellHeight no es válido (evita dividir por cero).
+export function wheelNotchesFromDelta(accumulated: number, cellHeight: number): number {
+  if (cellHeight <= 0) return 0
+  return Math.trunc(accumulated / cellHeight)
+}
+
+// ¿El arrastre es mayormente vertical? Sirve para no scrollear con gestos horizontales.
+export function isVerticalDrag(dx: number, dy: number): boolean {
+  return Math.abs(dy) > Math.abs(dx)
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(
   container: Ref<HTMLElement | null>,
