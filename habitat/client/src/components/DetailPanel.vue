@@ -415,6 +415,7 @@ defineExpose({ fit })
   overflow: hidden;
   padding: 0;
   background: #0E0A06;
+  touch-action: none;
 }
 .termbtn {
   background: var(--color-surface-2);
