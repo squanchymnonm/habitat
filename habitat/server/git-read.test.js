@@ -129,3 +129,46 @@ test('filePatch rechaza rel con prefijo -', async () => {
   assert.equal(called, false);
   assert.equal(r.patch, '');
 });
+
+test('commits: branch con prefijo - nunca llama rev-list --not origin/-, todos unpushed', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push(args);
+    const a = args.join(' ');
+    if (a.includes('rev-parse --abbrev-ref HEAD')) return '-evil\n';
+    if (a.includes('symbolic-ref')) return 'origin/main\n';
+    if (a.includes('log --format')) return 'sha1\x1fs1\x1fsubject1\nsha2\x1fs2\x1fsubject2\n';
+    if (a.includes('show --name-status')) return 'M\ta.js\n';
+    return '';
+  };
+  const r = await commits('/proj', exec);
+  const badRevList = calls.some(
+    (args) => args.includes('--not') && args.some((a) => a.startsWith('origin/-')),
+  );
+  assert.equal(badRevList, false, 'rev-list --not origin/- no debe ser llamado');
+  assert.ok(r.length > 0);
+  assert.ok(r.every((c) => c.pushed === false), 'todos deben ser unpushed');
+});
+
+test('filePatch rechaza sha no-hex en commit:<sha>', async () => {
+  const { filePatch } = await import('./git-read.js');
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  const r = await filePatch('/proj', 'src/x.js', 'commit:nothex!', exec);
+  assert.equal(called, false, 'exec no debe ser llamado con sha no-hex');
+  assert.deepEqual(r, { binary: false, patch: '' });
+});
+
+test('filePatch acepta sha hex válido en commit:<sha>', async () => {
+  const { filePatch } = await import('./git-read.js');
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push(args);
+    return 'diff output\n';
+  };
+  const r = await filePatch('/proj', 'src/x.js', 'commit:abc123', exec);
+  assert.ok(calls.length > 0, 'exec debe ser llamado con sha hex válido');
+  assert.ok(calls[0].includes('show'), 'debe llamar git show');
+  assert.ok(calls[0].includes('abc123'), 'debe incluir el sha');
+  assert.equal(r.patch, 'diff output\n');
+});

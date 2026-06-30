@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { remoteDefaultBranch, currentBranch } from './git.js';
+import { remoteDefaultBranch, currentBranch, validBranch } from './git.js';
 
 const run = promisify(execFile);
 const defaultExec = async (file, args) => (await run(file, args)).stdout;
@@ -72,11 +72,15 @@ export async function commits(cwd, exec = defaultExec) {
     return { sha, shortSha, subject };
   });
   let unpushed;
-  try {
-    const out = await exec('git', ['-C', cwd, 'rev-list', `${def}..HEAD`, '--not', `origin/${branch}`]);
-    unpushed = new Set(String(out).split('\n').filter(Boolean));
-  } catch {
-    unpushed = new Set(rows.map((r) => r.sha)); // sin origin/<branch>: todo unpushed
+  if (!validBranch(branch)) {
+    unpushed = new Set(rows.map((r) => r.sha)); // rama inválida: todo unpushed
+  } else {
+    try {
+      const out = await exec('git', ['-C', cwd, 'rev-list', `${def}..HEAD`, '--not', `origin/${branch}`]);
+      unpushed = new Set(String(out).split('\n').filter(Boolean));
+    } catch {
+      unpushed = new Set(rows.map((r) => r.sha)); // sin origin/<branch>: todo unpushed
+    }
   }
   const result = [];
   for (const r of rows) {
@@ -97,7 +101,7 @@ export async function filePatch(cwd, rel, base, exec = defaultExec) {
     args.push('diff', `${def}...HEAD`, '--', rel);
   } else if (typeof base === 'string' && base.startsWith('commit:')) {
     const sha = base.slice('commit:'.length);
-    if (sha.startsWith('-')) return { binary: false, patch: '' };
+    if (!/^[0-9a-f]{4,40}$/i.test(sha)) return { binary: false, patch: '' };
     args.push('show', '--format=', sha, '--', rel);
   } else {
     args.push('diff', '--', rel); // working: worktree vs index
@@ -114,4 +118,4 @@ export async function filePatch(cwd, rel, base, exec = defaultExec) {
   return { binary, patch: binary ? '' : patch };
 }
 
-export { defaultExec, remoteDefaultBranch, currentBranch };
+export { defaultExec, remoteDefaultBranch, currentBranch, validBranch };
