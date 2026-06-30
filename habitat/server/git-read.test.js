@@ -91,3 +91,41 @@ test('commits: sin origin/<branch> todo queda unpushed', async () => {
   const r = await commits('/proj', exec);
   assert.equal(r[0].pushed, false);
 });
+
+test('filePatch elige argv según base', async () => {
+  const { filePatch } = await import('./git-read.js');
+  const calls = [];
+  const exec = async (file, args) => { calls.push(args.join(' ')); return 'diff --git a/x b/x\n@@\n+a\n'; };
+  await filePatch('/proj', 'src/x.js', 'working', exec);
+  assert.ok(calls.at(-1).includes('diff -- src/x.js'));
+  await filePatch('/proj', 'src/x.js', 'staged', exec);
+  assert.ok(calls.at(-1).includes('diff --cached -- src/x.js'));
+});
+
+test('filePatch base branch usa tres puntos contra default', async () => {
+  const { filePatch } = await import('./git-read.js');
+  const exec = async (file, args) => {
+    const a = args.join(' ');
+    if (a.includes('symbolic-ref')) return 'origin/main\n';
+    return 'patch';
+  };
+  const r = await filePatch('/proj', 'x.js', 'branch', exec);
+  assert.equal(r.patch, 'patch');
+});
+
+test('filePatch detecta binario', async () => {
+  const { filePatch } = await import('./git-read.js');
+  const exec = async () => 'diff --git a/i.png b/i.png\nBinary files a/i.png and b/i.png differ\n';
+  const r = await filePatch('/proj', 'i.png', 'working', exec);
+  assert.equal(r.binary, true);
+  assert.equal(r.patch, '');
+});
+
+test('filePatch rechaza rel con prefijo -', async () => {
+  const { filePatch } = await import('./git-read.js');
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  const r = await filePatch('/proj', '-rf', 'working', exec);
+  assert.equal(called, false);
+  assert.equal(r.patch, '');
+});

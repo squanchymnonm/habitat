@@ -88,4 +88,30 @@ export async function commits(cwd, exec = defaultExec) {
   return result;
 }
 
+export async function filePatch(cwd, rel, base, exec = defaultExec) {
+  if (typeof rel !== 'string' || !rel || rel.startsWith('-')) return { binary: false, patch: '' };
+  const args = ['-C', cwd];
+  if (base === 'staged') args.push('diff', '--cached', '--', rel);
+  else if (base === 'branch') {
+    const def = await remoteDefaultBranch(cwd, exec);
+    args.push('diff', `${def}...HEAD`, '--', rel);
+  } else if (typeof base === 'string' && base.startsWith('commit:')) {
+    const sha = base.slice('commit:'.length);
+    if (sha.startsWith('-')) return { binary: false, patch: '' };
+    args.push('show', '--format=', sha, '--', rel);
+  } else {
+    args.push('diff', '--', rel); // working: worktree vs index
+  }
+  let patch;
+  try { patch = String(await exec('git', args)); }
+  catch (e) { patch = e && e.stdout ? String(e.stdout) : ''; }
+  // untracked en working: git diff no muestra nada -> diff contra /dev/null
+  if (!patch && (base === 'working' || base == null)) {
+    try { await exec('git', ['-C', cwd, 'diff', '--no-index', '--', '/dev/null', rel]); }
+    catch (e) { patch = e && e.stdout ? String(e.stdout) : ''; }
+  }
+  const binary = /Binary files /.test(patch);
+  return { binary, patch: binary ? '' : patch };
+}
+
 export { defaultExec, remoteDefaultBranch, currentBranch };
