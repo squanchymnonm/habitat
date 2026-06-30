@@ -32,4 +32,33 @@ export async function workingStatus(cwd, exec = defaultExec) {
   return parsePorcelain(z);
 }
 
+export function parseNameStatus(out) {
+  const files = [];
+  for (const line of String(out).split('\n')) {
+    if (!line.trim()) continue;
+    const parts = line.split('\t');
+    const code = parts[0][0];
+    if (code === 'R' || code === 'C') files.push({ status: code, old: parts[1], rel: parts[2] });
+    else files.push({ status: code, rel: parts[1] });
+  }
+  return files;
+}
+
+export async function branchOverview(cwd, exec = defaultExec) {
+  const branch = await currentBranch(cwd, exec);
+  const def = await remoteDefaultBranch(cwd, exec); // ej. 'origin/main'
+  let ahead = 0, behind = 0, files = [];
+  try {
+    const counts = String(
+      await exec('git', ['-C', cwd, 'rev-list', '--left-right', '--count', `${def}...HEAD`]),
+    ).trim();
+    const [b, a] = counts.split(/\s+/);
+    behind = Number(b) || 0; ahead = Number(a) || 0;
+    files = parseNameStatus(
+      await exec('git', ['-C', cwd, 'diff', '--name-status', `${def}...HEAD`]),
+    );
+  } catch { /* sin remoto comparable: 0 y [] */ }
+  return { branch, default: def, ahead, behind, files };
+}
+
 export { defaultExec, remoteDefaultBranch, currentBranch };
