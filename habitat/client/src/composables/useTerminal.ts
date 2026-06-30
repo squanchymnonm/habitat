@@ -98,7 +98,7 @@ export function joinBufferLines(lines: string[]): string {
 export function useTerminal(
   container: Ref<HTMLElement | null>,
   id: Ref<string | null | undefined>,
-  opts: { onCopied?: () => void } = {},
+  opts: { onCopied?: () => void; role?: string } = {},
 ) {
   let term: Terminal | null = null
   let fitAddon: FitAddon | null = null
@@ -283,7 +283,7 @@ export function useTerminal(
 
     const tok = token()
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    ws = new WebSocket(`${proto}://${location.host}/term?id=${encodeURIComponent(sessionId)}${tok ? `&token=${tok}` : ''}`)
+    ws = new WebSocket(`${proto}://${location.host}/term?id=${encodeURIComponent(sessionId)}${opts.role ? `&role=${encodeURIComponent(opts.role)}` : ''}${tok ? `&token=${tok}` : ''}`)
     ws.binaryType = 'arraybuffer'
     ws.onopen = () => sendResize()
     ws.onmessage = (e) => {
