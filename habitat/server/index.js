@@ -263,6 +263,38 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/tree') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      const root = s.cwd;
+      const rel = (url.searchParams.get('path') || '').replace(/^\/+/, '');
+      const target = resolveWithinRoot(root, rel);
+      if (!target) { res.writeHead(400).end(); return; }
+      let realTarget, realRoot;
+      try { realTarget = await realpath(target); realRoot = await realpath(root); }
+      catch { res.writeHead(404).end(); return; }
+      if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
+      let dirents;
+      try { dirents = await readdir(realTarget, { withFileTypes: true }); }
+      catch { res.writeHead(404).end(); return; }
+      const entries = [];
+      for (const d of dirents) {
+        // Sin filtro: mostramos TODO (incluidos dotfiles y .git/).
+        const abs = join(realTarget, d.name);
+        let size = 0;
+        if (!d.isDirectory()) { try { size = (await stat(abs)).size; } catch { size = 0; } }
+        entries.push({ name: d.name, rel: relative(realRoot, abs), isDir: d.isDirectory(), size });
+      }
+      entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+      const relFromRoot = relative(realRoot, realTarget);
+      const parts = relFromRoot ? relFromRoot.split(sep) : [];
+      const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
+      res.writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/git/status') {
       if (!authorize(req, res)) return;
       const s = store.get(url.searchParams.get('id') || '');

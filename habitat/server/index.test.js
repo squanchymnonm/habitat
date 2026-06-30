@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
@@ -1118,4 +1118,42 @@ test('POST /git/action con gate on rechaza path fuera de root -> 400', async () 
   });
   assert.equal(res.status, 400);
   server.close();
+});
+
+test('GET /tree lista todo incluyendo dotfiles y .git', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tree-'));
+  mkdirSync(join(dir, '.git'));
+  mkdirSync(join(dir, 'src'));
+  writeFileSync(join(dir, '.env'), 'X=1');
+  writeFileSync(join(dir, 'README.md'), 'hi');
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/tree?id=s1`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  const names = body.entries.map((e) => e.name);
+  assert.ok(names.includes('.git'));
+  assert.ok(names.includes('.env'));
+  assert.ok(names.includes('src'));
+  assert.ok(names.includes('README.md'));
+  // carpetas primero
+  assert.equal(body.entries[0].isDir, true);
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('GET /tree sin sesión -> 409; path fuera de root -> 400', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tree-'));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir }));
+  const { server } = createApp({ config, store });
+  const port = await listen(server);
+  const r409 = await fetch(`http://127.0.0.1:${port}/tree?id=nope`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(r409.status, 409);
+  const r400 = await fetch(`http://127.0.0.1:${port}/tree?id=s1&path=../../etc`, { headers: { authorization: 'Bearer secret' } });
+  assert.equal(r400.status, 400);
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
 });
