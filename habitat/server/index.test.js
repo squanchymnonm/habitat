@@ -481,7 +481,8 @@ test('POST /kill OK -> 200, mata tmux, remueve del store y broadcast remove', { 
   const m = await removeMsg;
   assert.equal(m.id, 's1');
   assert.equal(store.get('s1'), undefined);
-  assert.deepEqual(killed, ['proj-api']);
+  assert.ok(killed.includes('proj-api'), 'mata la sesión del agente');
+  assert.ok(killed.includes('proj-api-edit'), 'mata la sesión de editor');
   ws.close();
   server.close();
 });
@@ -1156,6 +1157,48 @@ test('GET /tree sin sesión -> 409; path fuera de root -> 400', async () => {
   assert.equal(r400.status, 400);
   server.close();
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('POST /editor/open llama openInEditor con base/dir/file y valida path', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ed-'));
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir, tmux: 'p-feat' }));
+  const calls = [];
+  const editor = { openInEditor: async (a) => { calls.push(a); return { ok: true, tmux: 'p-feat-edit' }; } };
+  const { server } = createApp({ config, store, editor });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret', 'content-type': 'application/json' };
+
+  const ok = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: 'src/a.js' }) });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(calls[0], { base: 'p-feat', dir, file: 'src/a.js' });
+
+  const bad = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }) });
+  assert.equal(bad.status, 400);
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('/kill también mata la sesión de editor -edit', async () => {
+  const killed = [];
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: '/wt/p', tmux: 'p-feat', project: 'p', branch: 'feat' }));
+  const tmux = {
+    listSessions: async () => [],
+    newTmuxSession: async () => true,
+    killTmuxSession: async (n) => { killed.push(n); return true; },
+  };
+  const { server } = createApp({ config: { ...config, ALLOW_SPAWN: true, WORKTREES_DIR: '' }, store, tmux });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/kill`, {
+    method: 'POST', headers: { authorization: 'Bearer secret', 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 's1' }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(killed.includes('p-feat'), 'mata la sesión del agente');
+  assert.ok(killed.includes('p-feat-edit'), 'mata la sesión de editor');
+  server.close();
 });
 
 test('GET /file devuelve texto, binario y tooLarge', async () => {

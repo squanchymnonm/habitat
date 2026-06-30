@@ -17,6 +17,7 @@ import { workingStatus, branchOverview, commits as gitCommits, filePatch } from 
 import * as gitWrite from './git-write.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
+import { openInEditor } from './editor.js';
 import { CHARACTERS, autoName } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { verifyPassword } from './password.js';
@@ -60,7 +61,7 @@ function readBodyCapped(req, maxBytes) {
   });
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {} }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor } }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   // Autoriza endpoints sensibles (hooks, spawn, gestión, upload). Antes exigía loopback
@@ -523,6 +524,20 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/editor/open') {
+      if (!authorize(req, res)) return;
+      const s = store.get(url.searchParams.get('id') || '');
+      if (!s || !s.cwd) { res.writeHead(409).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const path = body && body.path;
+      if (typeof path !== 'string' || !path || resolveWithinRoot(s.cwd, path) === null) { res.writeHead(400).end(); return; }
+      const base = s.tmux || s.name;
+      const r = await editor.openInEditor({ base, dir: s.cwd, file: path });
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(r));
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/kill') {
       if (!authorize(req, res)) return;
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
@@ -533,6 +548,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
+      await tmux.killTmuxSession(`${s.tmux || s.name}-edit`); // best-effort: terminal de editor
       // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
       // Limpiamos el worktree para no dejar la carpeta huérfana (que haría fallar un re-spawn
       // de la misma rama). Best-effort: si tiene cambios sin commitear git lo deja en disco.
