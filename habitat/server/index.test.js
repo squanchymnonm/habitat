@@ -1091,3 +1091,31 @@ test('GET /git/diff rechaza path fuera del root -> 400', async () => {
   assert.equal(res.status, 400);
   server.close();
 });
+
+test('POST /git/action con gate off -> 403', async () => {
+  const store = createStore();
+  store.upsert({ id: 's1', cwd: '/home/u/proj', name: 'proj', status: 'working' });
+  const { server } = createApp({ config, store }); // config sin ALLOW_GIT_WRITE
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/action?id=s1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
+    body: JSON.stringify({ action: 'stage', paths: ['a.js'] }),
+  });
+  assert.equal(res.status, 403);
+  server.close();
+});
+
+test('POST /git/action con gate on rechaza path fuera de root -> 400', async () => {
+  const store = createStore();
+  store.upsert({ id: 's1', cwd: '/home/u/proj', name: 'proj', status: 'working' });
+  const { server } = createApp({ config: { ...config, ALLOW_GIT_WRITE: true }, store });
+  const port = await listen(server);
+  const res = await fetch(`http://127.0.0.1:${port}/git/action?id=s1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
+    body: JSON.stringify({ action: 'stage', paths: ['../../etc/passwd'] }),
+  });
+  assert.equal(res.status, 400);
+  server.close();
+});
