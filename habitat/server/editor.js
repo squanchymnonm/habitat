@@ -11,7 +11,7 @@ export function editorSessionName(base) {
 
 // Escapa para la cmdline de nvim (:e): espacios y caracteres especiales con backslash.
 function nvimEscape(p) {
-  return String(p).replace(/([ %#\\])/g, '\\$1');
+  return String(p).replace(/([ %#\\|!"'<>])/g, '\\$1');
 }
 
 // Abre `file` (relativo a `dir`) en la sesión de editor de `base`. Si la sesión
@@ -19,7 +19,7 @@ function nvimEscape(p) {
 // shell, así el path no sufre word-splitting). Si existe, fuerza normal mode
 // (Escape) y abre el archivo con :e. `file` no puede empezar con '-'.
 export async function openInEditor({ base, dir, file, exec = defaultExec }) {
-  if (typeof file !== 'string' || !file || file.startsWith('-')) {
+  if (typeof file !== 'string' || !file || file.startsWith('-') || /[\x00-\x1f]/.test(file)) {
     return { ok: false, message: 'path inválido' };
   }
   const name = editorSessionName(base);

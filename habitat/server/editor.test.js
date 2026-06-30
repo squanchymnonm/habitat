@@ -44,3 +44,26 @@ test('openInEditor rechaza path con prefijo - sin tocar tmux', async () => {
   assert.equal(r.ok, false);
   assert.equal(called, false);
 });
+
+test('openInEditor reuse escapa | en el nombre de archivo', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push(args.join(' '));
+    if (args.includes('ls')) return 'api-edit\n';
+    return '';
+  };
+  const r = await openInEditor({ base: 'api', dir: '/wt/api', file: 'a|b.js', exec });
+  assert.equal(r.ok, true);
+  assert.ok(
+    calls.some((c) => c.includes('send-keys') && c.includes('-l') && c.includes(':e a\\|b.js')),
+    'el | debe estar escapado como \\| en el comando :e'
+  );
+});
+
+test('openInEditor rechaza path con caracter de control sin llamar a exec', async () => {
+  let called = false;
+  const exec = async () => { called = true; return ''; };
+  const r = await openInEditor({ base: 'api', dir: '/wt/api', file: 'a\nb.js', exec });
+  assert.equal(r.ok, false);
+  assert.equal(called, false, 'exec no debe ser llamado con rutas de control');
+});
