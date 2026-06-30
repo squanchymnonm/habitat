@@ -27,10 +27,10 @@ export async function openInEditor({ base, dir, file, exec = defaultExec }) {
   try { sessions = await listSessions(exec); } catch { /* asumimos que no existe */ }
   try {
     if (sessions.includes(name)) {
-      await exec('tmux', ['send-keys', '-t', name, 'Escape']);
+      await exec('tmux', tmuxArgs('send-keys', '-t', name, 'Escape'));
       await sendKeys(name, `:e ${nvimEscape(file)}`, exec);
     } else {
-      await exec('tmux', ['new-session', '-d', '-s', name, '-c', dir, 'nvim', '--', file]);
+      await exec('tmux', tmuxArgs('new-session', '-d', '-s', name, '-c', dir, 'nvim', '--', file));
     }
     return { ok: true, tmux: name };
   } catch (e) {
