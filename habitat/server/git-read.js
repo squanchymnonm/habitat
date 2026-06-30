@@ -61,4 +61,31 @@ export async function branchOverview(cwd, exec = defaultExec) {
   return { branch, default: def, ahead, behind, files };
 }
 
+export async function commits(cwd, exec = defaultExec) {
+  const branch = await currentBranch(cwd, exec);
+  const def = await remoteDefaultBranch(cwd, exec);
+  let log = '';
+  try { log = await exec('git', ['-C', cwd, 'log', '--format=%H%x1f%h%x1f%s', `${def}..HEAD`]); }
+  catch { return []; }
+  const rows = String(log).split('\n').filter(Boolean).map((l) => {
+    const [sha, shortSha, subject] = l.split('\x1f');
+    return { sha, shortSha, subject };
+  });
+  let unpushed;
+  try {
+    const out = await exec('git', ['-C', cwd, 'rev-list', `${def}..HEAD`, '--not', `origin/${branch}`]);
+    unpushed = new Set(String(out).split('\n').filter(Boolean));
+  } catch {
+    unpushed = new Set(rows.map((r) => r.sha)); // sin origin/<branch>: todo unpushed
+  }
+  const result = [];
+  for (const r of rows) {
+    let files = [];
+    try { files = parseNameStatus(await exec('git', ['-C', cwd, 'show', '--name-status', '--format=', r.sha])); }
+    catch { /* dejar [] */ }
+    result.push({ ...r, pushed: !unpushed.has(r.sha), files });
+  }
+  return result;
+}
+
 export { defaultExec, remoteDefaultBranch, currentBranch };

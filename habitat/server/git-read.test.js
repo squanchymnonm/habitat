@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePorcelain, workingStatus, parseNameStatus, branchOverview } from './git-read.js';
+import { parsePorcelain, workingStatus, parseNameStatus, branchOverview, commits } from './git-read.js';
 
 test('parsePorcelain separa staged/unstaged/untracked/conflicted', () => {
   // formato porcelain v1 -z: "XY path\0", rename agrega token de origen
@@ -51,4 +51,43 @@ test('branchOverview arma ahead/behind y files vs default (tres puntos)', async 
   assert.equal(r.behind, 2);
   assert.equal(r.ahead, 5);
   assert.deepEqual(r.files, [{ status: 'M', rel: 'src/a.js' }]);
+});
+
+test('commits marca pushed según rev-list --not origin/<branch>', async () => {
+  const exec = async (file, args) => {
+    const a = args.join(' ');
+    if (a.includes('rev-parse --abbrev-ref HEAD')) return 'feature/x\n';
+    if (a.includes('symbolic-ref')) return 'origin/main\n';
+    if (a.includes('log --format')) return 'sha2\x1fs2\x1fsubject 2\nsha1\x1fs1\x1fsubject 1\n';
+    if (a.includes('rev-list') && a.includes('--not')) {
+      assert.ok(a.includes('origin/main..HEAD'));
+      assert.ok(a.includes('--not origin/feature/x'));
+      return 'sha2\n'; // sha2 no está en origin/feature/x -> unpushed
+    }
+    if (a.includes('show --name-status')) {
+      return args.includes('sha2') ? 'A\tnew.js\n' : 'M\told.js\n';
+    }
+    return '';
+  };
+  const r = await commits('/proj', exec);
+  assert.equal(r.length, 2);
+  assert.equal(r[0].sha, 'sha2');
+  assert.equal(r[0].pushed, false);
+  assert.deepEqual(r[0].files, [{ status: 'A', rel: 'new.js' }]);
+  assert.equal(r[1].sha, 'sha1');
+  assert.equal(r[1].pushed, true);
+});
+
+test('commits: sin origin/<branch> todo queda unpushed', async () => {
+  const exec = async (file, args) => {
+    const a = args.join(' ');
+    if (a.includes('rev-parse --abbrev-ref HEAD')) return 'feature/x\n';
+    if (a.includes('symbolic-ref')) return 'origin/main\n';
+    if (a.includes('log --format')) return 'sha1\x1fs1\x1fsolo\n';
+    if (a.includes('rev-list') && a.includes('--not')) throw new Error('unknown revision origin/feature/x');
+    if (a.includes('show --name-status')) return 'M\ta.js\n';
+    return '';
+  };
+  const r = await commits('/proj', exec);
+  assert.equal(r[0].pushed, false);
 });
