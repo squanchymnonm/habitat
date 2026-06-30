@@ -16,6 +16,10 @@ táctiles hoy se usan para long-press (menú copiar/pegar) y, si está activo,
 
 **Resultado:** en la tablet no se puede ver el historial de tmux hacia arriba.
 
+> Complementa a `2026-06-21-habitat-terminal-scroll-design.md`, que resolvió el scroll
+> en **PC** activando `tmux mouse on` (la rueda entra a copy-mode). Aquel spec dejó
+> explícitamente fuera de alcance el touch; este cubre ese hueco: el swipe táctil.
+
 ## Objetivo
 
 Que un **swipe vertical de un dedo** scrollee el historial, tanto en la terminal
