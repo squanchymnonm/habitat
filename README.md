@@ -4,6 +4,8 @@
 
 > Turn your terminal into a dungeon. Each [Claude Code](https://claude.com/claude-code) session is a character on a grid; each in-progress TODO is a monster; the tokens it spends are the damage it deals. Watch all your sessions fight in real time from a single screen.
 
+![Hábitat — a live grid of Claude Code sessions, each one a pixel-art character with its monster, stamina orb and live terminal](.github/screenshot-grid.png)
+
 **Hábitat** is a live Claude Code dashboard with 16-bit RPG flair (medieval theme, sprites from the *Ninja Adventure* pack). It's not cosmetic fluff: every number you see is real session telemetry captured through Claude Code's *hooks*. It doubles as an **observability** and **monitor** layer for your whole Claude Code workflow — including **multi-agent** parallel branches — and gives you a project explorer, embedded editor, and git workflow panel, all from one browser tab.
 
 > 🇪🇸 ¿Preferís español? Mirá el [README en español](README.es.md).
@@ -22,6 +24,21 @@
 - 🌲 **Worktrees / multi-agent** — each spawned session gets its own git worktree and tmux session, so multiple agents work the same repo in parallel on separate branches.
 - 🔥 **Warm Forge redesign** — a premium visual overhaul with self-hosted fonts and Tailwind v4.
 - ⚙️ **Settings** — manage projects from the UI: per-project colors, character allowlists. Persisted across restarts.
+
+---
+
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src=".github/screenshot-git.png" alt="Per-session git changes view with status, diff and commit history" width="100%"><br><sub><b>Git changes</b> — status, diff, stage, commit, push & merge, per session.</sub></td>
+    <td width="50%"><img src=".github/screenshot-editor.png" alt="Project explorer with file tree and embedded editor preview" width="100%"><br><sub><b>Explorer + editor</b> — browse the tree, preview files, open them in nvim.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src=".github/screenshot-questbook.png" alt="Quest Book showing a per-session quest log" width="100%"><br><sub><b>Quest Book</b> — a per-session quest log built from the TODO history.</sub></td>
+    <td width="50%"><img src=".github/screenshot-login.png" alt="Hábitat login screen" width="100%"><br><sub><b>Login</b> — username/password access for tablet & phone over Tailscale.</sub></td>
+  </tr>
+</table>
 
 ---
 
