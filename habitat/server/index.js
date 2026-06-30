@@ -531,7 +531,16 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       let body;
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       const path = body && body.path;
-      if (typeof path !== 'string' || !path || resolveWithinRoot(s.cwd, path) === null) { res.writeHead(400).end(); return; }
+      const target = (typeof path === 'string' && path) ? resolveWithinRoot(s.cwd, path) : null;
+      if (!target) { res.writeHead(400).end(); return; }
+      // Guard anti-symlink: el archivo puede no existir aún (nvim lo crea), así que
+      // realpathamos el ancestro existente más profundo (target → padre → … → root).
+      let checkPath = target;
+      while (checkPath !== s.cwd && !existsSync(checkPath)) { checkPath = dirname(checkPath); }
+      let realRoot, realCheck;
+      try { realRoot = await realpath(s.cwd); realCheck = await realpath(checkPath); }
+      catch { res.writeHead(400).end(); return; }
+      if (realCheck !== realRoot && !realCheck.startsWith(realRoot + sep)) { res.writeHead(400).end(); return; }
       const base = s.tmux || s.name;
       const r = await editor.openInEditor({ base, dir: s.cwd, file: path });
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(r));

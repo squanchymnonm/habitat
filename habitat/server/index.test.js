@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore, newSession } from './state.js';
@@ -1175,6 +1175,50 @@ test('POST /editor/open llama openInEditor con base/dir/file y valida path', asy
 
   const bad = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, { method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }) });
   assert.equal(bad.status, 400);
+
+  server.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('POST /editor/open rechaza symlink que escapa del cwd (guard anti-symlink)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ed-sym-'));
+  mkdirSync(join(dir, 'sub'));
+  const calls = [];
+  const editor = { openInEditor: async (a) => { calls.push(a); return { ok: true, tmux: 'p-edit' }; } };
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'p', cwd: dir, tmux: 'p-feat' }));
+  const { server } = createApp({ config, store, editor });
+  const port = await listen(server);
+  const h = { authorization: 'Bearer secret', 'content-type': 'application/json' };
+
+  // Caso 1: path normal dentro del worktree -> 200, editor llamado
+  const ok = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+    method: 'POST', headers: h, body: JSON.stringify({ path: 'sub/newfile.txt' }),
+  });
+  assert.equal(ok.status, 200, 'path normal debe ser 200');
+  assert.equal(calls.length, 1, 'editor debe haber sido llamado una vez');
+
+  // Caso 2: escape sintáctico (../x) -> 400, editor NO llamado nuevamente
+  const badSyn = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+    method: 'POST', headers: h, body: JSON.stringify({ path: '../../etc/passwd' }),
+  });
+  assert.equal(badSyn.status, 400, 'escape sintáctico debe ser 400');
+  assert.equal(calls.length, 1, 'editor NO debe ser llamado para escape sintáctico');
+
+  // Caso 3: symlink que apunta fuera del worktree (si el entorno lo permite)
+  let symlinkCreated = false;
+  try {
+    symlinkSync('/etc', join(dir, 'escape'));
+    symlinkCreated = true;
+  } catch { /* sin permisos en este entorno: omitimos */ }
+
+  if (symlinkCreated) {
+    const badSym = await fetch(`http://127.0.0.1:${port}/editor/open?id=s1`, {
+      method: 'POST', headers: h, body: JSON.stringify({ path: 'escape/passwd' }),
+    });
+    assert.equal(badSym.status, 400, 'path via symlink externo debe ser 400');
+    assert.equal(calls.length, 1, 'editor NO debe ser llamado para escape via symlink');
+  }
 
   server.close();
   rmSync(dir, { recursive: true, force: true });

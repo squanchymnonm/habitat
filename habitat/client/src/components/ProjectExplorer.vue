@@ -6,15 +6,14 @@ const props = defineProps<{ id: string }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'opened'): void }>()
 
 const { listing, loading, error, loadTree, loadFile, openInNvim } = useProjectTree()
-const cwd = ref('')
 const preview = ref<{ path: string; content: FileContent } | null>(null)
 const busy = ref('')
 const actionErr = ref('')
 
-watch(() => props.id, (id) => { if (id) { cwd.value = ''; preview.value = null; loadTree(id) } }, { immediate: true })
+watch(() => props.id, (id) => { if (id) { preview.value = null; loadTree(id) } }, { immediate: true })
 
 function openEntry(e: TreeEntry) {
-  if (e.isDir) { cwd.value = e.rel; preview.value = null; loadTree(props.id, e.rel) }
+  if (e.isDir) { preview.value = null; loadTree(props.id, e.rel) }
   else showPreview(e.rel)
 }
 async function showPreview(rel: string) {
@@ -29,8 +28,8 @@ async function editInNvim(rel: string) {
   if (r.ok) emit('opened')
   else actionErr.value = r.message || 'no se pudo abrir nvim'
 }
-function goCrumb(rel: string) { cwd.value = rel; preview.value = null; loadTree(props.id, rel) }
-function goRoot() { cwd.value = ''; preview.value = null; loadTree(props.id, '') }
+function goCrumb(rel: string) { preview.value = null; loadTree(props.id, rel) }
+function goRoot() { preview.value = null; loadTree(props.id, '') }
 
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { if (preview.value) preview.value = null; else emit('close') } }
 onMounted(() => window.addEventListener('keydown', onKey))
