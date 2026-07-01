@@ -12,13 +12,16 @@ import { faceFor, ago, fmt } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
 import { createLongPress } from '../composables/longPress'
+import TermKeys from './TermKeys.vue'
+import { useTermKeys } from '../composables/useTermKeys'
 
 const store = useSessions()
 const { canSpawn, kill, colorForProject } = useProjects()
 const selectedId = computed(() => store.selected?.id ?? null)
 const termEl = ref<HTMLElement | null>(null)
-const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode } =
+const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey } =
   useTerminal(termEl, selectedId, { onCopied: flashCopied })
+const { enabled: termKeysEnabled } = useTermKeys()
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
@@ -140,6 +143,7 @@ defineExpose({ fit })
           <button class="termbtn" @click="onCopyVisible" title="Copiar todo lo visible">copiar visible</button>
           <span class="live"><span class="d"></span> en vivo</span>
         </div>
+        <div v-if="termKeysEnabled" class="term-keys-row"><TermKeys @press="sendKey" /></div>
         <div
           ref="termEl"
           class="term-body"
@@ -430,6 +434,7 @@ defineExpose({ fit })
 .termbtn:hover { border-color: var(--color-brass-2); color: var(--color-brass); }
 .termbtn.on { border-color: var(--color-brass); color: var(--color-brass); background: rgba(224,169,75,.12); }
 .term.selecting .term-body { cursor: crosshair; }
+.term-keys-row { padding: 5px 6px; border-top: 1px solid var(--color-line); }
 /* La barra ya empuja .live a la derecha con margin-left:auto en el primer botón del grupo. */
 .copied-toast {
   position: absolute;
