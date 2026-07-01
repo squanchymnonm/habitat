@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines, rowFromY, wheelNotchesFromDelta, isVerticalDrag } from './useTerminal'
+import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines, rowFromY, wheelNotchesFromDelta, isVerticalDrag, keySeq } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
@@ -145,5 +145,26 @@ describe('isVerticalDrag', () => {
 
   it('empate (45°) no cuenta como vertical', () => {
     expect(isVerticalDrag(20, 20)).toBe(false)
+  })
+})
+
+describe('keySeq', () => {
+  it('flechas en modo normal (CSI)', () => {
+    expect(keySeq('up', false)).toBe('\x1b[A')
+    expect(keySeq('down', false)).toBe('\x1b[B')
+    expect(keySeq('right', false)).toBe('\x1b[C')
+    expect(keySeq('left', false)).toBe('\x1b[D')
+  })
+  it('flechas en modo application cursor keys (SS3)', () => {
+    expect(keySeq('up', true)).toBe('\x1bOA')
+    expect(keySeq('down', true)).toBe('\x1bOB')
+    expect(keySeq('right', true)).toBe('\x1bOC')
+    expect(keySeq('left', true)).toBe('\x1bOD')
+  })
+  it('Enter/Esc/Tab no dependen del modo', () => {
+    expect(keySeq('enter', false)).toBe('\r')
+    expect(keySeq('enter', true)).toBe('\r')
+    expect(keySeq('esc', false)).toBe('\x1b')
+    expect(keySeq('tab', true)).toBe('\t')
   })
 })
