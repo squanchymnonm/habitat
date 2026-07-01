@@ -239,7 +239,9 @@ export function useTerminal(
     if (!scrolling) {
       const dx = t.clientX - scrollStartX
       const dy = t.clientY - scrollStartY
-      if (Math.abs(dy) < 8 || !isVerticalDrag(dx, dy)) { scrollLastY = t.clientY; return }
+      // El umbral (12px) debe superar el moveTol del long-press (10px, ver longPress.ts):
+      // así, cuando el scroll arranca, el long-press del menú ya se canceló y no se disparan los dos.
+      if (Math.abs(dy) < 12 || !isVerticalDrag(dx, dy)) { scrollLastY = t.clientY; return }
       scrolling = true
     }
     e.preventDefault()
