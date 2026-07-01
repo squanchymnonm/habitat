@@ -108,6 +108,25 @@ export function isVerticalDrag(dx: number, dy: number): boolean {
   return Math.abs(dy) > Math.abs(dx)
 }
 
+// Teclas especiales que el teclado táctil de Android no tiene y que mandamos por botones.
+export type SpecialKey = 'up' | 'down' | 'left' | 'right' | 'enter' | 'esc' | 'tab'
+
+// Secuencia de bytes para una tecla especial. Las flechas dependen del modo del
+// terminal: con application cursor keys (DECCKM) activo la app espera \x1bO_, si no
+// \x1b[_ (A=arriba, B=abajo, C=derecha, D=izquierda). Enter/Esc/Tab no dependen del modo.
+export function keySeq(key: SpecialKey, appCursorKeys: boolean): string {
+  const prefix = appCursorKeys ? '\x1bO' : '\x1b['
+  switch (key) {
+    case 'up': return prefix + 'A'
+    case 'down': return prefix + 'B'
+    case 'right': return prefix + 'C'
+    case 'left': return prefix + 'D'
+    case 'enter': return '\r'
+    case 'esc': return '\x1b'
+    case 'tab': return '\t'
+  }
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(
   container: Ref<HTMLElement | null>,
@@ -220,7 +239,9 @@ export function useTerminal(
     if (!scrolling) {
       const dx = t.clientX - scrollStartX
       const dy = t.clientY - scrollStartY
-      if (Math.abs(dy) < 8 || !isVerticalDrag(dx, dy)) { scrollLastY = t.clientY; return }
+      // El umbral (12px) debe superar el moveTol del long-press (10px, ver longPress.ts):
+      // así, cuando el scroll arranca, el long-press del menú ya se canceló y no se disparan los dos.
+      if (Math.abs(dy) < 12 || !isVerticalDrag(dx, dy)) { scrollLastY = t.clientY; return }
       scrolling = true
     }
     e.preventDefault()
@@ -268,6 +289,14 @@ export function useTerminal(
   // el path de un archivo en el prompt de Claude). No-op si el WS no está abierto.
   function insert(text: string) {
     if (ws && ws.readyState === 1) ws.send(enc.encode(text))
+  }
+
+  // Manda una tecla especial (flecha/Esc/Tab/Enter) al pty. Elige la secuencia según
+  // el modo application-cursor-keys que xterm tenga activo en este momento (como un
+  // teclado real). No-op si el WS no está abierto.
+  function sendKey(key: SpecialKey) {
+    if (!term || !ws || ws.readyState !== 1) return
+    ws.send(enc.encode(keySeq(key, !!term.modes.applicationCursorKeysMode)))
   }
 
   // Texto seleccionado en la terminal: el actual o, si tmux ya lo borró, el último visto.
@@ -398,5 +427,5 @@ export function useTerminal(
   )
 
   onUnmounted(teardown)
-  return { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode }
+  return { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey }
 }
