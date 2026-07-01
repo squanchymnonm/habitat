@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines, rowFromY } from './useTerminal'
+import { copyPasteIntent, decideKeyAction, canReadClipboard, joinBufferLines, rowFromY, wheelNotchesFromDelta, isVerticalDrag } from './useTerminal'
 
 const ev = (o: Partial<KeyboardEvent>) =>
   ({ type: 'keydown', ctrlKey: false, shiftKey: false, metaKey: false, code: '', ...o }) as KeyboardEvent
@@ -113,5 +113,37 @@ describe('canReadClipboard', () => {
 
   it('false si readText no existe (p. ej. navegadores sin soporte)', () => {
     expect(canReadClipboard({ clipboard: {} })).toBe(false)
+  })
+})
+
+describe('wheelNotchesFromDelta', () => {
+  it('trunca el desplazamiento acumulado a notches enteros', () => {
+    expect(wheelNotchesFromDelta(40, 17)).toBe(2) // trunc(2.35)
+  })
+
+  it('conserva el signo (dedo hacia arriba = acumulado negativo)', () => {
+    expect(wheelNotchesFromDelta(-40, 17)).toBe(-2)
+  })
+
+  it('devuelve 0 si no se alcanzó una celda completa', () => {
+    expect(wheelNotchesFromDelta(10, 17)).toBe(0)
+  })
+
+  it('devuelve 0 con cellHeight inválido (evita dividir por cero)', () => {
+    expect(wheelNotchesFromDelta(100, 0)).toBe(0)
+  })
+})
+
+describe('isVerticalDrag', () => {
+  it('es vertical cuando |dy| > |dx|', () => {
+    expect(isVerticalDrag(5, 40)).toBe(true)
+  })
+
+  it('no es vertical cuando el arrastre es mayormente horizontal', () => {
+    expect(isVerticalDrag(40, 5)).toBe(false)
+  })
+
+  it('empate (45°) no cuenta como vertical', () => {
+    expect(isVerticalDrag(20, 20)).toBe(false)
   })
 })

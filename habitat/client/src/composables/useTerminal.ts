@@ -94,6 +94,20 @@ export function joinBufferLines(lines: string[]): string {
   return lines.slice(0, end).join('\n')
 }
 
+// Cuántos "notches" enteros de rueda representa un desplazamiento vertical acumulado
+// (en px). Trunca hacia cero para no emitir un notch hasta cruzar una celda completa,
+// y conserva el signo: positivo = dedo hacia abajo = revelar historial (scroll up).
+// Devuelve 0 si cellHeight no es válido (evita dividir por cero).
+export function wheelNotchesFromDelta(accumulated: number, cellHeight: number): number {
+  if (cellHeight <= 0) return 0
+  return Math.trunc(accumulated / cellHeight)
+}
+
+// ¿El arrastre es mayormente vertical? Sirve para no scrollear con gestos horizontales.
+export function isVerticalDrag(dx: number, dy: number): boolean {
+  return Math.abs(dy) > Math.abs(dx)
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(
   container: Ref<HTMLElement | null>,
@@ -111,6 +125,14 @@ export function useTerminal(
   let lastSelection = ''
   const selectMode = ref(false) // modo selección táctil: arrastrar selecciona líneas
   let selStart: number | null = null
+
+  // Estado del swipe-to-scroll (modo NO-selección): un arrastre vertical se traduce a
+  // eventos de rueda que xterm reenvía a tmux (copy-mode) porque tmux corre con mouse on.
+  let scrollStartX = 0
+  let scrollStartY = 0
+  let scrollLastY = 0
+  let scrollAccum = 0
+  let scrolling = false
 
   // En captura: el click derecho llega a xterm y le borra la selección antes del menú.
   // Snapshot de la selección + frenar la propagación para que xterm no la limpie.
@@ -154,12 +176,78 @@ export function useTerminal(
     }
   }
 
+  // px por fila de la grilla de xterm, calculado desde el alto del contenedor.
+  function cellHeightPx(): number {
+    const el = mouseEl ?? container.value
+    if (!el || !term || term.rows <= 0) return 0
+    return el.getBoundingClientRect().height / term.rows
+  }
+
+  // Mecanismo A: despachar un WheelEvent sintético sobre el elemento de xterm. Con el
+  // modo mouse activo (tmux mouse on), xterm lo codifica con el protocolo correcto y se
+  // lo manda a tmux. notches > 0 (dedo hacia abajo) => revelar historial => scroll up =>
+  // deltaY negativo (en WheelEvent, deltaY positivo es scroll hacia abajo).
+  function emitWheel(notches: number, clientX: number, clientY: number, cellH: number) {
+    const target = (term as unknown as { element?: HTMLElement })?.element ?? mouseEl
+    if (!target) return
+    target.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: -notches * cellH,
+      deltaMode: 0,
+      clientX,
+      clientY,
+      bubbles: true,
+      cancelable: true,
+    }))
+  }
+
+  // Swipe-to-scroll: solo en modo NO-selección. Se decide "es scroll" cuando el arrastre
+  // supera ~8px y es mayormente vertical; a partir de ahí preventDefault (corta el
+  // scroll/pull-to-refresh del navegador) y se emiten notches de rueda por cada celda.
+  function onTouchStartScroll(e: TouchEvent) {
+    if (selectMode.value || !term) return
+    const t = e.touches[0]
+    if (!t) return
+    scrollStartX = t.clientX
+    scrollStartY = t.clientY
+    scrollLastY = t.clientY
+    scrollAccum = 0
+    scrolling = false
+  }
+  function onTouchMoveScroll(e: TouchEvent) {
+    if (selectMode.value || !term) return
+    const t = e.touches[0]
+    if (!t) return
+    if (!scrolling) {
+      const dx = t.clientX - scrollStartX
+      const dy = t.clientY - scrollStartY
+      if (Math.abs(dy) < 8 || !isVerticalDrag(dx, dy)) { scrollLastY = t.clientY; return }
+      scrolling = true
+    }
+    e.preventDefault()
+    const cellH = cellHeightPx()
+    scrollAccum += t.clientY - scrollLastY
+    scrollLastY = t.clientY
+    const notches = wheelNotchesFromDelta(scrollAccum, cellH)
+    if (notches !== 0) {
+      scrollAccum -= notches * cellH
+      emitWheel(notches, t.clientX, t.clientY, cellH)
+    }
+  }
+  function onTouchEndScroll() {
+    scrolling = false
+    scrollAccum = 0
+  }
+
   function teardown() {
     if (mouseEl) {
       mouseEl.removeEventListener('mousedown', onTermMouseDownCapture, true)
       mouseEl.removeEventListener('touchstart', onTouchStartSel)
       mouseEl.removeEventListener('touchmove', onTouchMoveSel)
       mouseEl.removeEventListener('touchend', onTouchEndSel)
+      mouseEl.removeEventListener('touchstart', onTouchStartScroll)
+      mouseEl.removeEventListener('touchmove', onTouchMoveScroll)
+      mouseEl.removeEventListener('touchend', onTouchEndScroll)
+      mouseEl.removeEventListener('touchcancel', onTouchEndScroll)
       mouseEl = null
     }
     if (ws) { ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(); ws = null }
@@ -244,6 +332,10 @@ export function useTerminal(
     el.addEventListener('touchstart', onTouchStartSel, { passive: false })
     el.addEventListener('touchmove', onTouchMoveSel, { passive: false })
     el.addEventListener('touchend', onTouchEndSel)
+    el.addEventListener('touchstart', onTouchStartScroll, { passive: false })
+    el.addEventListener('touchmove', onTouchMoveScroll, { passive: false })
+    el.addEventListener('touchend', onTouchEndScroll)
+    el.addEventListener('touchcancel', onTouchEndScroll)
     linkProvider = term.registerLinkProvider(
       createLinkProvider(term, (url) => window.open(url, '_blank', 'noopener,noreferrer')),
     )
