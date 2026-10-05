@@ -79,6 +79,11 @@ export const STATUS_LABEL: Record<Status, string> = {
   offline: 'caída',
 }
 
+// Token de color (--state-*) para cada estado. offline se ve como quieta (atenuada).
+export const STATE_TOKEN: Record<Status, 'working' | 'waiting' | 'done' | 'idle' | 'error'> = {
+  idle: 'idle', working: 'working', waiting: 'waiting', done: 'done', error: 'error', offline: 'idle',
+}
+
 export interface QuestExchange {
   claude: string
   you: string
