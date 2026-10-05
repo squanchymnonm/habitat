@@ -50,7 +50,7 @@ export function claudeLocal({ branch, stack, ports, infra, infraDirRel, related 
 }
 
 export async function prepareSession({ project, projectName, branch, wtPath, envStore, allocate, git }) {
-  const created = [];
+  const created = []; // sólo los worktrees que creó esta llamada (los reutilizados no)
   const fail = async (error) => {
     for (const c of [...created].reverse()) await git.worktreeRemove(c.repoDir, c.path, { force: true });
     return { ok: false, error };
@@ -65,8 +65,10 @@ export async function prepareSession({ project, projectName, branch, wtPath, env
       const path = join(wtPath, RELATED_DIR, r.name);
       try { await git.exec('git', ['-C', r.dir, 'fetch', 'origin'], NET_OPTS); } catch { /* best-effort */ }
       const base = await git.remoteDefaultBranch(r.dir);
+      // Si ya estaba (worktreeAdd lo reutiliza) puede tener trabajo: el rollback no lo toca.
+      const existed = existsSync(path);
       if (!(await git.worktreeAdd(r.dir, branch, base, path))) return fail(`falló el worktree de ${r.name}`);
-      created.push({ repoDir: r.dir, path });
+      if (!existed) created.push({ repoDir: r.dir, path });
       paths[r.name] = path;
     }
     const repos = Object.keys(paths);

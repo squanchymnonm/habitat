@@ -86,6 +86,19 @@ test('prepareSession falla con variable desconocida o sin puertos, con rollback'
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('prepareSession fallido no borra un relacionado que ya existía (worktree reutilizado)', async () => {
+  const f = fixture();
+  try {
+    const infraWt = join(f.wtPath, RELATED_DIR, 'infra');
+    gitIn(f.infraRepo, 'worktree', 'add', '-b', 'bob', infraWt, 'main'); // quedó de una sesión anterior
+    writeFileSync(join(infraWt, 'sucio.txt'), 'wip');
+    f.envStore.set('back', 'self', '.env', 'X={{path:front}}');
+    const r = await prepareSession({ project: f.project, projectName: 'back', branch: 'bob', wtPath: f.wtPath, envStore: f.envStore, allocate, git });
+    assert.equal(r.ok, false);
+    assert.equal(readFileSync(join(infraWt, 'sucio.txt'), 'utf8'), 'wip');
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('teardownRelated remueve worktrees limpios y borra su rama; conserva los sucios', async () => {
   const f = fixture();
   try {

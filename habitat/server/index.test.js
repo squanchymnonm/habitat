@@ -2131,6 +2131,24 @@ test('POST /kill con un relacionado sucio conserva su trabajo y el worktree prin
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('POST /spawn fallido sobre un worktree reutilizado no borra el trabajo que ya tenía', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    writeFileSync(join(wt, 'sucio.txt'), 'wip'); // trabajo sin commitear: el cierre lo deja en disco
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.ok(existsSync(join(wt, 'sucio.txt')));
+    f.envStore.set('back', 'infra', '.env', 'X={{path:front}}'); // el re-spawn va a fallar
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 500);
+    assert.equal(readFileSync(join(wt, 'sucio.txt'), 'utf8'), 'wip');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('GET /projects expone la config (sin plantillas)', async () => {
   const f = infraSetup();
   const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });

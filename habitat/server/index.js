@@ -817,6 +817,9 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (char) store.setPendingChar(tmuxName, char);
       // base = rama default del repo (origin/HEAD), resuelta automáticamente.
       const base = await git.remoteDefaultBranch(dir);
+      // worktreeAdd reutiliza un worktree que ya esté en la ruta (típico: un cierre previo
+      // lo dejó en disco porque tenía cambios). Ése no se borra nunca en un rollback.
+      const existed = existsSync(path);
       const ok = nested.length
         ? await git.containerWorktreeAdd(dir, name, path, nested) // base por repo (origin/HEAD)
         : await git.worktreeAdd(dir, name, base, path);
@@ -838,7 +841,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
         const r = await prepareSession({ project: proj, projectName, branch: name, wtPath: path, envStore, allocate, git });
         if (!r.ok) {
           releasePorts();
-          await git.worktreeRemove(dir, path, { force: true }); // todo o nada: recién creado, sin trabajo
+          // todo o nada, pero sólo si lo creó este spawn (recién creado = sin trabajo)
+          if (!existed) await git.worktreeRemove(dir, path, { force: true });
           res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: r.error }));
           return;
         }
