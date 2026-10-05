@@ -9,7 +9,8 @@ export const useSessions = defineStore('sessions', () => {
   const selectTick = ref(0)
 
   const selected = computed(() => list.value.find((s) => s.id === selectedId.value) ?? null)
-  const needCount = computed(() => list.value.filter((s) => s.status === 'waiting').length)
+  // "Te necesita": sesiones esperando input o en error.
+  const needCount = computed(() => list.value.filter((s) => s.status === 'waiting' || s.status === 'error').length)
 
   function setAll(sessions: Session[]) {
     list.value = sessions

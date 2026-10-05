@@ -32,12 +32,9 @@
       linear-gradient(160deg, var(--bg), var(--bg2));
     background-attachment:fixed; min-height:100%; image-rendering:pixelated;
   }
-  .empty{text-align:center; color:var(--color-dim); border:2px dashed var(--color-edge); padding:40px 18px; font-family:var(--font-system); font-size:16px; margin:auto}
-  .empty code{color:var(--color-brass)}
 
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
-  /* Keyframes referenced by MiniArena.vue (scoped) — kept after drawer removal. */
   @keyframes bdmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
   @keyframes bflinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
   @keyframes bfadein{from{opacity:0}to{opacity:1}}

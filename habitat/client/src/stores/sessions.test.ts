@@ -86,4 +86,15 @@ describe('sessions store — selección', () => {
     expect('fight' in s).toBe(false)
     expect('lastFight' in s).toBe(false)
   })
+
+  it('needCount cuenta waiting y error ("te necesita")', () => {
+    const s = useSessions()
+    s.setAll([
+      { ...mk('a'), status: 'waiting' },
+      { ...mk('b'), status: 'error' },
+      { ...mk('c'), status: 'working' },
+      { ...mk('d'), status: 'idle' },
+    ])
+    expect(s.needCount).toBe(2)
+  })
 })

@@ -137,7 +137,23 @@ defineExpose({ fit })
           <div class="well"><img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" /></div>
         </div>
         <div class="dinfo">
-          <div class="dname">{{ store.selected.name }} <span class="chip" :class="store.selected.status">{{ STATUS_LABEL[store.selected.status] }}</span></div>
+          <div class="dname">
+            {{ store.selected.name }}
+            <span class="chip" :class="store.selected.status">{{ STATUS_LABEL[store.selected.status] }}</span>
+            <!-- Interim: barra de stamina; el SessionHeader del PR 2 la reemplaza. -->
+            <span
+              class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-surface-raised"
+              :title="`Stamina ${store.selected.stamina}%`"
+              :aria-label="`Stamina ${store.selected.stamina}%`"
+            >
+              <i
+                data-test="stamina-fill"
+                class="block h-full"
+                :class="store.selected.stamina < 25 ? 'bg-stamina-low' : 'bg-stamina-ok'"
+                :style="{ width: store.selected.stamina + '%' }"
+              />
+            </span>
+          </div>
           <div class="repo">{{ store.selected.project }} <span class="br" v-if="store.selected.branch">⌥ {{ store.selected.branch }}</span></div>
           <div class="action">{{ store.selected.action }}</div>
           <div class="since">activa hace {{ ago(store.selected.since) }}</div>
