@@ -195,8 +195,10 @@ En **Settings → Proyectos → configurar** cada proyecto puede definir:
 
 - **Repos relacionados**: otros repos de `HABITAT_PROJECTS_ROOT` (p.ej. el repo de infra,
   el front). Cada sesión recibe un worktree de cada uno, en su misma rama, dentro de
-  `.habitat-related/<nombre>/`. Al cerrar la sesión se remueven, y su rama se borra si no
-  tiene commits.
+  `.habitat-related/<nombre>/`. Al cerrar la sesión se remueven sin forzar: uno con
+  cambios sin commitear queda en disco (y entonces el worktree principal también, para no
+  borrar ese trabajo anidado). La rama se borra sólo en los relacionados, y sólo si no
+  tiene commits sin mergear; la del worktree principal no se toca.
 - **Infra**: en qué repo y subcarpeta está el compose, y los comandos para levantarlo y
   bajarlo (default `docker compose up -d` / `docker compose down`).
 - **Archivos `.env`**: plantillas que guarda Habitat (en `HABITAT_ENVS_DIR`, default

@@ -78,10 +78,11 @@ Validaciones de `projects.js`:
 
 ### Plantillas `.env`
 
-- El contenido se guarda aparte, en `<HABITAT_ENVS_DIR>/<proyecto>/<repo>__<path>.env`.
+- El contenido se guarda aparte, en `<HABITAT_ENVS_DIR>/<proyecto>/<repo>@<path>.env`.
   `HABITAT_ENVS_DIR` tiene como default `habitat/.habitat-envs/`. `<proyecto>` es el
-  `basename(dir)`, que ya es único porque los nombres de tmux dependen de él. En `<path>`
-  las `/` se codifican como `%2F`.
+  `basename(dir)`, que ya es único porque los nombres de tmux dependen de él. `<repo>` y
+  `<path>` van codificados con `encodeURIComponent` (las `/` quedan como `%2F` y una `@`
+  como `%40`), así que el separador `@` no puede aparecer en ninguno y no hay colisiones.
 - El directorio se crea con permisos `0700` y los archivos con `0600`. Se escriben de
   forma atómica (tmp + rename).
 - El contenido **nunca** va en `.projects.json`, en `GET /projects` ni en el broadcast

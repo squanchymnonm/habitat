@@ -715,9 +715,16 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
         related: body.related, infra: body.infra, envFiles: body.envFiles,
       });
       if (!r.ok) { sendJson(400, { error: r.error }); return; }
-      // Plantillas de envFiles que dejaron de existir: se borran (tienen secretos).
-      for (const e of before.envFiles) {
-        if (!hasEnvFile(r.record, e.repo, e.path)) envStore.remove(basename(before.dir), e.repo, e.path);
+      // Plantillas de envFiles que dejaron de existir: se borran (tienen secretos). El store
+      // puede tirar sincrónico (EACCES, ENAMETOOLONG): sin catch el request quedaría colgado.
+      try {
+        for (const e of before.envFiles) {
+          if (!hasEnvFile(r.record, e.repo, e.path)) envStore.remove(basename(before.dir), e.repo, e.path);
+        }
+      } catch (err) {
+        broadcastProjects(); // la config sí cambió
+        sendJson(500, { error: `no se pudieron borrar plantillas: ${err.message}` });
+        return;
       }
       broadcastProjects();
       sendJson(200, projectJson(r.record));
@@ -731,7 +738,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
       if (!projects.remove(body.dir)) { res.writeHead(404).end(); return; }
-      envStore.removeProject(basename(body.dir));
+      try { envStore.removeProject(basename(body.dir)); } catch (err) {
+        broadcastProjects(); // el proyecto sí se quitó
+        sendJson(500, { error: `no se pudieron borrar las plantillas: ${err.message}` });
+        return;
+      }
       broadcastProjects();
       res.writeHead(200).end();
       return;
@@ -773,7 +784,10 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (typeof q.content !== 'string') { res.writeHead(400).end(); return; }
       const { unknown } = scan(q.content, ['self', ...proj.related.map((r) => r.name)]);
       if (unknown.length) { sendJson(400, { unknown }); return; }
-      envStore.set(project, q.repo, q.path, q.content);
+      try { envStore.set(project, q.repo, q.path, q.content); } catch (err) {
+        sendJson(500, { error: `no se pudo guardar la plantilla: ${err.message}` });
+        return;
+      }
       res.writeHead(200).end();
       return;
     }

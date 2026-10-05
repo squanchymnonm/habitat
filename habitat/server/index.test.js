@@ -2322,6 +2322,23 @@ test('DELETE /projects borra las plantillas del proyecto', async () => {
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('/projects/env y la gestión de proyectos responden 500 si el store de plantillas tira', async () => {
+  const f = infraSetup();
+  const boom = () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); };
+  const envStore = { get: f.envStore.get, set: boom, remove: boom, removeProject: boom };
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore, tmux: f.tmux });
+  const req = (port, method, path, body) => fetch(`http://127.0.0.1:${port}${path}`, {
+    method, headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    signal: AbortSignal.timeout(2000), // sin el fix el request queda colgado
+  });
+  try {
+    const port = await listen(server);
+    assert.equal((await req(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A=1' })).status, 500);
+    assert.equal((await req(port, 'PATCH', '/projects', { dir: f.back, envFiles: [] })).status, 500);
+    assert.equal((await req(port, 'DELETE', '/projects', { dir: f.back })).status, 500);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('PATCH /projects rechaza infra/related en un proyecto contenedor', async () => {
   const root = mkdtempSync(join(tmpdir(), 'habitat-container-'));
   const container = join(root, 'proyectos', 'container');

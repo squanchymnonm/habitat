@@ -1,10 +1,12 @@
-import { mkdirSync, writeFileSync, renameSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, chmodSync, writeFileSync, renameSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Plantillas .env por proyecto. Tienen secretos: viven fuera de .projects.json (que se
 // broadcastea) con 0700/0600, y sólo salen por endpoints autenticados. Sin `dir`,
 // en memoria (tests), como createProjects sin persistPath.
-const fileName = (repo, path) => `${repo}__${encodeURIComponent(path)}.env`;
+// Repo y path van codificados y unidos por '@', que encodeURIComponent siempre escapa
+// (%40): no puede aparecer en ninguna de las dos partes, así que el nombre es inyectivo.
+const fileName = (repo, path) => `${encodeURIComponent(repo)}@${encodeURIComponent(path)}.env`;
 
 export function createEnvStore({ dir } = {}) {
   if (!dir) {
@@ -24,7 +26,9 @@ export function createEnvStore({ dir } = {}) {
     },
     set(project, repo, path, content) {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
+      chmodSync(dir, 0o700); // mkdir no toca el modo de una carpeta que ya existía
       mkdirSync(projDir(project), { recursive: true, mode: 0o700 });
+      chmodSync(projDir(project), 0o700);
       const f = join(projDir(project), fileName(repo, path));
       const tmp = `${f}.tmp`;
       writeFileSync(tmp, String(content), { mode: 0o600 });
