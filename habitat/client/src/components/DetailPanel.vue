@@ -418,6 +418,17 @@ defineExpose({ fit })
   .dtools .tool .lbl { display: none; }
   .dtools .tool { padding: 6px 9px; }
 }
+/* Debajo de los ~900px de panel (tablet/teléfono en portrait, sin el modo
+   "compact" de landscape) la cabecera completa (medallón + nombre + chip +
+   stamina + botones con etiqueta) no entra en una fila y se superpone. Sin
+   medallón y con wrap, nombre/chip y botones caen en filas propias. */
+@container (max-width: 900px) {
+  .dhead { flex-wrap: wrap; row-gap: 8px; }
+  .dhead .portrait { display: none; }
+  .dhead .dname { flex-wrap: wrap; row-gap: 4px; }
+  .dpanel .chip { margin-left: 0; }
+  .dhead .dtools { flex: 1 1 100%; }
+}
 .tool {
   display: inline-flex;
   align-items: center;
