@@ -80,4 +80,39 @@ describe('ProjectConfig', () => {
     await flushPromises()
     expect(w.text()).toContain('variables desconocidas: {{x}}')
   })
+
+  it('el editor sigue al archivo (no al índice) cuando se quita una fila anterior', async () => {
+    const calls: any[] = []
+    const project = { ...PROJECT, envFiles: [{ repo: 'self', path: '.env' }, { repo: 'infra', path: '.env' }] }
+    stub(calls)
+    const w = mount(ProjectConfig, { props: { project } })
+    await flushPromises()
+    // Abrir el editor del SEGUNDO archivo (infra/.env).
+    await w.findAll('[data-test="env-open"]')[1].trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="env-text"]').exists()).toBe(true)
+    // Quitar la PRIMERA fila (self/.env) — el editor debe seguir abierto, apuntando a infra/.env.
+    const rows = w.findAll('.rows')[1].findAll('.row') // segunda <ul class="rows"> es la de envFiles
+    await rows[0].findAll('button')[1].trigger('click') // "quitar" (el 2º botón de la fila)
+    await flushPromises()
+    expect(w.find('[data-test="env-text"]').exists()).toBe(true)
+    await w.get('[data-test="env-save"]').trigger('click')
+    await flushPromises()
+    const put = calls.find((c) => c.method === 'PUT')
+    expect(put.body).toMatchObject({ repo: 'infra', path: '.env' })
+  })
+
+  it('quitar la fila en edición cierra el editor', async () => {
+    const project = { ...PROJECT, envFiles: [{ repo: 'self', path: '.env' }, { repo: 'infra', path: '.env' }] }
+    stub([])
+    const w = mount(ProjectConfig, { props: { project } })
+    await flushPromises()
+    await w.findAll('[data-test="env-open"]')[0].trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="env-text"]').exists()).toBe(true)
+    const rows = w.findAll('.rows')[1].findAll('.row')
+    await rows[0].findAll('button')[1].trigger('click') // quita self/.env, que es la que se edita
+    await flushPromises()
+    expect(w.find('[data-test="env-text"]').exists()).toBe(false)
+  })
 })

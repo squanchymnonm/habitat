@@ -57,27 +57,36 @@ function addEnvFile() {
   if (!newEnvPath.value.trim()) return
   envFiles.value.push({ repo: newEnvRepo.value, path: newEnvPath.value.trim() })
 }
-function removeEnvFile(i: number) { envFiles.value.splice(i, 1); if (editing.value === i) editing.value = null }
+function removeEnvFile(i: number) {
+  const e = envFiles.value[i]
+  envFiles.value.splice(i, 1)
+  // Si el archivo quitado es el que se está editando, cerrar el editor
+  // (identificado por repo+path, no por índice: el índice se corre al quitar filas).
+  if (editing.value && editing.value.repo === e.repo && editing.value.path === e.path) editing.value = null
+}
 
-const editing = ref<number | null>(null)
+// Se identifica el archivo en edición por (repo, path), no por índice: si se
+// quita una fila anterior en la lista, un índice quedaría apuntando a otro
+// archivo (o fuera de rango).
+const editing = ref<EnvFile | null>(null)
 const envText = ref('')
 const envMsg = ref('')
 const envErr = ref('')
 async function openEnv(i: number) {
-  editing.value = i
+  const e = envFiles.value[i]
+  editing.value = { ...e }
   envMsg.value = ''
   envErr.value = ''
-  const e = envFiles.value[i]
   envText.value = (await getEnv(props.project.dir, e.repo, e.path)) ?? ''
 }
 async function doImport() {
-  const e = envFiles.value[editing.value!]
+  const e = editing.value!
   const c = await importEnv(props.project.dir, e.repo, e.path)
   if (c == null) envErr.value = 'no hay un .env en el checkout para importar'
   else { envText.value = c; envErr.value = ''; envMsg.value = 'importado (falta guardar)' }
 }
 async function doSaveEnv() {
-  const e = envFiles.value[editing.value!]
+  const e = editing.value!
   const r = await saveEnv(props.project.dir, e.repo, e.path, envText.value)
   envMsg.value = r.ok ? 'guardado' : ''
   envErr.value = r.ok ? '' : r.error
@@ -139,7 +148,7 @@ async function doSaveEnv() {
     </div>
     <p class="hint">Guardá la configuración antes de editar un archivo nuevo.</p>
 
-    <div v-if="editing !== null" class="editor">
+    <div v-if="editing" class="editor">
       <textarea v-model="envText" data-test="env-text" spellcheck="false" rows="12"></textarea>
       <details class="help">
         <summary>Variables disponibles</summary>
