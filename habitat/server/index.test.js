@@ -2356,3 +2356,51 @@ test('PATCH /projects rechaza infra/related en un proyecto contenedor', async ()
     assert.equal(projectsStore.get(container).infra, null);
   } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test('pollInfra actualiza infra.state y broadcastea sólo los cambios', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'bob', infra: { stack: 'b', ports: {}, dir: '/wt/back/bob/.habitat-related/infra', branch: 'bob' } }));
+  store.upsert(newSession('s2', { name: 'ana' })); // sin infra: se ignora
+  let containers = [{ dir: '/wt/back/bob/.habitat-related/infra', state: 'running' }];
+  const docker = { containerStates: async () => containers };
+  const { server, pollInfra } = createApp({ config: spawnConfig(), store, docker });
+  const port = await listen(server);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); });
+  const msgs = [];
+  ws.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === 'session') msgs.push(m.session); });
+  try {
+    await pollInfra();
+    await pollInfra(); // sin cambios: no re-broadcastea
+    containers = [{ dir: '/wt/back/bob/.habitat-related/infra', state: 'exited' }, { dir: '/wt/back/bob/.habitat-related/infra', state: 'running' }];
+    await pollInfra();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(msgs.map((s) => [s.id, s.infra.state]), [['s1', 'up'], ['s1', 'partial']]);
+    assert.equal(store.get('s1').infra.state, 'partial');
+  } finally { ws.close(); server.close(); }
+});
+
+test('POST /infra/up corre el comando del proyecto en la carpeta de infra, con lock', async () => {
+  const store = createStore();
+  store.upsert(newSession('s1', { name: 'bob', project: 'proj-api', infra: { stack: 'b', ports: {}, dir: '/wt/infra', branch: 'bob' } }));
+  const projectsStore = createProjects({ seed: ['/home/u/proj-api'] });
+  projectsStore.update({ dir: '/home/u/proj-api', infra: { repo: 'self', path: '', up: 'make up', down: '' } });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const calls = [];
+  const infra = { runInfraCommand: async (cmd, cwd) => { calls.push([cmd, cwd]); await gate; return { ok: true }; } };
+  const { server } = createApp({ config: spawnConfig(), store, projectsStore, infra, docker: { containerStates: async () => [] } });
+  try {
+    const port = await listen(server);
+    const up = () => fetch(`http://127.0.0.1:${port}/infra/up?id=s1`, { method: 'POST', headers: auth });
+    const first = up();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await up()).status, 409);
+    release();
+    const r = await first;
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true });
+    assert.deepEqual(calls, [['make up', '/wt/infra']]);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/infra/up?id=nope`, { method: 'POST', headers: auth })).status, 404);
+  } finally { server.close(); }
+});
