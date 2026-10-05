@@ -189,6 +189,28 @@ termines.
 > loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en la lista de proyectos
 > gestionada desde Settings.
 
+### Infra docker y repos relacionados por sesión
+
+En **Settings → Proyectos → configurar** cada proyecto puede definir:
+
+- **Repos relacionados**: otros repos de `HABITAT_PROJECTS_ROOT` (p.ej. el repo de infra,
+  el front). Cada sesión recibe un worktree de cada uno, en su misma rama, dentro de
+  `.habitat-related/<nombre>/`. Al cerrar la sesión se remueven, y su rama se borra si no
+  tiene commits.
+- **Infra**: en qué repo y subcarpeta está el compose, y los comandos para levantarlo y
+  bajarlo (default `docker compose up -d` / `docker compose down`).
+- **Archivos `.env`**: plantillas que guarda Habitat (en `HABITAT_ENVS_DIR`, default
+  `.habitat-envs/`, con permisos 0600) y que se escriben en cada sesión con estas
+  variables: `{{stack}}` (nombre único del stack), `{{port:NOMBRE}}` (un puerto libre de
+  `HABITAT_PORT_RANGE`, default `20000-29999`), `{{path:self}}` / `{{path:<relacionado>}}`
+  y `{{branch}}`.
+
+La sesión arranca con la infra apagada y un `CLAUDE.local.md` que le dice a Claude dónde
+está, cómo levantarla y qué puertos tiene.
+
+    export HABITAT_ENVS_DIR="/home/tu/.habitat-envs"   # opcional
+    export HABITAT_PORT_RANGE="20000-29999"            # opcional
+
 ## Hooks (command hook)
 Agregar a `~/.claude/settings.json`. `habitat-hook` debe estar en PATH o usar ruta absoluta.
 Exportar `HABITAT_TOKEN` (y `HABITAT_URL` si el server no está en el default) en el entorno del wrapper de arranque.
