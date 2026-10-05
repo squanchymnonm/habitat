@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useSessions } from '../../stores/sessions'
 import { useFocusTools, type SideTool } from '../../composables/useFocusTools'
+import { useFocusShortcuts } from '../../composables/useFocusShortcuts'
+import { useProjects } from '../../composables/useProjects'
 import SessionHeader from './SessionHeader.vue'
 import ToolTabs from './ToolTabs.vue'
 import TerminalPane from './TerminalPane.vue'
@@ -12,6 +14,7 @@ import ToolHost from './ToolHost.vue'
 const store = useSessions()
 const session = computed(() => store.selected)
 const tools = useFocusTools(computed(() => session.value?.id ?? null))
+const { canSpawn } = useProjects()
 const term = ref<InstanceType<typeof TerminalPane> | null>(null)
 const editorOpen = ref(false)
 watch(() => session.value?.id, () => { editorOpen.value = false })
@@ -20,10 +23,29 @@ const LABEL: Record<SideTool, string> = { git: 'Git', files: 'Archivos', infra: 
 // La herramienta que ocupa el área (sin panel fijado) o el panel fijado.
 const shownTool = computed<SideTool | null>(() => tools.pinned.value ?? (tools.active.value === 'terminal' ? null : tools.active.value))
 
+// Mismo gate que ToolTabs para la pestaña Infra. Si deja de cumplirse (se cerró la
+// sesión de infra, el server dejó de permitir spawnear) mientras Infra está activa o
+// fijada, no seguir mostrando una herramienta cuya pestaña ya desapareció.
+const infraAllowed = computed(() => canSpawn.value && !!session.value?.infra?.dir)
+watch(infraAllowed, (allowed) => {
+  if (allowed) return
+  if (tools.pinned.value === 'infra') tools.unpin()
+  if (tools.active.value === 'infra') tools.select('terminal')
+})
+
 function onInsert(text: string) {
   term.value?.insert(text)
   if (!tools.pinned.value) tools.select('terminal') // volver a la terminal para seguir escribiendo
 }
+
+// Esc: primero cierra el editor, después desfija el panel. Los diálogos (Reka) manejan su propio Esc.
+useFocusShortcuts({
+  onEscape: () => {
+    if (editorOpen.value) { editorOpen.value = false; return true }
+    if (tools.pinned.value) { tools.unpin(); return true }
+    return false
+  },
+})
 
 defineExpose({ fit: () => term.value?.fit() })
 </script>

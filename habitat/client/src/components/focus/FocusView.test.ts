@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, defineComponent, h } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
+import { createMemoryHistory } from 'vue-router'
+import { createHabitatRouter, syncSelectionWithRoute } from '../../router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
+const canSpawn = ref(true)
 vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
-vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn: ref(true) }) }))
+vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
 const insert = vi.fn()
 vi.mock('./TerminalPane.vue', () => ({ default: defineComponent({ props: ['session'], setup(_, { expose }) { expose({ fit: () => {}, insert }); return () => h('div', { 'data-test': 'terminal-pane' }) } }) }))
 vi.mock('./SessionHeader.vue', () => ({ default: defineComponent({ props: ['session'], emits: ['open-editor'], setup: (_, { emit }) => () => h('button', { 'data-test': 'header-editor', onClick: () => emit('open-editor') }) }) }))
@@ -24,15 +27,27 @@ import FocusView from './FocusView.vue'
 import { useSessions } from '../../stores/sessions'
 import { useFocusTools, resetFocusTools } from '../../composables/useFocusTools'
 
-const sess = (id: string) => ({ id, name: id, project: 'p', branch: '', status: 'idle', action: '', since: 0, stamina: 100 }) as any
+const sess = (id: string, infra?: any) => ({ id, name: id, project: 'p', branch: '', status: 'idle', action: '', since: 0, stamina: 100, infra }) as any
 
-beforeEach(() => { setActivePinia(createPinia()); resetFocusTools(); mode.value = 'landscape'; vi.clearAllMocks() })
+beforeEach(() => { setActivePinia(createPinia()); resetFocusTools(); mode.value = 'landscape'; canSpawn.value = true; vi.clearAllMocks() })
+
+// FocusView usa useGoToSession (atajos [ ]), que requiere router: se monta siempre con
+// uno de memoria, igual que SessionNav.test.ts.
+async function mountFocus(sessions: any[], path = `/s/${sessions[0]?.id}`, opts: Record<string, unknown> = {}) {
+  const store = useSessions()
+  store.setAll(sessions)
+  const router = createHabitatRouter(createMemoryHistory())
+  syncSelectionWithRoute(router, store)
+  await router.push(path)
+  await router.isReady()
+  const w = mount(FocusView, { global: { plugins: [router] }, ...opts })
+  return { w, store, router }
+}
 
 describe('FocusView', () => {
   it('la terminal queda montada al cambiar de pestaña', async () => {
-    useSessions().setAll([sess('a')]); useSessions().select('a')
     // isVisible() (getComputedStyle) necesita el nodo en el document.
-    const w = mount(FocusView, { attachTo: document.body })
+    const { w } = await mountFocus([sess('a')], '/s/a', { attachTo: document.body })
     useFocusTools(ref('a')).select('git'); await flushPromises()
     expect(w.find('[data-test="git-tool"]').exists()).toBe(true)
     const pane = w.get('[data-test="terminal-pane"]')
@@ -41,16 +56,25 @@ describe('FocusView', () => {
     expect(w.get('[data-test="terminal-pane"]').isVisible()).toBe(true)
     w.unmount()
   })
-  it('insertar desde Archivos escribe en la terminal', async () => {
-    useSessions().setAll([sess('a')]); useSessions().select('a')
-    const w = mount(FocusView)
+  it('insertar desde Archivos escribe en la terminal y vuelve a la pestaña terminal', async () => {
+    const { w } = await mountFocus([sess('a')])
     useFocusTools(ref('a')).select('files'); await flushPromises()
     await w.get('[data-test="files-tool"]').trigger('click')
     expect(insert).toHaveBeenCalledWith('"a b.md" ')
+    expect(useFocusTools(ref('a')).active.value).toBe('terminal')
+    w.unmount()
+  })
+  it('insertar con Archivos fijado escribe en la terminal y no cambia de pestaña', async () => {
+    const { w } = await mountFocus([sess('a')])
+    useFocusTools(ref('a')).pin('files'); await flushPromises()
+    await w.get('[data-test="files-tool"]').trigger('click')
+    expect(insert).toHaveBeenCalledWith('"a b.md" ')
+    expect(useFocusTools(ref('a')).active.value).toBe('terminal')
+    expect(useFocusTools(ref('a')).pinned.value).toBe('files')
+    w.unmount()
   })
   it('con un panel fijado se ven terminal y herramienta a la vez', async () => {
-    useSessions().setAll([sess('a')]); useSessions().select('a')
-    const w = mount(FocusView, { attachTo: document.body })
+    const { w } = await mountFocus([sess('a')], '/s/a', { attachTo: document.body })
     useFocusTools(ref('a')).pin('quest'); await flushPromises()
     expect(w.get('[data-test="terminal-pane"]').isVisible()).toBe(true)
     expect(w.find('[data-test="quest-tool"]').exists()).toBe(true)
@@ -58,14 +82,74 @@ describe('FocusView', () => {
     w.unmount()
   })
   it('abrir en editor muestra el EditorPane', async () => {
-    useSessions().setAll([sess('a')]); useSessions().select('a')
-    const w = mount(FocusView)
+    const { w } = await mountFocus([sess('a')])
     await w.get('[data-test="header-editor"]').trigger('click')
     expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+    w.unmount()
   })
-  it('sin selección no renderiza nada', () => {
-    useSessions().setAll([])
-    const w = mount(FocusView)
+  it('sin selección no renderiza nada', async () => {
+    const { w } = await mountFocus([], '/')
     expect(w.find('[data-test="terminal-pane"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  describe('atajos de teclado', () => {
+    it('] navega a la sesión siguiente y [ a la anterior, de forma circular', async () => {
+      const { w, router } = await mountFocus([sess('a'), sess('b')], '/s/a')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ']', bubbles: true }))
+      await flushPromises()
+      expect(router.currentRoute.value.fullPath).toBe('/s/b')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '[', bubbles: true }))
+      await flushPromises()
+      expect(router.currentRoute.value.fullPath).toBe('/s/a')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '[', bubbles: true }))
+      await flushPromises()
+      expect(router.currentRoute.value.fullPath).toBe('/s/b')
+      w.unmount()
+    })
+    it('Esc con un panel fijado lo desfija', async () => {
+      const { w } = await mountFocus([sess('a')])
+      useFocusTools(ref('a')).pin('quest'); await flushPromises()
+      expect(useFocusTools(ref('a')).pinned.value).toBe('quest')
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+      expect(useFocusTools(ref('a')).pinned.value).toBeNull()
+      w.unmount()
+    })
+    it('Esc con el editor abierto lo cierra primero (no desfija el panel)', async () => {
+      const { w } = await mountFocus([sess('a')])
+      useFocusTools(ref('a')).pin('quest'); await flushPromises()
+      await w.get('[data-test="header-editor"]').trigger('click')
+      expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+      expect(w.find('[data-test="editor-pane"]').exists()).toBe(false)
+      expect(useFocusTools(ref('a')).pinned.value).toBe('quest')
+      w.unmount()
+    })
+  })
+
+  describe('selección de Infra obsoleta', () => {
+    it('si se pierde el gate de Infra estando fijada, se desfija', async () => {
+      const { w } = await mountFocus([sess('a', { dir: '/wt/infra' })])
+      useFocusTools(ref('a')).pin('infra'); await flushPromises()
+      expect(useFocusTools(ref('a')).pinned.value).toBe('infra')
+      canSpawn.value = false
+      await flushPromises()
+      expect(useFocusTools(ref('a')).pinned.value).toBeNull()
+      expect(useFocusTools(ref('a')).active.value).toBe('terminal')
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
+      w.unmount()
+    })
+    it('si se pierde el gate de Infra estando activa (sin fijar), vuelve a terminal', async () => {
+      const { w } = await mountFocus([sess('a', { dir: '/wt/infra' })])
+      useFocusTools(ref('a')).select('infra'); await flushPromises()
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(true)
+      canSpawn.value = false
+      await flushPromises()
+      expect(useFocusTools(ref('a')).active.value).toBe('terminal')
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
+      w.unmount()
+    })
   })
 })
