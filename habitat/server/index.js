@@ -19,7 +19,8 @@ import * as gitStash from './git-stash.js';
 import { prCreate, parseRepo, repoList, repoClone } from './gh.js';
 import { createLocks } from './locks.js';
 import { worktreePaths, worktreeName } from './worktree.js';
-import { downForDir, downOrphans } from './docker.js';
+import { downForDir, downOrphans, containerStates, stateForDir } from './docker.js';
+import { DEFAULT_UP, runInfraCommand } from './infra.js';
 import { resolveWithinRoot, sanitizeFilename, uniqueName, maxUploadBytes } from './files.js';
 import { openInEditor } from './editor.js';
 import { CHARACTERS, autoName } from './characters.js';
@@ -92,9 +93,11 @@ function responderDemasiadoGrande(req, res, { max, needsPassword }) {
     .end(body, () => req.socket.end());
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans }, gh: ghOverrides = {}, envStore = createEnvStore({ dir: config.ENVS_DIR }), probePort = defaultProbePort }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker: dockerOverrides = {}, infra: infraOverrides = {}, gh: ghOverrides = {}, envStore = createEnvStore({ dir: config.ENVS_DIR }), probePort = defaultProbePort }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, exec: defaultExec, ...gitOverrides };
   const gh = { repoList, repoClone, ...ghOverrides };
+  const docker = { downForDir, downOrphans, containerStates, ...dockerOverrides };
+  const infraRunner = { runInfraCommand, ...infraOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
   // Puertos asignados por un spawn en vuelo que todavía no está en el store: sin esto dos
   // spawns simultáneos podrían recibir el mismo puerto.
@@ -198,6 +201,38 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   }
   function broadcastProjects() {
     if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
+  }
+
+  // Estado de la infra de cada sesión. Claude puede levantarla/bajarla desde su terminal,
+  // así que no alcanza con las acciones de la UI: se consulta docker periódicamente (una
+  // sola llamada para todas las sesiones) y se broadcastea sólo lo que cambió.
+  // Polls en fila: dos `docker ps` superpuestos pueden resolver fuera de orden y uno
+  // viejo pisaría el estado fresco que dejó /infra/up.
+  let pollChain = Promise.resolve();
+  function pollInfra() {
+    const p = pollChain.then(pollOnce);
+    pollChain = p.catch(() => {});
+    return p;
+  }
+  // Una sesión con su lock de infra tomado está a mitad de un up/down: muestrearla daría
+  // un estado intermedio (el endpoint re-pollea al terminar, ya sin el lock).
+  const infraBusy = (s) => locks.has(`infra:${s.id}`);
+  async function pollOnce() {
+    const sessions = store.all().filter((s) => s.infra && s.infra.dir && !infraBusy(s));
+    if (!sessions.length) return;
+    const containers = await docker.containerStates();
+    let changed = false;
+    for (const s of sessions) {
+      // Durante el await la sesión pudo irse (/kill, adopción del pod provisional, rekey de
+      // /clear) o tomar el lock: broadcastearla haría reaparecer un pod fantasma.
+      if (store.get(s.id) !== s || infraBusy(s)) continue;
+      const state = stateForDir(containers, s.infra.dir);
+      if (s.infra.state === state) continue;
+      s.infra.state = state; // misma referencia: no pisamos campos escritos por hooks en vuelo
+      changed = true;
+      if (hub) hub.broadcast({ type: 'session', session: snapOf(s) });
+    }
+    if (changed) store.persist();
   }
 
   const loginEnabled = !!(config.USER && config.PASSWORD_HASH);
@@ -910,6 +945,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
+      // Un up/down de infra en curso: cerrar ahora borraría el worktree debajo del compose.
+      if (locks.has(`infra:${id}`)) { res.writeHead(409).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
       await tmux.killTmuxSession(`${s.tmux || s.name}-edit`); // best-effort: terminal de editor
       // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
@@ -968,8 +1005,41 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const wt = sessionWorktree(s);
       // Sesión plana (repo principal): sus containers son el entorno del usuario, no algo
       // que levantó hábitat. No los listamos ni los bajamos.
-      const stacks = wt ? await dockerDown(wt, { dryRun: !isDown }) : [];
+      let stacks = [];
+      if (wt && isDown) {
+        // Bajar toma el lock de infra de la sesión (como /infra/up): el poller no muestrea a
+        // mitad del down y un up/down simultáneo recibe 409. El dry run no lo necesita.
+        try {
+          stacks = await locks.run(`infra:${id}`, () => dockerDown(wt));
+        } catch (e) {
+          res.writeHead(e && e.message === 'busy' ? 409 : 500).end();
+          return;
+        }
+        await pollInfra().catch(() => {}); // ya sin el lock: refleja el estado final
+      } else if (wt) {
+        stacks = await dockerDown(wt, { dryRun: true });
+      }
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ stacks }));
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/infra/up') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      const id = url.searchParams.get('id') || '';
+      const s = store.get(id);
+      if (!s || !s.infra || !s.infra.dir) { res.writeHead(404).end(); return; }
+      const proj = projects.list().find((p) => basename(p.dir) === s.project);
+      const cmd = (proj && proj.infra && proj.infra.up) || DEFAULT_UP;
+      let r;
+      try {
+        r = await locks.run(`infra:${id}`, () => infraRunner.runInfraCommand(cmd, s.infra.dir));
+      } catch (e) {
+        res.writeHead(e && e.message === 'busy' ? 409 : 500).end();
+        return;
+      }
+      await pollInfra().catch(() => {}); // refleja el estado nuevo sin esperar el próximo tick
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(r));
       return;
     }
 
@@ -1064,7 +1134,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
     },
   });
   attachTerm(server, store, { token: config.TOKEN, sessionStore });
-  return { server, get hub() { return hub; } };
+  return { server, get hub() { return hub; }, pollInfra };
 }
 
 // arranque real
@@ -1083,10 +1153,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const store = createStore({ persistPath: config.STATE_PATH });
   const settingsStore = createSettings({ persistPath: config.SETTINGS_PATH });
   const projectsStore = createProjects({ persistPath: config.PROJECTS_STATE, seed: config.PROJECTS });
-  const { server } = createApp({ config, store, settingsStore, projectsStore });
+  const { server, pollInfra } = createApp({ config, store, settingsStore, projectsStore });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
+    // Primer poll al arrancar: el estado persistido puede ser viejo (containers que se
+    // cayeron o levantaron con el server apagado) y el tick tarda 15s.
+    if (config.ALLOW_SPAWN) pollInfra().catch((err) => console.error('[habitat] poll de infra falló (ignorado):', err && err.message));
   });
+  if (config.ALLOW_SPAWN) {
+    setInterval(() => { pollInfra().catch((err) => console.error('[habitat] poll de infra falló (ignorado):', err && err.message)); }, 15_000).unref();
+  }
   // Barrido de huérfanos: containers levantados en worktrees que ya no existen (sesiones
   // cerradas antes de esta limpieza, o caídas del server). Doble condición dentro de
   // downOrphans —bajo WORKTREES_DIR y directorio inexistente— para no tocar nada vivo.

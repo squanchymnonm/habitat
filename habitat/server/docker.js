@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { normalize, sep } from 'node:path';
 
 const run = promisify(execFile);
-const defaultExec = async (file, args) => (await run(file, args)).stdout;
+export const defaultExec = async (file, args, opts) => (await run(file, args, opts)).stdout;
 
 // Un container de compose siempre lleva el proyecto y el directorio desde donde se
 // levantó. Ese working_dir es lo que nos deja atribuir un stack a una sesión: si cae
@@ -13,7 +13,7 @@ const defaultExec = async (file, args) => (await run(file, args)).stdout;
 export const PS_FORMAT = '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.working_dir"}}';
 
 // Path normalizado y sin barra final. '' / basura => '' (nunca un path utilizable).
-const norm = (p) => {
+export const norm = (p) => {
   const s = String(p || '').trim();
   if (!s) return '';
   const n = normalize(s);
@@ -22,7 +22,7 @@ const norm = (p) => {
 };
 
 // ¿`dir` está dentro de `parent`? Contención real por segmento: /a/b NO contiene a /a/bc.
-const inside = (dir, parent, { strict = false } = {}) => {
+export const inside = (dir, parent, { strict = false } = {}) => {
   const d = norm(dir);
   const p = norm(parent);
   if (!d || !p || p === sep) return false;
@@ -98,4 +98,34 @@ export async function downOrphans(root, { exec = defaultExec, exists = existsSyn
     if (await composeDown(s.project, exec)) done.push(s.project);
   }
   return done;
+}
+
+// working_dir de compose + estado de cada container (running, exited, restarting…).
+export const STATE_FORMAT = '{{.Label "com.docker.compose.project.working_dir"}}\t{{.State}}';
+
+// Todos los containers de compose con su working_dir. Best-effort: sin docker, [].
+export async function containerStates(exec = defaultExec) {
+  let out;
+  try {
+    // Timeout: corre cada 15s; un daemon colgado no puede dejar polls apilados.
+    out = await exec('docker', ['ps', '-a', '--format', STATE_FORMAT], { timeout: 10_000 });
+  } catch {
+    return [];
+  }
+  const list = [];
+  for (const line of String(out).split('\n')) {
+    const [dir, state] = line.split('\t');
+    const d = norm(dir);
+    if (!d) continue;
+    list.push({ dir: d, state: (state || '').trim() });
+  }
+  return list;
+}
+
+// Estado del stack levantado dentro de `dir` (la carpeta de infra de una sesión): mismo
+// criterio por working_dir que la limpieza, así no depende del nombre de proyecto.
+export function stateForDir(containers, dir) {
+  const mine = containers.filter((c) => inside(c.dir, dir));
+  if (!mine.length) return 'off';
+  return mine.every((c) => c.state === 'running') ? 'up' : 'partial';
 }

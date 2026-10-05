@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { listStacks, stacksForDir, composeDown, downForDir, downOrphans, PS_FORMAT } from './docker.js';
+import { listStacks, stacksForDir, composeDown, downForDir, downOrphans, PS_FORMAT, containerStates, stateForDir, STATE_FORMAT } from './docker.js';
 
 // Salida típica de `docker ps -a --format '<proyecto>\t<working_dir>'`.
 const psOut = (rows) => rows.map(([p, d]) => `${p}\t${d}`).join('\n') + '\n';
@@ -127,4 +127,22 @@ test('downForDir con dryRun lista sin bajar nada', async () => {
   };
   assert.deepEqual(await downForDir(WT, { root: ROOT, exec, dryRun: true }), ['a']);
   assert.deepEqual(calls, ['ps']);
+});
+
+test('containerStates parsea working_dir y estado; sin docker devuelve []', async () => {
+  let args, opts;
+  const exec = async (f, a, o) => { args = a; opts = o; return '/wt/a/infra\trunning\n/wt/a/infra\texited\n\trunning\n/otro\trunning\n'; };
+  const r = await containerStates(exec);
+  assert.deepEqual(args, ['ps', '-a', '--format', STATE_FORMAT]);
+  assert.equal(opts.timeout, 10_000); // un daemon colgado no puede trabar el poller
+  assert.deepEqual(r, [{ dir: '/wt/a/infra', state: 'running' }, { dir: '/wt/a/infra', state: 'exited' }, { dir: '/otro', state: 'running' }]);
+  assert.deepEqual(await containerStates(async () => { throw new Error('no docker'); }), []);
+});
+
+test('stateForDir: up, partial u off según los containers dentro de dir', () => {
+  const cs = [{ dir: '/wt/a/infra', state: 'running' }, { dir: '/wt/a/infra/sub', state: 'running' }, { dir: '/wt/b/infra', state: 'exited' }, { dir: '/wt/b/infra', state: 'running' }];
+  assert.equal(stateForDir(cs, '/wt/a/infra'), 'up');
+  assert.equal(stateForDir(cs, '/wt/b/infra'), 'partial');
+  assert.equal(stateForDir(cs, '/wt/c'), 'off');
+  assert.equal(stateForDir(cs, '/wt/a/inf'), 'off'); // contención por segmento
 });

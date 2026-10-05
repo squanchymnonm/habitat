@@ -21,6 +21,14 @@ export interface Combat {
   lastDamage?: number
 }
 
+export interface SessionInfra {
+  stack: string
+  ports: Record<string, number>
+  dir: string | null
+  branch: string
+  state?: 'up' | 'partial' | 'off'
+}
+
 export interface Session {
   id: string
   name: string
@@ -36,6 +44,7 @@ export interface Session {
   quest?: SessionQuest
   monster?: Monster | null
   combat?: Combat
+  infra?: SessionInfra
 }
 
 export interface FightResult {
