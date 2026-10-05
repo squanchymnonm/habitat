@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, writeFileSync, symlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -103,6 +103,23 @@ test('teardownRelated remueve worktrees limpios y borra su rama; conserva los su
     rmSync(join(f.wtPath, RELATED_DIR, 'front', 'sucio.txt'));
     await teardownRelated({ related: f.project.related, branch: 'bob', wtPath: f.wtPath, git });
     assert.equal(await realGit.worktreeRemove(f.back, f.wtPath), true);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('prepareSession rechaza un symlink que escape del worktree (ruta inválida)', async () => {
+  const f = fixture();
+  try {
+    const outside = join(f.root, 'outside');
+    mkdirSync(outside, { recursive: true });
+    // 'cfg' es un symlink hacia afuera del repo, commiteado para que aparezca igual en
+    // el worktree relacionado; el envFile 'cfg/.env' debería resolver ahí adentro.
+    symlinkSync(outside, join(f.infraRepo, 'cfg'), 'dir');
+    gitIn(f.infraRepo, 'add', '-A');
+    gitIn(f.infraRepo, 'commit', '-m', 'symlink cfg -> outside');
+    const r = await prepareSession({ project: f.project, projectName: 'back', branch: 'bob', wtPath: f.wtPath, envStore: f.envStore, allocate, git });
+    assert.deepEqual(r, { ok: false, error: 'plantilla infra/cfg/.env: ruta inválida' });
+    assert.equal(existsSync(join(outside, '.env')), false); // no escribió afuera
+    assert.equal(existsSync(join(f.wtPath, RELATED_DIR, 'infra')), false); // rollback del relacionado
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 

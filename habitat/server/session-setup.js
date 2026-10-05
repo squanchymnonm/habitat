@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, appendFile, chmod } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, appendFile, chmod, realpath, lstat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { scan, render, stackName } from './env-template.js';
@@ -85,6 +85,26 @@ export async function prepareSession({ project, projectName, branch, wtPath, env
       const root = paths[t.repo];
       const target = resolve(root, t.path);
       if (!target.startsWith(root + sep)) return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
+      // resolve() es puramente léxico: no sigue symlinks. Si una carpeta intermedia (o el
+      // propio archivo) es un symlink hacia afuera del worktree, el chequeo de arriba
+      // igual pasa y writeFile terminaría escribiendo el secreto en otro lado. Resolvemos
+      // el ancestro existente más profundo con realpath y lo comparamos contra la raíz
+      // real del worktree; además rechazamos si el target YA existe como symlink.
+      let anc = target;
+      while (!existsSync(anc)) anc = dirname(anc);
+      let realAnc, realRoot;
+      try {
+        realAnc = await realpath(anc);
+        realRoot = await realpath(root);
+      } catch {
+        return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
+      }
+      if (realAnc !== realRoot && !realAnc.startsWith(realRoot + sep)) {
+        return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
+      }
+      if (existsSync(target) && (await lstat(target)).isSymbolicLink()) {
+        return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
+      }
       const out = render(t.content, ctx);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, out.text, { mode: 0o600 });
