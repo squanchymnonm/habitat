@@ -3,8 +3,11 @@ import { computed, ref } from 'vue'
 import { useProjects, type BrowseResult, type RepoList } from '../composables/useProjects'
 import { PALETTE } from '../palette'
 import { CHARACTERS } from '../sprites'
+import ProjectConfig from './ProjectConfig.vue'
 
 const { projects, canManage, canClone, error, browse, listRepos, cloneRepo, addProject, updateProject, removeProject } = useProjects()
+
+const configuring = ref('') // dir del proyecto cuyo panel de config está abierto
 
 // --- alta con navegador de carpetas ---
 const browsing = ref(false)
@@ -101,23 +104,29 @@ async function remove(dir: string, name: string) {
     <p class="hint" v-if="!canManage">Gestión deshabilitada: configurá HABITAT_ALLOW_SPAWN y HABITAT_PROJECTS_ROOT.</p>
 
     <ul class="plist">
-      <li v-for="p in projects" :key="p.dir" class="pitem">
-        <span class="sw" :style="{ background: p.color }"></span>
-        <span class="plabel">{{ p.name }}</span>
-        <span class="pdir">{{ p.dir }}</span>
-        <span class="swatches">
-          <button
-            v-for="c in PALETTE"
-            :key="c"
-            class="swatch"
-            :class="{ on: c === p.color }"
-            :style="{ background: c }"
-            :title="c"
-            @click="setColor(p.dir, c)"
-          />
-        </span>
-        <button class="btn del" @click="remove(p.dir, p.name)">quitar</button>
-      </li>
+      <template v-for="p in projects" :key="p.dir">
+        <li class="pitem">
+          <span class="sw" :style="{ background: p.color }"></span>
+          <span class="plabel">{{ p.name }}</span>
+          <span class="pdir">{{ p.dir }}</span>
+          <span class="swatches">
+            <button
+              v-for="c in PALETTE"
+              :key="c"
+              class="swatch"
+              :class="{ on: c === p.color }"
+              :style="{ background: c }"
+              :title="c"
+              @click="setColor(p.dir, c)"
+            />
+          </span>
+          <button class="btn del" @click="configuring = configuring === p.dir ? '' : p.dir">configurar</button>
+          <button class="btn del" @click="remove(p.dir, p.name)">quitar</button>
+        </li>
+        <li v-if="configuring === p.dir">
+          <ProjectConfig :project="p" @close="configuring = ''" />
+        </li>
+      </template>
     </ul>
 
     <div class="addbar" v-if="canManage && !browsing && !repoPanel">
