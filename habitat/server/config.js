@@ -6,6 +6,15 @@ const num = (v, d) => (v == null || v === '' ? d : Number(v));
 const bool = (v) => v === '1' || v === 'true';
 const list = (v) => (v ? String(v).split(':').map((s) => s.trim()).filter(Boolean) : []);
 
+// 'a-b' -> [a, b]. Inválido, invertido o fuera de 1024-65535 -> default.
+const range = (v, d) => {
+  const m = /^(\d+)-(\d+)$/.exec(String(v || '').trim());
+  if (!m) return d;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return a >= 1024 && b <= 65535 && a <= b ? [a, b] : d;
+};
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 export default {
@@ -20,6 +29,10 @@ export default {
   // Owners de GitHub (usuarios u orgs) cuyos repos se pueden clonar en PROJECTS_ROOT
   // desde Settings. Vacío = la función de clonar no aparece.
   CLONE_OWNERS: list(process.env.HABITAT_CLONE_OWNERS),
+  // Plantillas .env por proyecto (secretos): fuera de los repos, 0700/0600.
+  ENVS_DIR: process.env.HABITAT_ENVS_DIR || join(HERE, '..', '.habitat-envs'),
+  // Rango de puertos de host que se asignan a las sesiones ({{port:X}}).
+  PORT_RANGE: range(process.env.HABITAT_PORT_RANGE, [20000, 29999]),
   PROJECTS_STATE: process.env.HABITAT_PROJECTS_STATE || join(HERE, '..', '.projects.json'),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
   SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
