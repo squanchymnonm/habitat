@@ -2119,3 +2119,46 @@ test('GET /projects expone la config (sin plantillas)', async () => {
     assert.doesNotMatch(JSON.stringify(body), /COMPOSE_PROJECT_NAME/);
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
+
+test('POST /spawn libera los puertos reservados si prepareSession falla después de asignarlos', async () => {
+  const f = infraSetup();
+  f.cfg.PORT_RANGE = [41000, 41000]; // un solo puerto: si se filtra, el segundo spawn no puede asignar ninguno
+  // Symlink colgante commiteado en el repo 'docker': al crear el worktree relacionado para
+  // 'bob', ese symlink se checkoutea tal cual -> prepareSession lo detecta (lstat) y falla
+  // en la fase de escritura, DESPUÉS de haber asignado el puerto 'db'.
+  symlinkSync('/nonexistent-habitat-test/.env', join(f.docker, '.env'));
+  execFileSync('git', ['-C', f.docker, 'add', '-A']);
+  execFileSync('git', ['-C', f.docker, 'commit', '-m', 'symlink colgante']);
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r1 = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r1.status, 500);
+    assert.match((await r1.json()).error, /ruta inválida/);
+    // Reapuntamos la plantilla .env a una ruta sin symlink, para que el segundo spawn
+    // pueda escribir sin chocar con el mismo problema (lo único que probamos acá es que
+    // el puerto 'db' que el primer intento alcanzó a reservar haya quedado libre).
+    f.projectsStore.update({ dir: f.back, envFiles: [{ repo: 'infra', path: 'cfg/.env' }] });
+    f.envStore.set('back', 'infra', 'cfg/.env', 'DB_PORT={{port:db}}\n');
+    const r2 = await spawnReq(port, { dir: f.back, name: 'ana' });
+    assert.equal(r2.status, 200);
+    assert.equal(store.get('pending:back-ana').infra.ports.db, 41000);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn concurrentes del mismo proyecto no compiten por el mismo puerto', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const [r1, r2] = await Promise.all([
+      spawnReq(port, { dir: f.back, name: 'bob' }),
+      spawnReq(port, { dir: f.back, name: 'ana' }),
+    ]);
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});

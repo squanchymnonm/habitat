@@ -745,17 +745,27 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (!ok) { res.writeHead(500).end(); return; }
       const proj = projects.get(dir);
       let infra = null;
+      // Puertos reservados por ESTE spawn (no los de infra.ports: prepareSession puede
+      // fallar en su fase de escritura —symlink, fs— DESPUÉS de haber asignado puertos,
+      // y ahí infra queda null pero reservedPorts ya los tiene tomados).
+      const reserved = [];
+      const allocate = async (names) => {
+        const r = await allocateForSpawn(names);
+        if (r.ok) reserved.push(...Object.values(r.ports));
+        return r;
+      };
+      const releasePorts = () => { for (const p of reserved) reservedPorts.delete(p); };
       // Extras de sesión (relacionados, .env, CLAUDE.local.md). No aplica a contenedores.
       if (!nested.length && hasConfig(proj)) {
-        const r = await prepareSession({ project: proj, projectName, branch: name, wtPath: path, envStore, allocate: allocateForSpawn, git });
+        const r = await prepareSession({ project: proj, projectName, branch: name, wtPath: path, envStore, allocate, git });
         if (!r.ok) {
+          releasePorts();
           await git.worktreeRemove(dir, path, { force: true }); // todo o nada: recién creado, sin trabajo
           res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: r.error }));
           return;
         }
         infra = r.infra;
       }
-      const releasePorts = () => { if (infra) for (const p of Object.values(infra.ports)) reservedPorts.delete(p); };
       if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { releasePorts(); res.writeHead(500).end(); return; }
       announcePending(tmuxName, { name, project: projectName, branch: name, char, ...(infra ? { infra } : {}) });
       releasePorts(); // ya están en el store (session.infra.ports)
