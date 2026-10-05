@@ -34,7 +34,7 @@ function onWheel(e: WheelEvent) {
         <button
           data-test="session-item" type="button" :title="`${s.name} · ${statusLabel(s)}`"
           :aria-current="store.selectedId === s.id ? 'true' : undefined"
-          :class="cn('flex shrink-0 items-center gap-2 rounded-t-[var(--radius)] px-2.5 py-1.5 text-sm text-muted hover:text-text min-h-10',
+          :class="cn('flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-t-[var(--radius)] border-0 px-2.5 py-1.5 font-[inherit] text-sm text-muted hover:text-text',
             store.selectedId === s.id ? 'bg-surface-raised text-text shadow-[inset_0_2px_0_var(--accent)]' : 'bg-background/40')"
           @click="store.select(s.id)"
         >
@@ -47,7 +47,7 @@ function onWheel(e: WheelEvent) {
       </template>
     </draggable>
     <button v-if="mode !== 'phone'" data-test="nav-collapse" type="button"
-      class="mb-1 rounded-[var(--radius)] p-2 text-muted hover:bg-surface-raised hover:text-text"
+      class="mb-1 cursor-pointer rounded-[var(--radius)] border-0 bg-transparent p-2 font-[inherit] text-muted hover:bg-surface-raised hover:text-text"
       :aria-label="collapsed ? 'Expandir pestañas' : 'Colapsar pestañas'" @click="toggleCollapsed">
       <ChevronsDown v-if="collapsed" class="size-4" /><ChevronsUp v-else class="size-4" />
     </button>

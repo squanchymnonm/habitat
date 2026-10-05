@@ -24,4 +24,14 @@ describe('TopBar', () => {
     expect(w.get('[data-test="mana-fill"]').attributes('style')).toContain('width: 70%')
     expect(w.find('[data-test="spawn"]').exists()).toBe(true)
   })
+  // Regresión: sin el preflight de Tailwind, el trigger del menú de usuario (reka-ui
+  // DropdownMenuTrigger, un <button> real) heredaba cara blanca nativa.
+  it('el trigger del menú de usuario no depende del estilo nativo del botón', () => {
+    setActivePinia(createPinia())
+    useSessions().setAll([])
+    const w = mount(TopBar, { global: { plugins: [router] } })
+    const trigger = w.get('[aria-label="Menú"]')
+    expect(trigger.classes()).toContain('bg-transparent')
+    expect(trigger.classes()).toContain('border-0')
+  })
 })

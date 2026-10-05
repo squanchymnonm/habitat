@@ -7,7 +7,7 @@ import SpawnMenu from '../SpawnMenu.vue'
 
 <template>
   <header class="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3 pt-[env(safe-area-inset-top,0px)] sm:gap-4 sm:px-4">
-    <RouterLink to="/" class="font-display text-lg font-bold text-accent">Hábitat</RouterLink>
+    <RouterLink to="/" class="font-display text-lg font-bold text-accent no-underline">Hábitat</RouterLink>
     <SessionSummary />
     <span class="flex-1" />
     <ManaMeter />

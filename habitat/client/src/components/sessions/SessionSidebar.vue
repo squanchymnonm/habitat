@@ -37,7 +37,7 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
               <button
                 data-test="session-item" type="button"
                 :aria-current="store.selectedId === s.id ? 'true' : undefined"
-                :class="cn('flex w-full items-center gap-2.5 rounded-[var(--radius)] p-1.5 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent',
+                :class="cn('flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--radius)] border-0 bg-transparent p-1.5 text-left font-[inherit] text-inherit hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent',
                   store.selectedId === s.id && 'bg-surface-raised shadow-[inset_2px_0_0_var(--accent)]', collapsed && 'justify-center')"
                 @click="store.select(s.id)"
               >
@@ -58,7 +58,7 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
     </TooltipProvider>
     <p v-if="!store.list.length && !collapsed" class="p-3 text-sm text-muted">No hay sesiones. Creá una con “+ Nueva sesión”.</p>
     <button data-test="nav-collapse" type="button"
-      class="m-2 flex items-center justify-center gap-2 rounded-[var(--radius)] p-2 text-sm text-muted hover:bg-surface-raised hover:text-text"
+      class="m-2 flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius)] border-0 bg-transparent p-2 text-sm font-[inherit] text-muted hover:bg-surface-raised hover:text-text"
       :aria-label="collapsed ? 'Expandir barra de sesiones' : 'Colapsar barra de sesiones'" @click="toggleCollapsed">
       <PanelLeftOpen v-if="collapsed" class="size-4" /><PanelLeftClose v-else class="size-4" />
       <span v-if="!collapsed">Colapsar</span>

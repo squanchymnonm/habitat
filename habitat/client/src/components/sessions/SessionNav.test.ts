@@ -50,6 +50,32 @@ describe('SessionNav', () => {
     store.select('ezio'); await w.vm.$nextTick()
     expect(w.findAll('[data-test="session-item"]')[0].attributes('aria-current')).toBe('true')
   })
+  // Regresión: sin el preflight de Tailwind, un <button> sin bg/border explícitos
+  // hereda el estilo nativo (cara blanca, borde) — ver fix(habitat) de los triggers nuevos.
+  it('sidebar (landscape): session-item y nav-collapse no dependen del estilo nativo del botón', async () => {
+    const { w, store } = await mountNav(1440, 900)
+    const items = w.findAll('[data-test="session-item"]')
+    expect(items[1].classes()).toContain('bg-transparent') // no seleccionado
+    expect(items[1].classes()).toContain('border-0')
+    store.select('ezio'); await w.vm.$nextTick()
+    expect(items[0].classes()).toContain('bg-surface-raised') // seleccionado: token bg, no transparent
+    expect(items[0].classes()).toContain('border-0')
+    const collapseBtn = w.get('[data-test="nav-collapse"]')
+    expect(collapseBtn.classes()).toContain('bg-transparent')
+    expect(collapseBtn.classes()).toContain('border-0')
+  })
+  it('tabs (portrait): session-item y nav-collapse no dependen del estilo nativo del botón', async () => {
+    const { w, store } = await mountNav(820, 1180)
+    const items = w.findAll('[data-test="session-item"]')
+    expect(items[1].classes()).toContain('bg-background/40') // no seleccionado: token bg, no blanco nativo
+    expect(items[1].classes()).toContain('border-0')
+    store.select('ezio'); await w.vm.$nextTick()
+    expect(items[0].classes()).toContain('bg-surface-raised')
+    expect(items[0].classes()).toContain('border-0')
+    const collapseBtn = w.get('[data-test="nav-collapse"]')
+    expect(collapseBtn.classes()).toContain('bg-transparent')
+    expect(collapseBtn.classes()).toContain('border-0')
+  })
 })
 
 // Migrado de SessionPod.test.ts ("SessionPod — dot de infra"): el punto de infra
