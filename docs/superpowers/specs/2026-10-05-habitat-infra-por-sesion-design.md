@@ -74,7 +74,7 @@ Validaciones de `projects.js`:
 - `envFiles[].repo`: `self` o un `related[].name` existente. El par (`repo`, `path`)
   es único.
 - Si se quita un relacionado que todavía está referenciado por `infra` o `envFiles`, se
-  devuelve 400 con la lista de referencias.
+  devuelve 400 con la lista de referencias colgantes.
 
 ### Plantillas `.env`
 
@@ -134,7 +134,9 @@ guardar (con los `related` del proyecto) como el spawn (para saber qué puertos 
 4. **`.env`**: se hace el `render` de cada plantilla con el contexto
    `{ stack, ports, paths, branch }` y se escribe en `<worktree del repo>/<path>`, con
    permisos `0600` y creando las carpetas intermedias. Si el archivo ya existe en el
-   worktree, se sobrescribe.
+   worktree, se sobrescribe. Cada ruta escrita se agrega a `.git/info/exclude` de su
+   repo (`/<path>`), para que no aparezca en `git status` y no impida el
+   `worktree remove` del cierre.
 5. **`CLAUDE.local.md`**: se genera en la raíz del worktree principal (Claude Code lo
    carga automáticamente) y se agrega `/CLAUDE.local.md` a `.git/info/exclude`. Si el
    proyecto no tiene `infra` ni `related`, no se genera. Contenido:
@@ -144,14 +146,17 @@ guardar (con los `related` del proyecto) como el spawn (para saber qué puertos 
      infra arranca apagada y se levanta sólo si la tarea lo necesita.
    - Si hay relacionados: la lista con su ruta relativa, y que cada uno está en su propia
      rama `<rama>`, por lo que los cambios ahí se commitean y se pushean desde ese repo.
-6. **Sesión**: los datos de `infra` (stack, puertos y carpeta absoluta de infra) se pasan
-   a `announcePending`, para que la sesión provisional los tenga y la adopción en
-   `SessionStart` los conserve.
+6. **Sesión**: los datos de `infra` (`{ stack, ports, dir, branch }`, con `dir` = carpeta
+   absoluta de infra o `null`, y `branch` = la rama con la que se crearon los
+   worktrees) se pasan a `announcePending`. La adopción en `SessionStart` crea un objeto
+   de sesión nuevo, así que `hooks-logic` copia `infra` de la sesión provisional a la
+   real.
 
 **Todo o nada.** Si falla cualquier paso del 2 al 5, se remueven con `--force` los
 worktrees ya creados (los relacionados en orden inverso y después el principal), no se
 persisten los puertos y se responde `500` con `{ error: "<motivo>" }`. Por ejemplo:
-`falló el worktree de front: <stderr recortado>`, `el repo relacionado front no existe`,
+`falló el worktree de front` (`worktreeAdd` sólo devuelve un booleano), `el repo
+relacionado front no existe`,
 `no hay puertos libres en 20000-29999`, `plantilla infra/.env: variables desconocidas:
 {{path:x}}`. El cliente (`useProjects.spawn`) muestra `error` si viene en el cuerpo.
 
@@ -169,7 +174,8 @@ configuración.
 2. **Relacionados**: para cada uno, `worktreeRemove` sin forzar (si tiene cambios sin
    commitear, git lo rechaza y queda en disco). Si se removió, se ejecuta
    `git -C <related.dir> branch -d <rama>`, que sólo borra si la rama no tiene commits
-   sin mergear. Los fallos se ignoran (best-effort).
+   sin mergear. La rama se busca en `session.infra.branch` (no en `session.branch`,
+   que cambia si la sesión hace checkout). Los fallos se ignoran (best-effort).
 3. **Worktree principal**: igual que hoy.
 4. **Puertos**: se liberan al eliminar la sesión del store.
 
@@ -245,10 +251,13 @@ PR 2:
 - `POST /infra/up?id=`: ejecuta `infra.up` (o el default) con `sh -c`, con
   `cwd = infra.dir` de la sesión y timeout de 15 minutos, dentro de
   `locks.run('infra:<id>')`. Responde `{ ok, message? }`; 409 si está ocupado.
-- Polling: cada 15 segundos, una sola llamada a `docker ps -a` que trae proyecto de
-  compose y estado de cada container. Para cada sesión con `infra`, se calcula el estado
-  de su `stack`, y si cambió se actualiza `session.infra.state` y se hace broadcast de la
-  sesión. Sin docker, el estado es `apagado`.
+- Polling: cada 15 segundos, una sola llamada a `docker ps -a` que trae el
+  `working_dir` de compose y el estado de cada container. Para cada sesión con
+  `infra.dir`, el estado sale de los containers cuyo `working_dir` cae dentro de esa
+  carpeta (mismo criterio que la limpieza existente; no depende de que la plantilla
+  use `{{stack}}` como `COMPOSE_PROJECT_NAME`). Si cambió, se actualiza
+  `session.infra.state` (`up` | `partial` | `off`) y se hace broadcast de la sesión.
+  Sin docker, el estado es `off`.
 - Todo bajo el mismo cerco que spawn y kill: `ALLOW_SPAWN` y `authorize()`.
 
 ## 5. Errores
