@@ -153,6 +153,15 @@ una sesión existente.
     cd habitat/client && npm run dev                 # Vite en :5173, proxea /ws y /preview al backend
     # los sprites se generan con: bash habitat/scripts/import-assets.sh (a client/public/assets)
 
+### Temas y capturas
+
+La UI tiene temas intercambiables (Forja refinada, Pizarra pixel, Noche de taberna) definidos por
+tokens en `client/src/theme/` (`themes.ts` + `tokens.css`; el test de contraste verifica AA y que
+ambos coincidan). El tema se guarda por dispositivo (`localStorage: habitat.theme`).
+
+Para revisar la UI en los 3 temas y 3 tamaños: levantá una instancia de dev y corré
+`node scripts/screenshots.mjs --url "http://127.0.0.1:8399/?token=<token>" --out /tmp/shots`.
+
 ## Crear sesiones desde el panel (opcional)
 
 Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
