@@ -11,7 +11,6 @@ import { STATUS_LABEL } from '../types'
 import { faceFor, ago } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
-import { useCompactPods } from '../composables/useCompactPods'
 import { createLongPress } from '../composables/longPress'
 import TermKeys from './TermKeys.vue'
 import { useTermKeys } from '../composables/useTermKeys'
@@ -23,7 +22,6 @@ const termEl = ref<HTMLElement | null>(null)
 const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey } =
   useTerminal(termEl, selectedId, { onCopied: flashCopied })
 const { enabled: termKeysEnabled } = useTermKeys()
-const { compact } = useCompactPods()
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
@@ -133,7 +131,7 @@ defineExpose({ fit })
 <template>
   <div class="dpanel">
     <template v-if="store.selected">
-      <div class="dhead" :class="{ compact }" :style="headTint">
+      <div class="dhead compact" :style="headTint">
         <div class="portrait">
           <i class="rivet tl"></i><i class="rivet tr"></i><i class="rivet bl"></i><i class="rivet br"></i>
           <div class="well"><img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" /></div>
