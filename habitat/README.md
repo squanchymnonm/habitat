@@ -160,6 +160,7 @@ Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
     export HABITAT_ALLOW_SPAWN=1
     export HABITAT_PROJECTS_ROOT="/home/tu/proyectos"   # raíz para navegar y agregar proyectos desde la UI
     export HABITAT_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # opcional: siembra la lista la primera vez
+    export HABITAT_CLONE_OWNERS="MNONM-SOFTWARE:squanchymnonm"   # opcional: owners de GitHub cuyos repos se pueden clonar
 
 La lista de proyectos se gestiona desde **Settings → Proyectos**: el botón "Agregar proyecto"
 navega las carpetas dentro de `HABITAT_PROJECTS_ROOT`, y al elegir una se asigna un **color**
@@ -167,6 +168,12 @@ navega las carpetas dentro de `HABITAT_PROJECTS_ROOT`, y al elegir una se asigna
 `.projects.json`; `HABITAT_PROJECTS` solo la siembra la primera vez (después manda la UI).
 Cada proyecto puede además fijar una **allowlist de personajes**: si está seteada, al crear una
 sesión solo se ofrecen esos; si está vacía, están todos.
+
+Con `HABITAT_CLONE_OWNERS` seteado aparece además **"Clonar repo"**: lista (vía `gh repo list`)
+los repos de esos owners —usuarios u orgs, sin distinguir mayúsculas—, y al elegir uno lo clona
+por https en `HABITAT_PROJECTS_ROOT/<nombre-del-repo>` y abre el alta precargada. El server
+rechaza cualquier owner fuera de la lista. Requiere `gh` instalado y autenticado
+(`gh auth login`) con acceso a esos repos; la whitelist solo se cambia en el entorno (reinicio).
 
 Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server crea una sesión
 tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude
@@ -181,6 +188,30 @@ termines.
 > Crear sesiones spawnea procesos en tu máquina. El endpoint exige el mismo token, bind a
 > loopback, el flag `HABITAT_ALLOW_SPAWN`, y que el directorio esté en la lista de proyectos
 > gestionada desde Settings.
+
+### Infra docker y repos relacionados por sesión
+
+En **Settings → Proyectos → configurar** cada proyecto puede definir:
+
+- **Repos relacionados**: otros repos de `HABITAT_PROJECTS_ROOT` (p.ej. el repo de infra,
+  el front). Cada sesión recibe un worktree de cada uno, en su misma rama, dentro de
+  `.habitat-related/<nombre>/`. Al cerrar la sesión se remueven sin forzar: uno con
+  cambios sin commitear queda en disco (y entonces el worktree principal también, para no
+  borrar ese trabajo anidado). La rama se borra sólo en los relacionados, y sólo si no
+  tiene commits sin mergear; la del worktree principal no se toca.
+- **Infra**: en qué repo y subcarpeta está el compose, y los comandos para levantarlo y
+  bajarlo (default `docker compose up -d` / `docker compose down`).
+- **Archivos `.env`**: plantillas que guarda Habitat (en `HABITAT_ENVS_DIR`, default
+  `.habitat-envs/`, con permisos 0600) y que se escriben en cada sesión con estas
+  variables: `{{stack}}` (nombre único del stack), `{{port:NOMBRE}}` (un puerto libre de
+  `HABITAT_PORT_RANGE`, default `20000-29999`), `{{path:self}}` / `{{path:<relacionado>}}`
+  y `{{branch}}`.
+
+La sesión arranca con la infra apagada y un `CLAUDE.local.md` que le dice a Claude dónde
+está, cómo levantarla y qué puertos tiene.
+
+    export HABITAT_ENVS_DIR="/home/tu/.habitat-envs"   # opcional
+    export HABITAT_PORT_RANGE="20000-29999"            # opcional
 
 ## Hooks (command hook)
 Agregar a `~/.claude/settings.json`. `habitat-hook` debe estar en PATH o usar ruta absoluta.

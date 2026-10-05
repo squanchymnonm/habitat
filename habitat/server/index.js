@@ -1,23 +1,22 @@
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
-import { existsSync, createWriteStream } from 'node:fs';
+import { existsSync, readdirSync, createWriteStream } from 'node:fs';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
-import { createProjects } from './projects.js';
 import { readUsage, readLastAssistantText } from './transcript.js';
 import { applyEvent, staminaFromStatus, usageFromStatus, dismissAlert } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, resolveRepo } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, resolveRepo, defaultExec } from './git.js';
 import { workingStatus, branchOverview, commits as gitCommits, filePatch, fullLog } from './git-read.js';
 import * as gitWrite from './git-write.js';
 import * as gitBranches from './git-branches.js';
 import * as gitStash from './git-stash.js';
-import { prCreate } from './gh.js';
+import { prCreate, parseRepo, repoList, repoClone } from './gh.js';
 import { createLocks } from './locks.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { downForDir, downOrphans } from './docker.js';
@@ -27,6 +26,11 @@ import { CHARACTERS, autoName } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { verifyPassword } from './password.js';
 import { isAuthenticated, parseCookies, COOKIE_NAME } from './auth.js';
+import { createProjects, hasConfig } from './projects.js';
+import { createEnvStore } from './env-store.js';
+import { scan } from './env-template.js';
+import { allocatePorts, usedPorts, probePort as defaultProbePort } from './ports.js';
+import { prepareSession, teardownRelated, RELATED_DIR } from './session-setup.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 // Contador de parciales de upload, para que dos subidas simultáneas no pisen el mismo .part.
@@ -88,9 +92,28 @@ function responderDemasiadoGrande(req, res, { max, needsPassword }) {
     .end(body, () => req.socket.end());
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans } }) {
-  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans }, gh: ghOverrides = {}, envStore = createEnvStore({ dir: config.ENVS_DIR }), probePort = defaultProbePort }) {
+  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, exec: defaultExec, ...gitOverrides };
+  const gh = { repoList, repoClone, ...ghOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
+  // Puertos asignados por un spawn en vuelo que todavía no está en el store: sin esto dos
+  // spawns simultáneos podrían recibir el mismo puerto.
+  const reservedPorts = new Set();
+  // Las asignaciones van en fila: `used` se toma antes de los probes (que son async) y la
+  // reserva recién al final, así que dos asignaciones solapadas podían elegir el mismo puerto.
+  let allocChain = Promise.resolve();
+  function allocateForSpawn(names) {
+    const p = allocChain.then(async () => {
+      const used = new Set([...usedPorts(store.all()), ...reservedPorts]);
+      const r = await allocatePorts(names, { range: config.PORT_RANGE || [20000, 29999], used, probe: probePort });
+      if (r.ok) for (const port of Object.values(r.ports)) reservedPorts.add(port);
+      return r;
+    });
+    allocChain = p.catch(() => {});
+    return p;
+  }
+  // Whitelist de owners para clonar, normalizada: GitHub no distingue mayúsculas.
+  const cloneOwners = (config.CLONE_OWNERS || []).map((o) => o.toLowerCase());
   const locks = createLocks();
   // Autoriza endpoints sensibles (hooks, spawn, gestión, upload). Antes exigía loopback
   // (LOCAL); detrás de Tailscale Serve toda conexión llega como loopback, así que ese gate
@@ -140,9 +163,17 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   // Path del worktree de la sesión, o null si es una sesión "plana" (abierta sobre el
   // repo principal). La distinción importa para docker: en un worktree los containers los
   // levantó esta sesión; en el repo principal son el entorno de desarrollo del usuario.
+  // La rama de creación (infra.branch) manda sobre s.branch, que un checkout pisa.
   function sessionWorktree(s) {
-    if (!config.WORKTREES_DIR || !s || !s.project || !s.branch || !s.tmux || s.tmux === s.project) return null;
-    return worktreePaths(config.WORKTREES_DIR, s.project, s.branch).path;
+    const branch = s && ((s.infra && s.infra.branch) || s.branch);
+    if (!config.WORKTREES_DIR || !s || !s.project || !branch || !s.tmux || s.tmux === s.project) return null;
+    return worktreePaths(config.WORKTREES_DIR, s.project, branch).path;
+  }
+
+  // ¿Quedó algo dentro de <worktree>/.habitat-related/? (los relacionados removidos dejan
+  // la carpeta vacía).
+  function hasLeftoverRelated(wtPath) {
+    try { return readdirSync(join(wtPath, RELATED_DIR)).length > 0; } catch { return false; }
   }
 
   // Baja (o lista, con dryRun) los stacks de compose de un worktree. Best-effort: si el
@@ -159,7 +190,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
 
   // Lista de proyectos en el shape que consume el cliente (name = label).
   function projectsForClient() {
-    return projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+    return projects.list().map((p) => ({
+      dir: p.dir, name: p.label, color: p.color, chars: p.chars,
+      related: p.related.map((r) => ({ ...r, exists: existsSync(r.dir) })),
+      infra: p.infra, envFiles: p.envFiles,
+    }));
   }
   function broadcastProjects() {
     if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
@@ -254,7 +289,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const list = projectsForClient();
       const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
       const canManage = !!(config.ALLOW_SPAWN && config.PROJECTS_ROOT);
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, projects: list }));
+      const canClone = canManage && cloneOwners.length > 0;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, canClone, projects: list }));
       return;
     }
 
@@ -294,6 +330,56 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    // Repos clonables: los de cada owner de la whitelist, más nuevos primero. Un owner
+    // que falla (sin acceso, gh caído) se reporta aparte sin tapar a los demás.
+    if (req.method === 'GET' && url.pathname === '/projects/repos') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN || !config.PROJECTS_ROOT || cloneOwners.length === 0) { res.writeHead(403).end(); return; }
+      const results = await Promise.all(config.CLONE_OWNERS.map(async (owner) => ({ owner, r: await gh.repoList(owner) })));
+      const repos = [];
+      const errors = [];
+      for (const { owner, r } of results) {
+        if (!r.ok) { errors.push({ owner, message: r.message }); continue; }
+        for (const repo of r.repos) repos.push({ ...repo, cloned: existsSync(join(config.PROJECTS_ROOT, repo.name)) });
+      }
+      repos.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ repos, errors }));
+      return;
+    }
+
+    // Clona owner/name en PROJECTS_ROOT/name. No registra el proyecto: el cliente sigue
+    // con el alta normal (POST /projects) para elegir color y personajes.
+    if (req.method === 'POST' && url.pathname === '/projects/clone') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN || !config.PROJECTS_ROOT || cloneOwners.length === 0) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const parsed = parseRepo(body && body.repo);
+      if (!parsed) { res.writeHead(400).end(); return; }
+      if (!cloneOwners.includes(parsed.owner.toLowerCase())) { res.writeHead(403).end(); return; }
+      let realRoot;
+      try { realRoot = await realpath(config.PROJECTS_ROOT); } catch { res.writeHead(500).end(); return; }
+      const dest = join(realRoot, parsed.name);
+      let r;
+      try {
+        r = await locks.run(`clone:${dest}`, async () => {
+          if (existsSync(dest)) return null;
+          const out = await gh.repoClone(`${parsed.owner}/${parsed.name}`, dest);
+          // Un clone cortado (timeout, red) deja la carpeta a medio crear y bloquearía
+          // el reintento con 409. La borramos: antes de clonar no existía, es nuestra.
+          if (!out.ok) await rm(dest, { recursive: true, force: true }).catch(() => {});
+          return out;
+        });
+      } catch (e) {
+        res.writeHead(e && e.message === 'busy' ? 409 : 500).end();
+        return;
+      }
+      if (r === null) { res.writeHead(409).end(); return; }
+      const payload = r.ok ? { ok: true, rel: parsed.name, dir: dest } : r;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
       return;
     }
 
@@ -576,6 +662,16 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return real === realRoot || real.startsWith(realRoot + sep);
     }
 
+    const MAX_ENV_BYTES = 256 * 1024;
+    const projectJson = (r) => ({
+      dir: r.dir, name: r.label, color: r.color, chars: r.chars,
+      related: r.related.map((x) => ({ ...x, exists: existsSync(x.dir) })), infra: r.infra, envFiles: r.envFiles,
+    });
+    const sendJson = (status, obj) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(obj));
+    // Dir del checkout principal de un repo del proyecto ('self' o un relacionado).
+    const repoDirOf = (proj, repo) => (repo === 'self' ? proj.dir : (proj.related.find((r) => r.name === repo) || {}).dir);
+    const hasEnvFile = (proj, repo, path) => proj.envFiles.some((e) => e.repo === repo && e.path === path);
+
     if (req.method === 'POST' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
@@ -600,12 +696,38 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       let body;
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
-      if (!projects.has(body.dir)) { res.writeHead(404).end(); return; }
-      const r = projects.update({ dir: body.dir, label: body.label, color: body.color, chars: body.chars });
-      if (!r.ok) { res.writeHead(400).end(); return; }
+      const before = projects.get(body.dir);
+      if (!before) { res.writeHead(404).end(); return; }
+      const touchesConfig = body.related !== undefined || body.infra !== undefined || body.envFiles !== undefined;
+      if (touchesConfig) {
+        if (Array.isArray(body.related)) {
+          for (const r of body.related) {
+            // El cliente manda rel (respecto de PROJECTS_ROOT) para los recién elegidos.
+            if (r && typeof r.dir === 'string' && r.dir && !r.dir.startsWith(sep)) r.dir = resolve(config.PROJECTS_ROOT || '', r.dir);
+            if (!r || typeof r.dir !== 'string' || !(await dirWithinRoot(r.dir))) { sendJson(400, { error: `relacionado ${r && r.name}: no existe o está fuera de la carpeta de proyectos` }); return; }
+            if (!existsSync(join(r.dir, '.git'))) { sendJson(400, { error: `relacionado ${r.name}: no es un repo git` }); return; }
+          }
+        }
+        if ((await git.findNestedRepos(body.dir)).length) { sendJson(400, { error: 'un proyecto contenedor no admite relacionados ni infra' }); return; }
+      }
+      const r = projects.update({
+        dir: body.dir, label: body.label, color: body.color, chars: body.chars,
+        related: body.related, infra: body.infra, envFiles: body.envFiles,
+      });
+      if (!r.ok) { sendJson(400, { error: r.error }); return; }
+      // Plantillas de envFiles que dejaron de existir: se borran (tienen secretos). El store
+      // puede tirar sincrónico (EACCES, ENAMETOOLONG): sin catch el request quedaría colgado.
+      try {
+        for (const e of before.envFiles) {
+          if (!hasEnvFile(r.record, e.repo, e.path)) envStore.remove(basename(before.dir), e.repo, e.path);
+        }
+      } catch (err) {
+        broadcastProjects(); // la config sí cambió
+        sendJson(500, { error: `no se pudieron borrar plantillas: ${err.message}` });
+        return;
+      }
       broadcastProjects();
-      res.writeHead(200, { 'content-type': 'application/json' })
-        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      sendJson(200, projectJson(r.record));
       return;
     }
 
@@ -616,7 +738,56 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
       if (!projects.remove(body.dir)) { res.writeHead(404).end(); return; }
+      try { envStore.removeProject(basename(body.dir)); } catch (err) {
+        broadcastProjects(); // el proyecto sí se quitó
+        sendJson(500, { error: `no se pudieron borrar las plantillas: ${err.message}` });
+        return;
+      }
       broadcastProjects();
+      res.writeHead(200).end();
+      return;
+    }
+
+    if (url.pathname === '/projects/env' || url.pathname === '/projects/env/import') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      const isImport = url.pathname === '/projects/env/import';
+      const isPut = req.method === 'PUT' && !isImport;
+      if (!isPut && req.method !== 'GET') { res.writeHead(405).end(); return; }
+      let q;
+      if (isPut) {
+        let raw;
+        try { raw = await readBody(req); } catch { res.writeHead(400).end(); return; }
+        if (Buffer.byteLength(raw) > MAX_ENV_BYTES) { res.writeHead(413).end(); return; }
+        try { q = JSON.parse(raw); } catch { res.writeHead(400).end(); return; }
+      } else {
+        q = { dir: url.searchParams.get('dir'), repo: url.searchParams.get('repo'), path: url.searchParams.get('path') };
+      }
+      const proj = q && typeof q.dir === 'string' ? projects.get(q.dir) : null;
+      if (!proj) { res.writeHead(404).end(); return; }
+      const project = basename(proj.dir);
+      if (isImport) {
+        const repoDir = repoDirOf(proj, q.repo);
+        if (!repoDir || typeof q.path !== 'string' || !q.path) { res.writeHead(404).end(); return; }
+        const target = resolve(repoDir, q.path);
+        if (!target.startsWith(repoDir + sep)) { res.writeHead(400).end(); return; }
+        let realTarget, realRepo;
+        try { realTarget = await realpath(target); realRepo = await realpath(repoDir); }
+        catch { res.writeHead(404).end(); return; }
+        if (!realTarget.startsWith(realRepo + sep)) { res.writeHead(400).end(); return; }
+        try { sendJson(200, { content: await readFile(realTarget, 'utf8') }); }
+        catch { res.writeHead(404).end(); }
+        return;
+      }
+      if (!hasEnvFile(proj, q.repo, q.path)) { res.writeHead(404).end(); return; }
+      if (!isPut) { sendJson(200, { content: envStore.get(project, q.repo, q.path) }); return; }
+      if (typeof q.content !== 'string') { res.writeHead(400).end(); return; }
+      const { unknown } = scan(q.content, ['self', ...proj.related.map((r) => r.name)]);
+      if (unknown.length) { sendJson(400, { unknown }); return; }
+      try { envStore.set(project, q.repo, q.path, q.content); } catch (err) {
+        sendJson(500, { error: `no se pudo guardar la plantilla: ${err.message}` });
+        return;
+      }
       res.writeHead(200).end();
       return;
     }
@@ -669,12 +840,40 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (char) store.setPendingChar(tmuxName, char);
       // base = rama default del repo (origin/HEAD), resuelta automáticamente.
       const base = await git.remoteDefaultBranch(dir);
+      // worktreeAdd reutiliza un worktree que ya esté en la ruta (típico: un cierre previo
+      // lo dejó en disco porque tenía cambios). Ése no se borra nunca en un rollback.
+      const existed = existsSync(path);
       const ok = nested.length
         ? await git.containerWorktreeAdd(dir, name, path, nested) // base por repo (origin/HEAD)
         : await git.worktreeAdd(dir, name, base, path);
       if (!ok) { res.writeHead(500).end(); return; }
-      if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
-      announcePending(tmuxName, { name, project: projectName, branch: name, char });
+      const proj = projects.get(dir);
+      let infra = null;
+      // Puertos reservados por ESTE spawn (no los de infra.ports: prepareSession puede
+      // fallar en su fase de escritura —symlink, fs— DESPUÉS de haber asignado puertos,
+      // y ahí infra queda null pero reservedPorts ya los tiene tomados).
+      const reserved = [];
+      const allocate = async (names) => {
+        const r = await allocateForSpawn(names);
+        if (r.ok) reserved.push(...Object.values(r.ports));
+        return r;
+      };
+      const releasePorts = () => { for (const p of reserved) reservedPorts.delete(p); };
+      // Extras de sesión (relacionados, .env, CLAUDE.local.md). No aplica a contenedores.
+      if (!nested.length && hasConfig(proj)) {
+        const r = await prepareSession({ project: proj, projectName, branch: name, wtPath: path, envStore, allocate, git });
+        if (!r.ok) {
+          releasePorts();
+          // todo o nada, pero sólo si lo creó este spawn (recién creado = sin trabajo)
+          if (!existed) await git.worktreeRemove(dir, path, { force: true });
+          res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: r.error }));
+          return;
+        }
+        infra = r.infra;
+      }
+      if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { releasePorts(); res.writeHead(500).end(); return; }
+      announcePending(tmuxName, { name, project: projectName, branch: name, char, ...(infra ? { infra } : {}) });
+      releasePorts(); // ya están en el store (session.infra.ports)
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
       return;
     }
@@ -723,6 +922,12 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
         if (config.DOCKER_CLEANUP) await dockerDown(wtPath);
         const projectDir = (projects.list().find((p) => basename(p.dir) === s.project) || {}).dir;
         if (projectDir) {
+          const proj = projects.get(projectDir);
+          if (proj && proj.related.length) {
+            // Rama con la que se crearon los relacionados (session.branch cambia con un checkout).
+            const branch = (s.infra && s.infra.branch) || s.branch;
+            await teardownRelated({ related: proj.related, branch, wtPath, git });
+          }
           const nested = await git.findNestedRepos(projectDir);
           // Contenedor: remover primero los hijos (sin force: si hay cambios sin commitear git
           // rechaza y se deja en disco), luego el padre. Si un hijo queda, el padre tampoco se
@@ -730,7 +935,10 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
           for (const name of nested) {
             await git.worktreeRemove(join(projectDir, name), join(wtPath, name));
           }
-          await git.worktreeRemove(projectDir, wtPath);
+          // Si quedó algún relacionado (sucio, o quitado de la config mientras la sesión
+          // vivía), el principal tampoco se remueve: .habitat-related/ está en info/exclude,
+          // así que git lo vería limpio y borraría recursivamente el trabajo anidado.
+          if (!hasLeftoverRelated(wtPath)) await git.worktreeRemove(projectDir, wtPath);
         }
       }
       store.remove(id); // ya persiste a disco

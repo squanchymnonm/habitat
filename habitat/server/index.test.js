@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync, readFileSync, readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,6 +13,8 @@ import { createProjects } from './projects.js';
 import { NAMES } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { hashPassword } from './password.js';
+import { createEnvStore } from './env-store.js';
+import { RELATED_DIR } from './session-setup.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -1877,4 +1879,480 @@ test('docker endpoints sin token -> 401', async () => {
   assert.equal(a.status, 401);
   assert.equal(b.status, 401);
   server.close();
+});
+
+// --- Clonar repos de owners whitelisteados ---
+
+function cloneSetup({ gh, owners = ['MNONM-SOFTWARE', 'squanchymnonm'] } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [], CLONE_OWNERS: owners };
+  const { server } = createApp({ config: cfg, store: createStore(), gh });
+  return { root, server };
+}
+const postClone = (port, body) => fetch(`http://127.0.0.1:${port}/projects/clone`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+});
+
+test('GET /projects expone canClone sólo con whitelist', async () => {
+  const { root, server } = cloneSetup();
+  try {
+    const port = await listen(server);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.equal(body.canClone, true);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+  const { root: root2, server: server2 } = cloneSetup({ owners: [] });
+  try {
+    const port = await listen(server2);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.equal(body.canClone, false);
+  } finally { server2.close(); rmSync(root2, { recursive: true, force: true }); }
+});
+
+test('GET /projects/repos junta los owners, marca cloned y reporta errores por owner', async () => {
+  const gh = {
+    repoList: async (owner) => owner === 'squanchymnonm'
+      ? { ok: false, message: 'boom' }
+      : { ok: true, repos: [
+        { name: 'viejo', nameWithOwner: 'MNONM-SOFTWARE/viejo', description: '', isPrivate: false, updatedAt: '2025-01-01T00:00:00Z' },
+        { name: 'nuevo', nameWithOwner: 'MNONM-SOFTWARE/nuevo', description: 'd', isPrivate: true, updatedAt: '2026-01-01T00:00:00Z' },
+      ] },
+  };
+  const { root, server } = cloneSetup({ gh });
+  mkdirSync(join(root, 'viejo'));
+  try {
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/repos`, { headers: auth });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.deepEqual(body.repos.map((x) => [x.nameWithOwner, x.cloned]), [
+      ['MNONM-SOFTWARE/nuevo', false],
+      ['MNONM-SOFTWARE/viejo', true],
+    ]);
+    assert.deepEqual(body.errors, [{ owner: 'squanchymnonm', message: 'boom' }]);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('GET /projects/repos sin whitelist -> 403', async () => {
+  const { root, server } = cloneSetup({ owners: [] });
+  try {
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/repos`, { headers: auth });
+    assert.equal(r.status, 403);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone clona un repo whitelisteado (owner case-insensitive) en el root', async () => {
+  let called;
+  const gh = { repoClone: async (repo, dest) => { called = { repo, dest }; mkdirSync(dest); return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const r = await postClone(port, { repo: 'mnonm-software/habitat' });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.rel, 'habitat');
+    assert.equal(called.repo, 'mnonm-software/habitat');
+    assert.equal(called.dest, join(realpathSync(root), 'habitat'));
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone rechaza owners fuera de la whitelist (403) y formatos inválidos (400)', async () => {
+  let called = false;
+  const gh = { repoClone: async () => { called = true; return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    assert.equal((await postClone(port, { repo: 'evil/habitat' })).status, 403);
+    assert.equal((await postClone(port, { repo: 'MNONM-SOFTWARE/..' })).status, 400);
+    assert.equal((await postClone(port, { repo: 'MNONM-SOFTWARE/a/b' })).status, 400);
+    assert.equal(called, false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone con destino existente -> 409', async () => {
+  let called = false;
+  const gh = { repoClone: async () => { called = true; return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  mkdirSync(join(root, 'habitat'));
+  try {
+    const port = await listen(server);
+    assert.equal((await postClone(port, { repo: 'squanchymnonm/habitat' })).status, 409);
+    assert.equal(called, false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone fallido borra la carpeta a medio crear y devuelve el mensaje', async () => {
+  const gh = { repoClone: async (repo, dest) => { mkdirSync(dest); writeFileSync(join(dest, 'x'), ''); return { ok: false, message: 'repo not found' }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const r = await postClone(port, { repo: 'squanchymnonm/habitat' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: false, message: 'repo not found' });
+    assert.equal(existsSync(join(root, 'habitat')), false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone en paralelo al mismo destino -> el segundo 409', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const gh = { repoClone: async (repo, dest) => { await gate; mkdirSync(dest); return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const first = postClone(port, { repo: 'squanchymnonm/habitat' });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await postClone(port, { repo: 'squanchymnonm/habitat' })).status, 409);
+    release();
+    assert.equal((await first).status, 200);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+// --- Infra y relacionados por sesión ---
+
+function initRepoAt(dir) {
+  mkdirSync(dir, { recursive: true });
+  const g = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
+  g('init', '-b', 'main'); g('config', 'user.email', 't@l'); g('config', 'user.name', 't');
+  writeFileSync(join(dir, 'README.md'), 'x\n'); g('add', '-A'); g('commit', '-m', 'init');
+}
+
+function infraSetup() {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-infra-'));
+  const back = join(root, 'proyectos', 'back');
+  const docker = join(root, 'proyectos', 'docker');
+  initRepoAt(back); initRepoAt(docker);
+  const projectsStore = createProjects({ seed: [back] });
+  projectsStore.update({
+    dir: back,
+    related: [{ dir: docker, name: 'infra' }],
+    infra: { repo: 'infra', path: '', up: 'make up', down: '' },
+    envFiles: [{ repo: 'infra', path: '.env' }],
+  });
+  const envStore = createEnvStore();
+  envStore.set('back', 'infra', '.env', 'COMPOSE_PROJECT_NAME={{stack}}\nAPP={{path:self}}\nDB_PORT={{port:db}}\n');
+  const cfg = {
+    ...config, ALLOW_SPAWN: true, PROJECTS: [], PROJECTS_ROOT: join(root, 'proyectos'),
+    WORKTREES_DIR: join(root, 'wt'), PORT_RANGE: [41000, 41100], DOCKER_CLEANUP: false,
+  };
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  return { root, back, docker, projectsStore, envStore, cfg, tmux };
+}
+const spawnReq = (port, body) => fetch(`http://127.0.0.1:${port}/spawn`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+});
+const jsonReq = (port, method, path, body) => fetch(`http://127.0.0.1:${port}${path}`, {
+  method, headers: { ...auth, 'content-type': 'application/json' }, body: body && JSON.stringify(body),
+});
+
+test('POST /spawn con config arma relacionados, .env e infra en la sesión provisional', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    const infraDir = join(wt, RELATED_DIR, 'infra');
+    const env = readFileSync(join(infraDir, '.env'), 'utf8');
+    assert.match(env, /COMPOSE_PROJECT_NAME=back-bob/);
+    assert.match(env, new RegExp(`APP=${wt}`));
+    assert.match(env, /DB_PORT=410\d\d/);
+    assert.ok(existsSync(join(wt, 'CLAUDE.local.md')));
+    const pod = store.get('pending:back-bob');
+    assert.equal(pod.infra.dir, infraDir);
+    assert.equal(pod.infra.branch, 'bob');
+    assert.ok(pod.infra.ports.db >= 41000 && pod.infra.ports.db <= 41100);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn con config inválida en el spawn -> 500 con error y rollback del worktree', async () => {
+  const f = infraSetup();
+  f.envStore.set('back', 'infra', '.env', 'X={{path:front}}');
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await r.json(), { error: 'plantilla infra/.env: variables desconocidas: {{path:front}}' });
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn de dos sesiones del mismo proyecto no repite puertos', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'ana' })).status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /kill limpia los worktrees relacionados y su rama', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    assert.equal(store.get('pending:back-bob').infra.branch, 'bob'); // el cierre usa esta rama
+    const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'pending:back-bob' }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+    assert.equal(execFileSync('git', ['-C', f.docker, 'branch', '--list', 'bob']).toString().trim(), '');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+const killReq = (port, id) => fetch(`http://127.0.0.1:${port}/kill`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id }),
+});
+
+test('POST /kill con un relacionado sucio conserva su trabajo y el worktree principal', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    const sucio = join(wt, RELATED_DIR, 'infra', 'sucio.txt');
+    writeFileSync(sucio, 'wip');
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.equal(readFileSync(sucio, 'utf8'), 'wip');
+    assert.ok(existsSync(join(wt, 'README.md'))); // el principal sigue en disco
+    assert.match(execFileSync('git', ['-C', f.docker, 'branch', '--list', 'bob']).toString(), /bob/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn fallido sobre un worktree reutilizado no borra el trabajo que ya tenía', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    writeFileSync(join(wt, 'sucio.txt'), 'wip'); // trabajo sin commitear: el cierre lo deja en disco
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.ok(existsSync(join(wt, 'sucio.txt')));
+    f.envStore.set('back', 'infra', '.env', 'X={{path:front}}'); // el re-spawn va a fallar
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 500);
+    assert.equal(readFileSync(join(wt, 'sucio.txt'), 'utf8'), 'wip');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /kill encuentra el worktree aunque la sesión haya cambiado de rama', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    store.upsert({ ...store.get('pending:back-bob'), branch: 'otra-rama' }); // checkout dentro de la sesión
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET /projects expone la config (sin plantillas)', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.deepEqual(body.projects[0].envFiles, [{ repo: 'infra', path: '.env' }]);
+    assert.equal(body.projects[0].related[0].name, 'infra');
+    assert.equal(body.projects[0].related[0].exists, true);
+    assert.doesNotMatch(JSON.stringify(body), /COMPOSE_PROJECT_NAME/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn libera los puertos reservados si prepareSession falla después de asignarlos', async () => {
+  const f = infraSetup();
+  f.cfg.PORT_RANGE = [41000, 41000]; // un solo puerto: si se filtra, el segundo spawn no puede asignar ninguno
+  // Symlink colgante commiteado en el repo 'docker': al crear el worktree relacionado para
+  // 'bob', ese symlink se checkoutea tal cual -> prepareSession lo detecta (lstat) y falla
+  // en la fase de escritura, DESPUÉS de haber asignado el puerto 'db'.
+  symlinkSync('/nonexistent-habitat-test/.env', join(f.docker, '.env'));
+  execFileSync('git', ['-C', f.docker, 'add', '-A']);
+  execFileSync('git', ['-C', f.docker, 'commit', '-m', 'symlink colgante']);
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r1 = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r1.status, 500);
+    assert.match((await r1.json()).error, /ruta inválida/);
+    // Reapuntamos la plantilla .env a una ruta sin symlink, para que el segundo spawn
+    // pueda escribir sin chocar con el mismo problema (lo único que probamos acá es que
+    // el puerto 'db' que el primer intento alcanzó a reservar haya quedado libre).
+    f.projectsStore.update({ dir: f.back, envFiles: [{ repo: 'infra', path: 'cfg/.env' }] });
+    f.envStore.set('back', 'infra', 'cfg/.env', 'DB_PORT={{port:db}}\n');
+    const r2 = await spawnReq(port, { dir: f.back, name: 'ana' });
+    assert.equal(r2.status, 200);
+    assert.equal(store.get('pending:back-ana').infra.ports.db, 41000);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn concurrentes del mismo proyecto no compiten por el mismo puerto', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const [r1, r2] = await Promise.all([
+      spawnReq(port, { dir: f.back, name: 'bob' }),
+      spawnReq(port, { dir: f.back, name: 'ana' }),
+    ]);
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn concurrentes con un probe lento no reciben el mismo puerto', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  // Probe que se queda esperando hasta que llegue otra llamada (o un timeout): sin
+  // serializar la asignación, los dos spawns prueban el mismo puerto a la vez.
+  let waiting = null;
+  const probePort = async () => {
+    if (waiting) { waiting(); waiting = null; return true; }
+    await new Promise((r) => { waiting = r; setTimeout(r, 300); });
+    waiting = null;
+    return true;
+  };
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux, probePort });
+  try {
+    const port = await listen(server);
+    const [r1, r2] = await Promise.all([
+      spawnReq(port, { dir: f.back, name: 'bob' }),
+      spawnReq(port, { dir: f.back, name: 'ana' }),
+    ]);
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('PATCH /projects guarda config válida y rechaza relacionados fuera del root o no-repo', async () => {
+  const f = infraSetup();
+  const outside = mkdtempSync(join(tmpdir(), 'habitat-out-')); initRepoAt(outside);
+  const notRepo = join(f.root, 'proyectos', 'plain'); mkdirSync(notRepo);
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const ok = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, infra: { repo: 'self', path: 'docker', up: '', down: '' } });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).infra.path, 'docker');
+    // dir relativo al root (lo que manda el navegador de carpetas) se resuelve en el server
+    const relOk = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: 'docker', name: 'infra' }] });
+    assert.equal(relOk.status, 200);
+    assert.equal((await relOk.json()).related[0].dir, f.docker);
+    const out = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: outside, name: 'x' }] });
+    assert.equal(out.status, 400);
+    assert.match((await out.json()).error, /fuera de la carpeta de proyectos/);
+    const plain = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: notRepo, name: 'x' }] });
+    assert.equal(plain.status, 400);
+    assert.match((await plain.json()).error, /no es un repo git/);
+    const dangling = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [] });
+    assert.equal(dangling.status, 400);
+    assert.match((await dangling.json()).error, /referencias a relacionados inexistentes/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
+});
+
+test('PATCH /projects quitar un envFile borra su plantilla', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await jsonReq(port, 'PATCH', '/projects', { dir: f.back, envFiles: [] })).status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), '');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET/PUT /projects/env leen y validan la plantilla', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const q = `dir=${encodeURIComponent(f.back)}&repo=infra&path=.env`;
+    const g = await fetch(`http://127.0.0.1:${port}/projects/env?${q}`, { headers: auth });
+    assert.match((await g.json()).content, /COMPOSE_PROJECT_NAME/);
+    const bad = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A={{path:front}}' });
+    assert.equal(bad.status, 400);
+    assert.deepEqual(await bad.json(), { unknown: ['{{path:front}}'] });
+    const good = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A={{path:infra}}' });
+    assert.equal(good.status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), 'A={{path:infra}}');
+    const missing = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'self', path: '.env', content: 'x' });
+    assert.equal(missing.status, 404); // (self, .env) no está en envFiles
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET /projects/env/import lee el .env del checkout y no se escapa del repo', async () => {
+  const f = infraSetup();
+  writeFileSync(join(f.docker, '.env'), 'REAL=1\n');
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const base = `http://127.0.0.1:${port}/projects/env/import?dir=${encodeURIComponent(f.back)}`;
+    const r = await fetch(`${base}&repo=infra&path=.env`, { headers: auth });
+    assert.deepEqual(await r.json(), { content: 'REAL=1\n' });
+    assert.equal((await fetch(`${base}&repo=infra&path=..%2Fback%2FREADME.md`, { headers: auth })).status, 400);
+    assert.equal((await fetch(`${base}&repo=self&path=.env`, { headers: auth })).status, 404);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('DELETE /projects borra las plantillas del proyecto', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await jsonReq(port, 'DELETE', '/projects', { dir: f.back })).status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), '');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('/projects/env y la gestión de proyectos responden 500 si el store de plantillas tira', async () => {
+  const f = infraSetup();
+  const boom = () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); };
+  const envStore = { get: f.envStore.get, set: boom, remove: boom, removeProject: boom };
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore, tmux: f.tmux });
+  const req = (port, method, path, body) => fetch(`http://127.0.0.1:${port}${path}`, {
+    method, headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    signal: AbortSignal.timeout(2000), // sin el fix el request queda colgado
+  });
+  try {
+    const port = await listen(server);
+    assert.equal((await req(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A=1' })).status, 500);
+    assert.equal((await req(port, 'PATCH', '/projects', { dir: f.back, envFiles: [] })).status, 500);
+    assert.equal((await req(port, 'DELETE', '/projects', { dir: f.back })).status, 500);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('PATCH /projects rechaza infra/related en un proyecto contenedor', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-container-'));
+  const container = join(root, 'proyectos', 'container');
+  mkdirSync(container, { recursive: true }); // el contenedor en sí NO es un repo git
+  initRepoAt(join(container, 'a'));
+  initRepoAt(join(container, 'b'));
+  const projectsStore = createProjects({ seed: [container] });
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: join(root, 'proyectos'), PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, envStore: createEnvStore() });
+  try {
+    const port = await listen(server);
+    const r = await jsonReq(port, 'PATCH', '/projects', { dir: container, infra: { repo: 'self', path: '', up: '', down: '' } });
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'un proyecto contenedor no admite relacionados ni infra' });
+    assert.equal(projectsStore.get(container).infra, null);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
 });

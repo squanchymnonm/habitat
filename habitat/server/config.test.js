@@ -53,3 +53,27 @@ test('EDITOR: nvim por default, configurable con HABITAT_EDITOR', async () => {
   assert.equal(b.EDITOR, 'vim');
   delete process.env.HABITAT_EDITOR;
 });
+
+test('config: CLONE_OWNERS parsea la whitelist separada por :', async () => {
+  process.env.HABITAT_CLONE_OWNERS = 'MNONM-SOFTWARE: squanchymnonm';
+  const { default: cfg } = await import(`./config.js?clone=${Math.random()}`);
+  assert.deepEqual(cfg.CLONE_OWNERS, ['MNONM-SOFTWARE', 'squanchymnonm']);
+  delete process.env.HABITAT_CLONE_OWNERS;
+  const { default: cfg2 } = await import(`./config.js?clone=${Math.random()}`);
+  assert.deepEqual(cfg2.CLONE_OWNERS, []);
+});
+
+test('config: ENVS_DIR y PORT_RANGE con defaults y parseo', async () => {
+  delete process.env.HABITAT_ENVS_DIR;
+  process.env.HABITAT_PORT_RANGE = '30000-30010';
+  const { default: cfg } = await import(`./config.js?range=${Math.random()}`);
+  assert.ok(cfg.ENVS_DIR.endsWith('.habitat-envs'));
+  assert.deepEqual(cfg.PORT_RANGE, [30000, 30010]);
+  process.env.HABITAT_PORT_RANGE = 'basura';
+  const { default: cfg2 } = await import(`./config.js?range=${Math.random()}`);
+  assert.deepEqual(cfg2.PORT_RANGE, [20000, 29999]);
+  process.env.HABITAT_PORT_RANGE = '9000-80'; // invertido -> default
+  const { default: cfg3 } = await import(`./config.js?range=${Math.random()}`);
+  assert.deepEqual(cfg3.PORT_RANGE, [20000, 29999]);
+  delete process.env.HABITAT_PORT_RANGE;
+});

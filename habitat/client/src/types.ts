@@ -51,11 +51,18 @@ export interface Settings {
   permissionMode: PermissionMode
 }
 
+export interface RelatedRepo { dir: string; name: string; exists?: boolean }
+export interface InfraConfig { repo: string; path: string; up: string; down: string }
+export interface EnvFile { repo: string; path: string }
+
 export interface Project {
   dir: string
   name: string // label mostrado
   color: string
   chars?: string[]
+  related?: RelatedRepo[]
+  infra?: InfraConfig | null
+  envFiles?: EnvFile[]
 }
 
 export interface Usage { pct: number; resetAt: number } // resetAt: epoch en segundos
