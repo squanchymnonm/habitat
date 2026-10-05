@@ -15,8 +15,15 @@ export interface BrowseResult {
   entries: BrowseEntry[]
 }
 
+export interface CloneRepo {
+  name: string; nameWithOwner: string; description: string
+  isPrivate: boolean; updatedAt: string; cloned: boolean
+}
+export interface RepoList { repos: CloneRepo[]; errors: { owner: string; message: string }[] }
+
 const canSpawn = ref(false)
 const canManage = ref(false)
+const canClone = ref(false)
 const projects = ref<Project[]>([])
 const error = ref('')
 let loaded = false
@@ -27,9 +34,10 @@ async function load() {
   try {
     const res = await fetch('/projects', { headers: authHeaders() })
     if (!res.ok) return
-    const data = (await res.json()) as { canSpawn: boolean; canManage?: boolean; projects: Project[] }
+    const data = (await res.json()) as { canSpawn: boolean; canManage?: boolean; canClone?: boolean; projects: Project[] }
     canSpawn.value = data.canSpawn
     canManage.value = !!data.canManage
+    canClone.value = !!data.canClone
     projects.value = data.projects
   } catch {
     /* sin red: el botón simplemente no aparece */
@@ -50,6 +58,32 @@ async function browse(path = ''): Promise<BrowseResult | null> {
     return (await res.json()) as BrowseResult
   } catch {
     return null
+  }
+}
+
+// Repos de los owners whitelisteados (HABITAT_CLONE_OWNERS). null si no se pudo listar.
+async function listRepos(): Promise<RepoList | null> {
+  try {
+    const res = await fetch('/projects/repos', { headers: authHeaders() })
+    if (!res.ok) return null
+    return (await res.json()) as RepoList
+  } catch {
+    return null
+  }
+}
+
+// Clona owner/name en PROJECTS_ROOT. Devuelve el rel de la carpeta para seguir con el alta.
+async function cloneRepo(repo: string): Promise<{ ok: true; rel: string } | { ok: false; message: string }> {
+  const fail = (message: string) => ({ ok: false as const, message })
+  try {
+    const res = await fetch('/projects/clone', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ repo }) })
+    if (res.status === 409) return fail('ya existe una carpeta con ese nombre (o se está clonando)')
+    if (res.status === 403) return fail('ese repo no está permitido')
+    if (!res.ok) return fail('no se pudo clonar el repo')
+    const data = (await res.json()) as { ok: boolean; rel?: string; message?: string }
+    return data.ok && data.rel ? { ok: true, rel: data.rel } : fail(data.message || 'no se pudo clonar el repo')
+  } catch {
+    return fail('no se pudo clonar el repo')
   }
 }
 
@@ -154,5 +188,5 @@ export function useProjects() {
     loaded = true
     load()
   }
-  return { canSpawn, canManage, projects, error, spawn, kill, browse, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown }
+  return { canSpawn, canManage, canClone, projects, error, spawn, kill, browse, listRepos, cloneRepo, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown }
 }

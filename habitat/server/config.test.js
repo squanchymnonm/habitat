@@ -53,3 +53,12 @@ test('EDITOR: nvim por default, configurable con HABITAT_EDITOR', async () => {
   assert.equal(b.EDITOR, 'vim');
   delete process.env.HABITAT_EDITOR;
 });
+
+test('config: CLONE_OWNERS parsea la whitelist separada por :', async () => {
+  process.env.HABITAT_CLONE_OWNERS = 'MNONM-SOFTWARE: squanchymnonm';
+  const { default: cfg } = await import(`./config.js?clone=${Math.random()}`);
+  assert.deepEqual(cfg.CLONE_OWNERS, ['MNONM-SOFTWARE', 'squanchymnonm']);
+  delete process.env.HABITAT_CLONE_OWNERS;
+  const { default: cfg2 } = await import(`./config.js?clone=${Math.random()}`);
+  assert.deepEqual(cfg2.CLONE_OWNERS, []);
+});

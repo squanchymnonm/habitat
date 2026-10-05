@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { prCreate } from './gh.js';
+import { prCreate, parseRepo, repoList, repoClone, CLONE_TIMEOUT_MS } from './gh.js';
 
 const gitStub = (a) => {
   if (a.includes('symbolic-ref')) return 'origin/main\n';
@@ -198,4 +198,49 @@ test('prCreate traduce el timeout a un mensaje en español', async () => {
   const r = await prCreate('/proj', exec);
   assert.equal(r.ok, false);
   assert.ok(/tardó demasiado/.test(r.message), r.message);
+});
+
+test('parseRepo acepta owner/name y rechaza formatos raros', () => {
+  assert.deepEqual(parseRepo('MNONM-SOFTWARE/habitat.v2'), { owner: 'MNONM-SOFTWARE', name: 'habitat.v2' });
+  for (const bad of ['', 'x', 'a/b/c', '../x', 'a/..', 'a/.', '-a/b', 'a/b c', 'a/-b', null, 7]) {
+    assert.equal(parseRepo(bad), null, String(bad));
+  }
+});
+
+test('repoList llama gh repo list con --json y parsea', async () => {
+  let call;
+  const exec = async (file, args, opts) => {
+    call = { file, args, opts };
+    return JSON.stringify([{ name: 'r', nameWithOwner: 'o/r', description: null, isPrivate: true, updatedAt: '2026-01-01T00:00:00Z' }]);
+  };
+  const r = await repoList('o', exec);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.repos, [{ name: 'r', nameWithOwner: 'o/r', description: '', isPrivate: true, updatedAt: '2026-01-01T00:00:00Z' }]);
+  assert.equal(call.file, 'gh');
+  assert.deepEqual(call.args, ['repo', 'list', 'o', '--limit', '200', '--json', 'name,nameWithOwner,description,isPrivate,updatedAt']);
+  assert.ok(call.opts.timeout > 0);
+});
+
+test('repoList traduce gh no autenticado', async () => {
+  const exec = async () => { const e = new Error('x'); e.stderr = 'please run: gh auth login'; throw e; };
+  const r = await repoList('o', exec);
+  assert.equal(r.ok, false);
+  assert.ok(/gh auth login/.test(r.message));
+});
+
+test('repoClone llama gh repo clone por https al destino con timeout largo', async () => {
+  let call;
+  const exec = async (file, args, opts) => { call = { file, args, opts }; return ''; };
+  const r = await repoClone('o/r', '/root/r', exec);
+  assert.equal(r.ok, true);
+  assert.equal(call.file, 'gh');
+  assert.deepEqual(call.args, ['repo', 'clone', 'https://github.com/o/r.git', '/root/r']);
+  assert.equal(call.opts.timeout, CLONE_TIMEOUT_MS);
+});
+
+test('repoClone avisa si gh no está instalado', async () => {
+  const exec = async () => { const e = new Error('spawn gh ENOENT'); e.code = 'ENOENT'; throw e; };
+  const r = await repoClone('o/r', '/root/r', exec);
+  assert.equal(r.ok, false);
+  assert.ok(/no está instalado/.test(r.message));
 });

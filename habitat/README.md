@@ -160,6 +160,7 @@ Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
     export HABITAT_ALLOW_SPAWN=1
     export HABITAT_PROJECTS_ROOT="/home/tu/proyectos"   # raíz para navegar y agregar proyectos desde la UI
     export HABITAT_PROJECTS="/home/tu/proyecto-a:/home/tu/proyecto-b"   # opcional: siembra la lista la primera vez
+    export HABITAT_CLONE_OWNERS="MNONM-SOFTWARE:squanchymnonm"   # opcional: owners de GitHub cuyos repos se pueden clonar
 
 La lista de proyectos se gestiona desde **Settings → Proyectos**: el botón "Agregar proyecto"
 navega las carpetas dentro de `HABITAT_PROJECTS_ROOT`, y al elegir una se asigna un **color**
@@ -167,6 +168,12 @@ navega las carpetas dentro de `HABITAT_PROJECTS_ROOT`, y al elegir una se asigna
 `.projects.json`; `HABITAT_PROJECTS` solo la siembra la primera vez (después manda la UI).
 Cada proyecto puede además fijar una **allowlist de personajes**: si está seteada, al crear una
 sesión solo se ofrecen esos; si está vacía, están todos.
+
+Con `HABITAT_CLONE_OWNERS` seteado aparece además **"Clonar repo"**: lista (vía `gh repo list`)
+los repos de esos owners —usuarios u orgs, sin distinguir mayúsculas—, y al elegir uno lo clona
+por https en `HABITAT_PROJECTS_ROOT/<nombre-del-repo>` y abre el alta precargada. El server
+rechaza cualquier owner fuera de la lista. Requiere `gh` instalado y autenticado
+(`gh auth login`) con acceso a esos repos; la whitelist solo se cambia en el entorno (reinicio).
 
 Con eso, el header muestra "+ NUEVA SESIÓN": elegís un proyecto y el server crea una sesión
 tmux con nombre = basename del directorio y lanza `claude` dentro. El pod aparece cuando Claude

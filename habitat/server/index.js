@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
 import { existsSync, createWriteStream } from 'node:fs';
@@ -17,7 +17,7 @@ import { workingStatus, branchOverview, commits as gitCommits, filePatch, fullLo
 import * as gitWrite from './git-write.js';
 import * as gitBranches from './git-branches.js';
 import * as gitStash from './git-stash.js';
-import { prCreate } from './gh.js';
+import { prCreate, parseRepo, repoList, repoClone } from './gh.js';
 import { createLocks } from './locks.js';
 import { worktreePaths, worktreeName } from './worktree.js';
 import { downForDir, downOrphans } from './docker.js';
@@ -88,9 +88,12 @@ function responderDemasiadoGrande(req, res, { max, needsPassword }) {
     .end(body, () => req.socket.end());
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans } }) {
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans }, gh: ghOverrides = {} }) {
   const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
+  const gh = { repoList, repoClone, ...ghOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
+  // Whitelist de owners para clonar, normalizada: GitHub no distingue mayúsculas.
+  const cloneOwners = (config.CLONE_OWNERS || []).map((o) => o.toLowerCase());
   const locks = createLocks();
   // Autoriza endpoints sensibles (hooks, spawn, gestión, upload). Antes exigía loopback
   // (LOCAL); detrás de Tailscale Serve toda conexión llega como loopback, así que ese gate
@@ -254,7 +257,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const list = projectsForClient();
       const canSpawn = !!(config.ALLOW_SPAWN && list.length > 0);
       const canManage = !!(config.ALLOW_SPAWN && config.PROJECTS_ROOT);
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, projects: list }));
+      const canClone = canManage && cloneOwners.length > 0;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ canSpawn, canManage, canClone, projects: list }));
       return;
     }
 
@@ -294,6 +298,56 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const breadcrumbs = parts.map((name, i) => ({ name, rel: parts.slice(0, i + 1).join(sep) }));
       res.writeHead(200, { 'content-type': 'application/json' })
         .end(JSON.stringify({ root: basename(realRoot), rel: relFromRoot, breadcrumbs, entries }));
+      return;
+    }
+
+    // Repos clonables: los de cada owner de la whitelist, más nuevos primero. Un owner
+    // que falla (sin acceso, gh caído) se reporta aparte sin tapar a los demás.
+    if (req.method === 'GET' && url.pathname === '/projects/repos') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN || !config.PROJECTS_ROOT || cloneOwners.length === 0) { res.writeHead(403).end(); return; }
+      const results = await Promise.all(config.CLONE_OWNERS.map(async (owner) => ({ owner, r: await gh.repoList(owner) })));
+      const repos = [];
+      const errors = [];
+      for (const { owner, r } of results) {
+        if (!r.ok) { errors.push({ owner, message: r.message }); continue; }
+        for (const repo of r.repos) repos.push({ ...repo, cloned: existsSync(join(config.PROJECTS_ROOT, repo.name)) });
+      }
+      repos.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ repos, errors }));
+      return;
+    }
+
+    // Clona owner/name en PROJECTS_ROOT/name. No registra el proyecto: el cliente sigue
+    // con el alta normal (POST /projects) para elegir color y personajes.
+    if (req.method === 'POST' && url.pathname === '/projects/clone') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN || !config.PROJECTS_ROOT || cloneOwners.length === 0) { res.writeHead(403).end(); return; }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
+      const parsed = parseRepo(body && body.repo);
+      if (!parsed) { res.writeHead(400).end(); return; }
+      if (!cloneOwners.includes(parsed.owner.toLowerCase())) { res.writeHead(403).end(); return; }
+      let realRoot;
+      try { realRoot = await realpath(config.PROJECTS_ROOT); } catch { res.writeHead(500).end(); return; }
+      const dest = join(realRoot, parsed.name);
+      let r;
+      try {
+        r = await locks.run(`clone:${dest}`, async () => {
+          if (existsSync(dest)) return null;
+          const out = await gh.repoClone(`${parsed.owner}/${parsed.name}`, dest);
+          // Un clone cortado (timeout, red) deja la carpeta a medio crear y bloquearía
+          // el reintento con 409. La borramos: antes de clonar no existía, es nuestra.
+          if (!out.ok) await rm(dest, { recursive: true, force: true }).catch(() => {});
+          return out;
+        });
+      } catch (e) {
+        res.writeHead(e && e.message === 'busy' ? 409 : 500).end();
+        return;
+      }
+      if (r === null) { res.writeHead(409).end(); return; }
+      const payload = r.ok ? { ok: true, rel: parsed.name, dir: dest } : r;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
       return;
     }
 

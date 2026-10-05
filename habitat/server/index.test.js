@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync, readFileSync, readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1877,4 +1877,132 @@ test('docker endpoints sin token -> 401', async () => {
   assert.equal(a.status, 401);
   assert.equal(b.status, 401);
   server.close();
+});
+
+// --- Clonar repos de owners whitelisteados ---
+
+function cloneSetup({ gh, owners = ['MNONM-SOFTWARE', 'squanchymnonm'] } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-root-'));
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: root, PROJECTS: [], CLONE_OWNERS: owners };
+  const { server } = createApp({ config: cfg, store: createStore(), gh });
+  return { root, server };
+}
+const postClone = (port, body) => fetch(`http://127.0.0.1:${port}/projects/clone`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+});
+
+test('GET /projects expone canClone sólo con whitelist', async () => {
+  const { root, server } = cloneSetup();
+  try {
+    const port = await listen(server);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.equal(body.canClone, true);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+  const { root: root2, server: server2 } = cloneSetup({ owners: [] });
+  try {
+    const port = await listen(server2);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.equal(body.canClone, false);
+  } finally { server2.close(); rmSync(root2, { recursive: true, force: true }); }
+});
+
+test('GET /projects/repos junta los owners, marca cloned y reporta errores por owner', async () => {
+  const gh = {
+    repoList: async (owner) => owner === 'squanchymnonm'
+      ? { ok: false, message: 'boom' }
+      : { ok: true, repos: [
+        { name: 'viejo', nameWithOwner: 'MNONM-SOFTWARE/viejo', description: '', isPrivate: false, updatedAt: '2025-01-01T00:00:00Z' },
+        { name: 'nuevo', nameWithOwner: 'MNONM-SOFTWARE/nuevo', description: 'd', isPrivate: true, updatedAt: '2026-01-01T00:00:00Z' },
+      ] },
+  };
+  const { root, server } = cloneSetup({ gh });
+  mkdirSync(join(root, 'viejo'));
+  try {
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/repos`, { headers: auth });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.deepEqual(body.repos.map((x) => [x.nameWithOwner, x.cloned]), [
+      ['MNONM-SOFTWARE/nuevo', false],
+      ['MNONM-SOFTWARE/viejo', true],
+    ]);
+    assert.deepEqual(body.errors, [{ owner: 'squanchymnonm', message: 'boom' }]);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('GET /projects/repos sin whitelist -> 403', async () => {
+  const { root, server } = cloneSetup({ owners: [] });
+  try {
+    const port = await listen(server);
+    const r = await fetch(`http://127.0.0.1:${port}/projects/repos`, { headers: auth });
+    assert.equal(r.status, 403);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone clona un repo whitelisteado (owner case-insensitive) en el root', async () => {
+  let called;
+  const gh = { repoClone: async (repo, dest) => { called = { repo, dest }; mkdirSync(dest); return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const r = await postClone(port, { repo: 'mnonm-software/habitat' });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.rel, 'habitat');
+    assert.equal(called.repo, 'mnonm-software/habitat');
+    assert.equal(called.dest, join(realpathSync(root), 'habitat'));
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone rechaza owners fuera de la whitelist (403) y formatos inválidos (400)', async () => {
+  let called = false;
+  const gh = { repoClone: async () => { called = true; return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    assert.equal((await postClone(port, { repo: 'evil/habitat' })).status, 403);
+    assert.equal((await postClone(port, { repo: 'MNONM-SOFTWARE/..' })).status, 400);
+    assert.equal((await postClone(port, { repo: 'MNONM-SOFTWARE/a/b' })).status, 400);
+    assert.equal(called, false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone con destino existente -> 409', async () => {
+  let called = false;
+  const gh = { repoClone: async () => { called = true; return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  mkdirSync(join(root, 'habitat'));
+  try {
+    const port = await listen(server);
+    assert.equal((await postClone(port, { repo: 'squanchymnonm/habitat' })).status, 409);
+    assert.equal(called, false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone fallido borra la carpeta a medio crear y devuelve el mensaje', async () => {
+  const gh = { repoClone: async (repo, dest) => { mkdirSync(dest); writeFileSync(join(dest, 'x'), ''); return { ok: false, message: 'repo not found' }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const r = await postClone(port, { repo: 'squanchymnonm/habitat' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: false, message: 'repo not found' });
+    assert.equal(existsSync(join(root, 'habitat')), false);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test('POST /projects/clone en paralelo al mismo destino -> el segundo 409', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const gh = { repoClone: async (repo, dest) => { await gate; mkdirSync(dest); return { ok: true }; } };
+  const { root, server } = cloneSetup({ gh });
+  try {
+    const port = await listen(server);
+    const first = postClone(port, { repo: 'squanchymnonm/habitat' });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await postClone(port, { repo: 'squanchymnonm/habitat' })).status, 409);
+    release();
+    assert.equal((await first).status, 200);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -17,6 +17,9 @@ export default {
   PROJECTS: list(process.env.HABITAT_PROJECTS),
   WORKTREES_DIR: process.env.HABITAT_WORKTREES_DIR || join(homedir(), 'habitat-worktrees'),
   PROJECTS_ROOT: process.env.HABITAT_PROJECTS_ROOT || '',
+  // Owners de GitHub (usuarios u orgs) cuyos repos se pueden clonar en PROJECTS_ROOT
+  // desde Settings. Vacío = la función de clonar no aparece.
+  CLONE_OWNERS: list(process.env.HABITAT_CLONE_OWNERS),
   PROJECTS_STATE: process.env.HABITAT_PROJECTS_STATE || join(HERE, '..', '.projects.json'),
   STATE_PATH: process.env.HABITAT_STATE || join(HERE, '..', '.state.json'),
   SETTINGS_PATH: process.env.HABITAT_SETTINGS || join(HERE, '..', '.settings.json'),
