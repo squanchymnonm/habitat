@@ -376,10 +376,11 @@ defineExpose({ fit })
   border-color: rgba(232,119,58,.4);
 }
 
+/* Ojo: --color-amber es alias legacy de --state-working; el chip "esperando" usa su token propio. */
 .dpanel .chip.waiting {
   color: #1b1407;
-  background: var(--color-amber);
-  border-color: var(--color-amber);
+  background: var(--state-waiting);
+  border-color: var(--state-waiting);
 }
 
 .dpanel .chip.done {
