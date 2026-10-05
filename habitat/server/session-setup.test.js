@@ -123,6 +123,25 @@ test('prepareSession rechaza un symlink que escape del worktree (ruta inválida)
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('prepareSession rechaza un symlink colgante como destino de .env', async () => {
+  const f = fixture();
+  try {
+    const outside = join(f.root, 'outside2');
+    mkdirSync(outside, { recursive: true });
+    const pwned = join(outside, 'pwned.env');
+    // 'cfg' es un directorio real commiteado; '.env' adentro es un symlink colgante
+    // (su destino todavía no existe en este punto) hacia afuera del repo.
+    mkdirSync(join(f.infraRepo, 'cfg'), { recursive: true });
+    symlinkSync(pwned, join(f.infraRepo, 'cfg', '.env'));
+    gitIn(f.infraRepo, 'add', '-A');
+    gitIn(f.infraRepo, 'commit', '-m', 'symlink colgante cfg/.env -> outside2/pwned.env');
+    const r = await prepareSession({ project: f.project, projectName: 'back', branch: 'bob', wtPath: f.wtPath, envStore: f.envStore, allocate, git });
+    assert.deepEqual(r, { ok: false, error: 'plantilla infra/cfg/.env: ruta inválida' });
+    assert.equal(existsSync(pwned), false); // no se creó afuera
+    assert.equal(existsSync(join(f.wtPath, RELATED_DIR, 'infra')), false); // rollback del relacionado
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('claudeLocal sin infra ni puertos sólo lista relacionados', () => {
   const md = claudeLocal({ branch: 'b', stack: 's', ports: {}, infra: null, infraDirRel: null, related: [{ name: 'front' }] });
   assert.doesNotMatch(md, /Infra/);

@@ -102,9 +102,12 @@ export async function prepareSession({ project, projectName, branch, wtPath, env
       if (realAnc !== realRoot && !realAnc.startsWith(realRoot + sep)) {
         return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
       }
-      if (existsSync(target) && (await lstat(target)).isSymbolicLink()) {
-        return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
-      }
+      // lstat SIEMPRE (no sólo si existsSync): existsSync sigue symlinks, así que un
+      // symlink colgante (su destino no existe todavía) pasaría desapercibido acá y
+      // writeFile lo crearía al escribir, materializando el secreto en el destino ajeno.
+      try {
+        if ((await lstat(target)).isSymbolicLink()) return fail(`plantilla ${t.repo}/${t.path}: ruta inválida`);
+      } catch { /* ENOENT: no hay nada ahí todavía, ok */ }
       const out = render(t.content, ctx);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, out.text, { mode: 0o600 });
