@@ -24,6 +24,7 @@ describe('temas', () => {
         expect(contrastRatio(c['text-muted'], c.surface)).toBeGreaterThanOrEqual(4.5)
         expect(contrastRatio(c['accent-foreground'], c.accent)).toBeGreaterThanOrEqual(4.5)
         expect(contrastRatio(c['terminal-fg'], c['terminal-bg'])).toBeGreaterThanOrEqual(4.5)
+        expect(contrastRatio(c.background, c.danger)).toBeGreaterThanOrEqual(4.5)
       })
       it('UI y estados (3:1 contra surface)', () => {
         for (const k of ['accent', 'state-working', 'state-waiting', 'state-done', 'state-error', 'mana'] as const) {
