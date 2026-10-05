@@ -6,7 +6,6 @@ import { useCompactPods } from '../composables/useCompactPods'
 import { STATUS_LABEL, type Session } from '../types'
 import { ago, faceFor, staminaHue } from '../sprites'
 import { send } from '../composables/useSocket'
-import MiniArena from './MiniArena.vue'
 
 const props = defineProps<{ session: Session }>()
 const store = useSessions()
@@ -72,9 +71,6 @@ function dismiss() {
     </template>
 
     <template v-else>
-      <div class="niche" :class="{ boss: session.monster?.isBoss }">
-        <MiniArena :session="session" :height="56" />
-      </div>
       <div class="meta">
         <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span><span v-if="session.infra?.dir" class="infra-dot" :class="session.infra.state ?? 'off'" :title="`infra: ${session.infra.state ?? 'off'}`"></span></div>
         <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
@@ -151,33 +147,6 @@ function dismiss() {
 .pod.offline .stripe {
   background: var(--color-faint);
   opacity: .45;
-}
-
-/* ── Duel niche ───────────────────────────────────────────────────────────── */
-.pod .niche {
-  position: relative;
-  height: 96px;
-  margin: 3px 3px 0;
-  border-radius: 11px 11px 4px 4px;
-  background:
-    radial-gradient(120px 80px at 30% 122%, rgba(232,119,58,.2), transparent 70%),
-    radial-gradient(140px 90px at 78% 132%, rgba(224,169,75,.1), transparent 70%),
-    linear-gradient(180deg, #100B06, #1a130b);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.04),
-    inset 0 12px 28px -10px rgba(0,0,0,.9),
-    inset 0 -2px 6px rgba(0,0,0,.6);
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 22px 16px;
-}
-
-.pod .niche.boss {
-  background:
-    radial-gradient(140px 90px at 70% 132%, rgba(209,75,60,.22), transparent 70%),
-    linear-gradient(180deg, #120a07, #1c0f0a);
 }
 
 /* ── Meta block ───────────────────────────────────────────────────────────── */

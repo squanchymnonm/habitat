@@ -7,8 +7,8 @@ import EditorTerminal from './EditorTerminal.vue'
 import InfraBlock from './InfraBlock.vue'
 import { quotePath } from '../composables/useFiles'
 import { useSessions } from '../stores/sessions'
-import { STATUS_LABEL, type FightResult } from '../types'
-import { faceFor, ago, fmt } from '../sprites'
+import { STATUS_LABEL } from '../types'
+import { faceFor, ago } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
 import { useCompactPods } from '../composables/useCompactPods'
@@ -123,20 +123,6 @@ function onPickFile(rel: string) {
   filesOpen.value = false
 }
 
-// Overlay de loot al vencer — solo para la sesión enfocada.
-const lootShown = ref(false)
-const loot = ref<FightResult | null>(null)
-watch(
-  () => store.lastFight,
-  (lf) => {
-    if (lf && lf.id === store.selected?.id) {
-      loot.value = lf.result
-      lootShown.value = true
-      setTimeout(() => (lootShown.value = false), 2600)
-    }
-  },
-)
-
 const bagSrc = '/assets/ui/bag.png'
 const scrollSrc = '/assets/ui/scroll.png'
 const crateSrc = '/assets/ui/crate.png'
@@ -215,11 +201,6 @@ defineExpose({ fit })
       <ProjectExplorer v-if="explorerOpen" :id="store.selected.id" :tab="explorerTab"
         @close="explorerOpen = false" @opened="editorOpen = true" />
       <EditorTerminal v-if="editorOpen" :id="store.selected.id" @close="editorOpen = false" />
-      <div class="loot" :class="{ show: lootShown }" v-if="loot">
-        <img src="/assets/ui/chest.png" alt="" />
-        <div><div class="lt">★ Vencido — {{ loot.monster }}</div><div class="ls">HP <b>{{ fmt(loot.hp) }}</b> · {{ loot.hits }} golpes</div></div>
-        <div class="lf"><span>loot:</span> {{ loot.loot.join(' · ') }}</div>
-      </div>
     </template>
   </div>
 </template>
@@ -588,49 +569,4 @@ defineExpose({ fit })
 .ctxmenu button:hover:not(:disabled) { background: var(--color-raise); color: var(--color-brass); }
 .ctxmenu button:disabled { opacity: 0.4; cursor: default; }
 .ctxmenu .sc { opacity: 0.5; font-size: 11px; }
-
-/* ===== Loot toast ===== */
-.loot {
-  display: none;
-  margin-top: 14px;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
-  border-radius: var(--radius-card);
-  background: radial-gradient(200px 80px at 12% 50%, rgba(224,169,75,.16), transparent 70%),
-              linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
-  border: 1px solid rgba(224,169,75,.35);
-  box-shadow: var(--shadow-sh1);
-}
-.loot.show {
-  display: flex;
-  animation: bfadein .2s;
-}
-.loot img {
-  width: 34px;
-  height: 34px;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 3px 4px rgba(0,0,0,.5));
-  flex-shrink: 0;
-}
-.loot .lt {
-  font-family: "Fraunces", Georgia, serif;
-  font-weight: 560;
-  font-size: 15px;
-  color: var(--color-brass);
-}
-.loot .ls {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--color-dim);
-}
-.loot .ls b { color: var(--color-ink-2); }
-.loot .lf {
-  margin-left: auto;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--color-moss);
-  text-align: right;
-}
-.loot .lf span { color: var(--color-faint); }
 </style>

@@ -3,22 +3,9 @@
 
 export type Status = 'idle' | 'working' | 'waiting' | 'done' | 'error' | 'offline'
 
-export interface Monster {
-  type: string // hash del label (quest) o aleatorio (turno): elige el sprite
-  isBoss: boolean
-  label: string
-  source?: 'todo' | 'turn' // 'todo': monstruo de quest; 'turn': monstruo de turno (uso interno del server)
-}
-
 export interface SessionQuest {
   total: number
   done: number
-}
-
-export interface Combat {
-  hits: number
-  tokens: number // HP oculto del monstruo (suma del daño)
-  lastDamage?: number
 }
 
 export interface SessionInfra {
@@ -42,16 +29,7 @@ export interface Session {
   // --- capa RPG ---
   stamina: number // 0..100 = context restante
   quest?: SessionQuest
-  monster?: Monster | null
-  combat?: Combat
   infra?: SessionInfra
-}
-
-export interface FightResult {
-  monster: string
-  hp: number
-  hits: number
-  loot: string[]
 }
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
@@ -83,7 +61,6 @@ export type ServerMessage =
   | { type: 'session'; session: Session }
   | { type: 'remove'; id: string }
   | { type: 'rekey'; from: string; to: string; session: Session }
-  | { type: 'fightResult'; id: string; result: FightResult }
   | { type: 'settings'; settings: Settings }
   | { type: 'projects'; projects: Project[] }
   | { type: 'reorder'; order: string[] }
@@ -115,9 +92,9 @@ export interface Quest {
   loose?: boolean
   originPrompt: string
   claudeSummary: string
-  monster: string | null
-  damage: number
-  hits: number
+  monster?: string | null
+  damage?: number
+  hits?: number
   since: number
   dialogue: QuestExchange[]
 }

@@ -79,4 +79,11 @@ describe('sessions store — selección', () => {
     s.reorder(['c'])
     expect(s.list.map((x) => x.id)).toEqual(['c', 'a', 'b'])
   })
+
+  it('el store ya no expone combate', () => {
+    setActivePinia(createPinia())
+    const s = useSessions() as unknown as Record<string, unknown>
+    expect('fight' in s).toBe(false)
+    expect('lastFight' in s).toBe(false)
+  })
 })

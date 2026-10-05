@@ -1,9 +1,5 @@
-import type { Status } from './types'
-
 // Selección estable de sprites desde assets/ (ver habitat/scripts/import-assets.sh).
 export const CHARACTERS = ['Boy', 'Cavegirl', 'Knight', 'NinjaBlue', 'Monk', 'Hunter', 'FighterRed', 'DemonRed', 'Eskimo', 'GreenPig', 'Lion', 'Monkey', 'Inspector', 'Master', 'KnightGold', 'Caveman']
-const MONSTERS = ['Slime', 'Slime3', 'Flam', 'BlueBat', 'Mushroom', 'KappaGreen', 'Eye', 'Larva', 'Mole', 'Mouse', 'Lizard', 'Bear', 'Beast', 'GreenOctopus', 'Butterfly', 'Dragon']
-const BOSSES = ['GiantFrog', 'DemonCyclop', 'GiantBamboo', 'TenguRed', 'GiantRacoon', 'GiantSpirit', 'GiantFlam', 'TenguBlue']
 
 function hash(s: string): number {
   let h = 2166136261
@@ -26,54 +22,6 @@ export function heroIdle(name: string, char?: string): string {
 }
 export function faceFor(name: string, char?: string): string {
   return `assets/char/${resolveChar(name, char)}/face.png`
-}
-
-export type Pose = 'rest' | 'walk' | 'jump' | 'dead' | 'combat'
-
-export interface PoseRender {
-  file: string
-  mode: 'static' | 'grid' | 'strip'
-  frame?: number
-  duration?: number
-}
-
-// Cómo renderiza cada pose en <Sprite>. file = nombre del .png en assets/char/<char>/.
-export const POSE_RENDER: Record<Pose, PoseRender> = {
-  rest: { file: 'anim_idle', mode: 'strip', duration: 1600 },
-  walk: { file: 'walk', mode: 'grid', duration: 600 },
-  jump: { file: 'jump', mode: 'static', frame: 0 },
-  dead: { file: 'dead', mode: 'static', frame: 0 },
-  // combate: strip de 2 frames (frame 0 = guardia/idle mirando a la derecha, frame 1 = golpe);
-  // ver build-combat.mjs. Se muestra estático en el frame 0 (idle) y MiniArena conmuta al
-  // frame 1 solo durante el golpe (cuando sube combat.tokens).
-  combat: { file: 'anim_combat', mode: 'static', frame: 0 },
-}
-
-export function heroSprite(name: string, char: string | undefined, pose: Pose): string {
-  return `assets/char/${resolveChar(name, char)}/${POSE_RENDER[pose].file}.png`
-}
-
-export interface HeroPoseInput {
-  status: Status
-  inCombat: boolean
-  celebrating: boolean
-}
-
-// Precedencia estado+combate -> pose. Pura y testeable.
-export function heroPoseFor(s: HeroPoseInput): Pose {
-  if (s.celebrating) return 'jump'
-  if (s.status === 'offline') return 'dead'
-  if (s.inCombat) return 'combat'
-  if (s.status === 'working') return 'walk'
-  if (s.status === 'done') return 'jump'
-  return 'rest'
-}
-
-export function monsterSprite(type: string): string {
-  return `assets/monster/${MONSTERS[hash('mon' + type) % MONSTERS.length]}.png`
-}
-export function bossSprite(label: string): string {
-  return `assets/boss/${BOSSES[hash('boss' + label) % BOSSES.length]}.png`
 }
 
 export function fmt(n: number): string {
