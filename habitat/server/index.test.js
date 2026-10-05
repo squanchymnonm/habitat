@@ -2244,3 +2244,21 @@ test('DELETE /projects borra las plantillas del proyecto', async () => {
     assert.equal(f.envStore.get('back', 'infra', '.env'), '');
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
+
+test('PATCH /projects rechaza infra/related en un proyecto contenedor', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-container-'));
+  const container = join(root, 'proyectos', 'container');
+  mkdirSync(container, { recursive: true }); // el contenedor en sí NO es un repo git
+  initRepoAt(join(container, 'a'));
+  initRepoAt(join(container, 'b'));
+  const projectsStore = createProjects({ seed: [container] });
+  const cfg = { ...config, ALLOW_SPAWN: true, PROJECTS_ROOT: join(root, 'proyectos'), PROJECTS: [] };
+  const { server } = createApp({ config: cfg, store: createStore(), projectsStore, envStore: createEnvStore() });
+  try {
+    const port = await listen(server);
+    const r = await jsonReq(port, 'PATCH', '/projects', { dir: container, infra: { repo: 'self', path: '', up: '', down: '' } });
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'un proyecto contenedor no admite relacionados ni infra' });
+    assert.equal(projectsStore.get(container).infra, null);
+  } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
