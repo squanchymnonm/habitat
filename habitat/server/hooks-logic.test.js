@@ -517,3 +517,13 @@ test('usageFromStatus null si campos no numéricos; clampea >100', () => {
   assert.equal(usageFromStatus({ rate_limits: { five_hour: { used_percentage: 5 } } }), null);
   assert.deepEqual(usageFromStatus({ rate_limits: { five_hour: { used_percentage: 150, resets_at: 9 } } }), { pct: 100, resetAt: 9 });
 });
+
+test('SessionStart que adopta el pod provisional conserva su infra', () => {
+  const store = createStore();
+  store.upsert(newSession('pending:back-bob', { tmux: 'back-bob', infra: { stack: 'back-bob', ports: { db: 21000 }, dir: '/wt/x', branch: 'bob' } }));
+  const { session, removed } = applyEvent(store, {
+    session_id: 'real-1', cwd: '/wt/back/bob', hook_event_name: 'SessionStart',
+  }, { worktreeName: () => ({ project: 'back', tmux: 'back-bob' }) });
+  assert.equal(removed, 'pending:back-bob');
+  assert.deepEqual(session.infra, { stack: 'back-bob', ports: { db: 21000 }, dir: '/wt/x', branch: 'bob' });
+});

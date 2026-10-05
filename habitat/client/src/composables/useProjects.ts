@@ -136,8 +136,10 @@ async function spawn(dir: string, name: string, char?: string): Promise<boolean>
   try {
     const res = await fetch('/spawn', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ dir, name, char }) })
     if (res.ok) return true
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
     error.value =
-      res.status === 409 ? 'ya existe un personaje con ese nombre'
+      data.error ? `no se pudo crear la sesión: ${data.error}`
+      : res.status === 409 ? 'ya existe un personaje con ese nombre'
       : res.status === 400 ? 'nombre inválido'
       : res.status === 403 ? 'no permitido'
       : 'no se pudo crear la sesión'

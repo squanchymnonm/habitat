@@ -13,6 +13,8 @@ import { createProjects } from './projects.js';
 import { NAMES } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { hashPassword } from './password.js';
+import { createEnvStore } from './env-store.js';
+import { RELATED_DIR } from './session-setup.js';
 
 const config = { PORT: 0, BIND: '127.0.0.1', TOKEN: 'secret', PREVIEW_LINES: 5, MAX_CONTEXT: 200000 };
 
@@ -2005,4 +2007,115 @@ test('POST /projects/clone en paralelo al mismo destino -> el segundo 409', asyn
     release();
     assert.equal((await first).status, 200);
   } finally { server.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+// --- Infra y relacionados por sesión ---
+
+function initRepoAt(dir) {
+  mkdirSync(dir, { recursive: true });
+  const g = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
+  g('init', '-b', 'main'); g('config', 'user.email', 't@l'); g('config', 'user.name', 't');
+  writeFileSync(join(dir, 'README.md'), 'x\n'); g('add', '-A'); g('commit', '-m', 'init');
+}
+
+function infraSetup() {
+  const root = mkdtempSync(join(tmpdir(), 'habitat-infra-'));
+  const back = join(root, 'proyectos', 'back');
+  const docker = join(root, 'proyectos', 'docker');
+  initRepoAt(back); initRepoAt(docker);
+  const projectsStore = createProjects({ seed: [back] });
+  projectsStore.update({
+    dir: back,
+    related: [{ dir: docker, name: 'infra' }],
+    infra: { repo: 'infra', path: '', up: 'make up', down: '' },
+    envFiles: [{ repo: 'infra', path: '.env' }],
+  });
+  const envStore = createEnvStore();
+  envStore.set('back', 'infra', '.env', 'COMPOSE_PROJECT_NAME={{stack}}\nAPP={{path:self}}\nDB_PORT={{port:db}}\n');
+  const cfg = {
+    ...config, ALLOW_SPAWN: true, PROJECTS: [], PROJECTS_ROOT: join(root, 'proyectos'),
+    WORKTREES_DIR: join(root, 'wt'), PORT_RANGE: [41000, 41100], DOCKER_CLEANUP: false,
+  };
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => true };
+  return { root, back, docker, projectsStore, envStore, cfg, tmux };
+}
+const spawnReq = (port, body) => fetch(`http://127.0.0.1:${port}/spawn`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
+});
+
+test('POST /spawn con config arma relacionados, .env e infra en la sesión provisional', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    const infraDir = join(wt, RELATED_DIR, 'infra');
+    const env = readFileSync(join(infraDir, '.env'), 'utf8');
+    assert.match(env, /COMPOSE_PROJECT_NAME=back-bob/);
+    assert.match(env, new RegExp(`APP=${wt}`));
+    assert.match(env, /DB_PORT=410\d\d/);
+    assert.ok(existsSync(join(wt, 'CLAUDE.local.md')));
+    const pod = store.get('pending:back-bob');
+    assert.equal(pod.infra.dir, infraDir);
+    assert.equal(pod.infra.branch, 'bob');
+    assert.ok(pod.infra.ports.db >= 41000 && pod.infra.ports.db <= 41100);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn con config inválida en el spawn -> 500 con error y rollback del worktree', async () => {
+  const f = infraSetup();
+  f.envStore.set('back', 'infra', '.env', 'X={{path:front}}');
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const r = await spawnReq(port, { dir: f.back, name: 'bob' });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await r.json(), { error: 'plantilla infra/.env: variables desconocidas: {{path:front}}' });
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn de dos sesiones del mismo proyecto no repite puertos', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'ana' })).status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /kill limpia los worktrees relacionados y su rama', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    assert.equal(store.get('pending:back-bob').infra.branch, 'bob'); // el cierre usa esta rama
+    const r = await fetch(`http://127.0.0.1:${port}/kill`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'pending:back-bob' }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+    assert.equal(execFileSync('git', ['-C', f.docker, 'branch', '--list', 'bob']).toString().trim(), '');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET /projects expone la config (sin plantillas)', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const body = await (await fetch(`http://127.0.0.1:${port}/projects`, { headers: auth })).json();
+    assert.deepEqual(body.projects[0].envFiles, [{ repo: 'infra', path: '.env' }]);
+    assert.equal(body.projects[0].related[0].name, 'infra');
+    assert.equal(body.projects[0].related[0].exists, true);
+    assert.doesNotMatch(JSON.stringify(body), /COMPOSE_PROJECT_NAME/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });

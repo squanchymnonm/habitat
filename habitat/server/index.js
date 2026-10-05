@@ -6,13 +6,12 @@ import { existsSync, createWriteStream } from 'node:fs';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
-import { createProjects } from './projects.js';
 import { readUsage, readLastAssistantText } from './transcript.js';
 import { applyEvent, staminaFromStatus, usageFromStatus, dismissAlert } from './hooks-logic.js';
 import { attachWs } from './ws.js';
 import { attachTerm } from './term.js';
 import { capturePane, sendKeys, gitBranch, listSessions, newTmuxSession, killTmuxSession } from './tmux.js';
-import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, resolveRepo } from './git.js';
+import { worktreeAdd, worktreeRemove, validBranch, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, resolveRepo, defaultExec } from './git.js';
 import { workingStatus, branchOverview, commits as gitCommits, filePatch, fullLog } from './git-read.js';
 import * as gitWrite from './git-write.js';
 import * as gitBranches from './git-branches.js';
@@ -27,6 +26,10 @@ import { CHARACTERS, autoName } from './characters.js';
 import { createSessionStore } from './sessions.js';
 import { verifyPassword } from './password.js';
 import { isAuthenticated, parseCookies, COOKIE_NAME } from './auth.js';
+import { createProjects, hasConfig } from './projects.js';
+import { createEnvStore } from './env-store.js';
+import { allocatePorts, usedPorts, probePort as defaultProbePort } from './ports.js';
+import { prepareSession, teardownRelated } from './session-setup.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 // Contador de parciales de upload, para que dos subidas simultáneas no pisen el mismo .part.
@@ -88,10 +91,19 @@ function responderDemasiadoGrande(req, res, { max, needsPassword }) {
     .end(body, () => req.socket.end());
 }
 
-export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans }, gh: ghOverrides = {} }) {
-  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, ...gitOverrides };
+export function createApp({ config, store, settingsStore = createSettings(), projectsStore, sessionStore = createSessionStore({ persistPath: config.SESSIONS_PATH, ttlMs: config.SESSION_TTL_MS }), tmux = { listSessions, newTmuxSession, killTmuxSession }, git: gitOverrides = {}, editor = { openInEditor }, docker = { downForDir, downOrphans }, gh: ghOverrides = {}, envStore = createEnvStore({ dir: config.ENVS_DIR }), probePort = defaultProbePort }) {
+  const git = { worktreeAdd, worktreeRemove, findNestedRepos, containerWorktreeAdd, remoteDefaultBranch, exec: defaultExec, ...gitOverrides };
   const gh = { repoList, repoClone, ...ghOverrides };
   const projects = projectsStore || createProjects({ seed: config.PROJECTS });
+  // Puertos asignados por un spawn en vuelo que todavía no está en el store: sin esto dos
+  // spawns simultáneos podrían recibir el mismo puerto.
+  const reservedPorts = new Set();
+  async function allocateForSpawn(names) {
+    const used = new Set([...usedPorts(store.all()), ...reservedPorts]);
+    const r = await allocatePorts(names, { range: config.PORT_RANGE || [20000, 29999], used, probe: probePort });
+    if (r.ok) for (const p of Object.values(r.ports)) reservedPorts.add(p);
+    return r;
+  }
   // Whitelist de owners para clonar, normalizada: GitHub no distingue mayúsculas.
   const cloneOwners = (config.CLONE_OWNERS || []).map((o) => o.toLowerCase());
   const locks = createLocks();
@@ -162,7 +174,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
 
   // Lista de proyectos en el shape que consume el cliente (name = label).
   function projectsForClient() {
-    return projects.list().map((p) => ({ dir: p.dir, name: p.label, color: p.color, chars: p.chars }));
+    return projects.list().map((p) => ({
+      dir: p.dir, name: p.label, color: p.color, chars: p.chars,
+      related: p.related.map((r) => ({ ...r, exists: existsSync(r.dir) })),
+      infra: p.infra, envFiles: p.envFiles,
+    }));
   }
   function broadcastProjects() {
     if (hub) hub.broadcast({ type: 'projects', projects: projectsForClient() });
@@ -727,8 +743,22 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
         ? await git.containerWorktreeAdd(dir, name, path, nested) // base por repo (origin/HEAD)
         : await git.worktreeAdd(dir, name, base, path);
       if (!ok) { res.writeHead(500).end(); return; }
-      if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { res.writeHead(500).end(); return; }
-      announcePending(tmuxName, { name, project: projectName, branch: name, char });
+      const proj = projects.get(dir);
+      let infra = null;
+      // Extras de sesión (relacionados, .env, CLAUDE.local.md). No aplica a contenedores.
+      if (!nested.length && hasConfig(proj)) {
+        const r = await prepareSession({ project: proj, projectName, branch: name, wtPath: path, envStore, allocate: allocateForSpawn, git });
+        if (!r.ok) {
+          await git.worktreeRemove(dir, path, { force: true }); // todo o nada: recién creado, sin trabajo
+          res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: r.error }));
+          return;
+        }
+        infra = r.infra;
+      }
+      const releasePorts = () => { if (infra) for (const p of Object.values(infra.ports)) reservedPorts.delete(p); };
+      if (!(await tmux.newTmuxSession(tmuxName, path, undefined, { permissionMode }))) { releasePorts(); res.writeHead(500).end(); return; }
+      announcePending(tmuxName, { name, project: projectName, branch: name, char, ...(infra ? { infra } : {}) });
+      releasePorts(); // ya están en el store (session.infra.ports)
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ name: tmuxName }));
       return;
     }
@@ -777,6 +807,12 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
         if (config.DOCKER_CLEANUP) await dockerDown(wtPath);
         const projectDir = (projects.list().find((p) => basename(p.dir) === s.project) || {}).dir;
         if (projectDir) {
+          const proj = projects.get(projectDir);
+          if (proj && proj.related.length) {
+            // Rama con la que se crearon los relacionados (session.branch cambia con un checkout).
+            const branch = (s.infra && s.infra.branch) || s.branch;
+            await teardownRelated({ related: proj.related, branch, wtPath, git });
+          }
           const nested = await git.findNestedRepos(projectDir);
           // Contenedor: remover primero los hijos (sin force: si hay cambios sin commitear git
           // rechaza y se deja en disco), luego el padre. Si un hijo queda, el padre tampoco se

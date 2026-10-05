@@ -80,7 +80,7 @@ function findPodByTmux(store, { name, tmux }, exceptId) {
 }
 
 export function applyEvent(store, payload, deps) {
-  const { readUsage, now } = deps;
+  const { readUsage, now = () => Date.now() } = deps;
   const ev = payload.hook_event_name;
 
   // /clear cierra la sesión vieja y abre una nueva (otro session_id) sobre la MISMA
@@ -165,7 +165,11 @@ export function applyEvent(store, payload, deps) {
       // desde su terminal). Ahora que arrancó la sesión real, lo adoptamos: lo quitamos
       // para no dejar un pod duplicado.
       const provId = `pending:${s.tmux || s.name}`;
-      if (payload.session_id !== provId && store.get(provId)) {
+      const prov = store.get(provId);
+      if (payload.session_id !== provId && prov) {
+        // La sesión real es un objeto nuevo: heredamos del provisional lo que armó /spawn
+        // (puertos y carpeta de infra), que ningún hook vuelve a reportar.
+        if (prov.infra && !s.infra) s.infra = prov.infra;
         store.remove(provId);
         removed = provId;
       }
