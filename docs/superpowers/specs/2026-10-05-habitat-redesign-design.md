@@ -87,7 +87,7 @@ Valores iniciales (los valores finales se ajustan si no pasan el chequeo de cont
 
 - **`useTheme`:** expone el tema activo y la lista de temas, y aplica `data-theme` en `<html>`. Persiste en `localStorage` (`habitat.theme`), toleran que no exista o que lance error. Default: `forja`.
 - **`useLayoutMode`:**
-  - **Modo:** `'landscape' | 'portrait' | 'phone'`, según ancho y orientación (phone si el ancho es menor a 600 px; landscape si `ancho > alto` y el ancho es de al menos 900 px; si no, portrait).
+  - **Modo:** `'landscape' | 'portrait' | 'phone'`, según ancho y orientación (phone si `min(ancho, alto) < 600`, igual que el `isNarrowViewport` actual, así que un celular acostado también es phone; landscape si `ancho > alto` y el ancho es de al menos 900 px; si no, portrait).
   - **Colapsado:** estado `collapsed` por modo, persistido en `localStorage` (`habitat.nav.collapsed.<modo>`).
   - **Reemplazo:** sustituye a `useCompactPods`, que se elimina.
 
@@ -225,6 +225,8 @@ Los créditos de los sprites van al pie de Apariencia.
 | 2 · Modo foco | `FocusView`, `SessionHeader`, `TerminalPane`, `ToolTabs`, `PinnedPanel` y las herramientas Git, Archivos, Infra y Quest. Se elimina `DetailPanel` y los componentes que reemplaza. |
 | 3 · Tablero, celular y nueva sesión | `BoardView`, el modo phone (lista y foco a pantalla completa con barra inferior) y `NewSessionDialog`. Se elimina `SpawnMenu`. |
 | 4 · Ajustes, login y cierre | `SettingsLayout` y sus secciones, `ThemePicker`, `ProjectDetail`, `LoginView`. Se elimina `style.css` legacy, se activa el preflight, se eliminan los componentes que queden sin uso y se hace el pulido final. |
+
+Los atajos de teclado (§5) entran en el PR 2: cambiar de sesión y Esc. El atajo del tablero entra en el PR 3.
 
 Cada PR sigue el flujo de CLAUDE.md (sync con main, tests, typecheck, build, PR) y se puede desplegar.
 
