@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { Project } from '../types'
+import type { Project, RelatedRepo, InfraConfig, EnvFile } from '../types'
 
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
 const authHeaders = (): Record<string, string> => {
@@ -126,6 +126,56 @@ async function removeProject(dir: string): Promise<boolean> {
   }
 }
 
+const envQuery = (dir: string, repo: string, path: string) =>
+  `dir=${encodeURIComponent(dir)}&repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}`
+
+async function saveConfig(dir: string, cfg: { related: RelatedRepo[]; infra: InfraConfig | null; envFiles: EnvFile[] }): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch('/projects', { method: 'PATCH', headers: jsonHeaders(), body: JSON.stringify({ dir, ...cfg }) })
+    if (res.ok) { await load(); return { ok: true } }
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
+    return { ok: false, error: data.error || 'no se pudo guardar la configuración' }
+  } catch {
+    return { ok: false, error: 'no se pudo guardar la configuración' }
+  }
+}
+
+// Plantilla guardada en Habitat. null si no se pudo leer.
+async function getEnv(dir: string, repo: string, path: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/projects/env?${envQuery(dir, repo, path)}`, { headers: authHeaders() })
+    if (!res.ok) return null
+    return ((await res.json()) as { content: string }).content
+  } catch {
+    return null
+  }
+}
+
+// .env real del checkout principal, como punto de partida de la plantilla.
+async function importEnv(dir: string, repo: string, path: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/projects/env/import?${envQuery(dir, repo, path)}`, { headers: authHeaders() })
+    if (!res.ok) return null
+    return ((await res.json()) as { content: string }).content
+  } catch {
+    return null
+  }
+}
+
+async function saveEnv(dir: string, repo: string, path: string, content: string): Promise<{ ok: true } | { ok: false; unknown?: string[]; error: string }> {
+  try {
+    const res = await fetch('/projects/env', { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify({ dir, repo, path, content }) })
+    if (res.ok) return { ok: true }
+    if (res.status === 400) {
+      const data = (await res.json().catch(() => ({}))) as { unknown?: string[] }
+      if (data.unknown?.length) return { ok: false, unknown: data.unknown, error: `variables desconocidas: ${data.unknown.join(', ')}` }
+    }
+    return { ok: false, error: res.status === 413 ? 'la plantilla es demasiado grande' : 'no se pudo guardar la plantilla' }
+  } catch {
+    return { ok: false, error: 'no se pudo guardar la plantilla' }
+  }
+}
+
 function colorForProject(name: string): string {
   const p = projects.value.find((p) => basenameOf(p.dir) === name || p.name === name)
   return p?.color ?? ''
@@ -190,5 +240,5 @@ export function useProjects() {
     loaded = true
     load()
   }
-  return { canSpawn, canManage, canClone, projects, error, spawn, kill, browse, listRepos, cloneRepo, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown }
+  return { canSpawn, canManage, canClone, projects, error, spawn, kill, browse, listRepos, cloneRepo, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown, saveConfig, getEnv, importEnv, saveEnv }
 }
