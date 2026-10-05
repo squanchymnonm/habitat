@@ -4,6 +4,7 @@ import QuestBook from './QuestBook.vue'
 import FileBrowser from './FileBrowser.vue'
 import ProjectExplorer from './ProjectExplorer.vue'
 import EditorTerminal from './EditorTerminal.vue'
+import InfraBlock from './InfraBlock.vue'
 import { quotePath } from '../composables/useFiles'
 import { useSessions } from '../stores/sessions'
 import { STATUS_LABEL, type FightResult } from '../types'
@@ -163,7 +164,7 @@ defineExpose({ fit })
           <button class="tool" @click="openProject('git')" title="Cambios git"><img :src="scrollSrc" alt="" /><span class="lbl">Cambios</span></button>
           <button class="tool" @click="openProject('files')" title="Explorador de proyecto"><img :src="crateSrc" alt="" /><span class="lbl">Proyecto</span></button>
           <button
-            v-if="canSpawn && dockerStacks.length"
+            v-if="canSpawn && dockerStacks.length && !store.selected.infra?.dir"
             class="tool"
             :disabled="dockerBusy"
             :title="`Bajar containers: ${dockerStacks.join(', ')}`"
@@ -172,6 +173,8 @@ defineExpose({ fit })
           <button v-if="canSpawn" class="tool danger" @click="closeSession"><span class="ic">✕</span><span class="lbl">Cerrar</span></button>
         </div>
       </div>
+      <!-- :key por sesión: busy/error del bloque no se arrastran al cambiar de selección. -->
+      <InfraBlock v-if="canSpawn && store.selected.infra?.dir" :key="store.selected.id" :session="store.selected" class="dinfra" />
       <div class="term" :class="{ selecting: selectMode }">
         <div class="term-bar">
           <span class="tt"><b>{{ store.selected.project }}</b><span v-if="store.selected.branch"> · {{ store.selected.branch }}</span> · tmux</span>
@@ -243,6 +246,11 @@ defineExpose({ fit })
   background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
   border: 1px solid var(--color-edge);
   box-shadow: var(--shadow-sh1);
+}
+
+/* ===== Bloque de infra ===== */
+.dinfra {
+  margin-top: 16px;
 }
 
 /* ===== Card fina: modo compacto en horizontal =====

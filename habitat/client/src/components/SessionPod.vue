@@ -61,6 +61,7 @@ function dismiss() {
             :title="dismissable ? 'marcar como quieta' : ''"
             @click.stop="dismiss"
           >{{ STATUS_LABEL[session.status] }}</span>
+          <span v-if="session.infra?.dir" class="infra-dot" :class="session.infra.state ?? 'off'" :title="`infra: ${session.infra.state ?? 'off'}`"></span>
         </div>
         <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
       </div>
@@ -75,7 +76,7 @@ function dismiss() {
         <MiniArena :session="session" :height="56" />
       </div>
       <div class="meta">
-        <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span></div>
+        <div class="name">{{ session.name }} <span class="chip" :class="session.status">{{ STATUS_LABEL[session.status] }}</span><span v-if="session.infra?.dir" class="infra-dot" :class="session.infra.state ?? 'off'" :title="`infra: ${session.infra.state ?? 'off'}`"></span></div>
         <div class="repo">{{ session.project }} <span class="br" v-if="session.branch">⌥ {{ session.branch }}</span></div>
         <div class="action">{{ session.action }}</div>
         <div class="since">activa hace {{ ago(session.since) }}</div>
@@ -287,6 +288,10 @@ function dismiss() {
 .pod .chip.dismissable {
   cursor: pointer;
 }
+
+.infra-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 4px; vertical-align: middle; background: var(--color-dim); }
+.infra-dot.up { background: #4caf50; }
+.infra-dot.partial { background: var(--color-brass); }
 
 /* ── Compact variant ──────────────────────────────────────────────────────── */
 .pod.compact {
