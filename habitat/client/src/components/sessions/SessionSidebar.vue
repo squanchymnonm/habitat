@@ -9,8 +9,10 @@ import { STATUS_LABEL, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useGoToSession } from '../../composables/useGoToSession'
 
 const store = useSessions()
+const goTo = useGoToSession()
 const { collapsed, toggleCollapsed } = useLayoutMode()
 // vuedraggable v-model: aplica el orden local (optimista) y lo persiste; el WS sincroniza otros clientes.
 const items = computed<Session[]>({
@@ -31,7 +33,11 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
     <TooltipProvider :delay-duration="300">
       <draggable v-model="items" item-key="id" tag="div" class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
         :animation="150" :delay="200" :delay-on-touch-only="true">
+        <!-- Raíz real del item: TooltipRoot (reka) renderiza un fragmento y vuedraggable
+             necesita un elemento donde colgar __draggable_context, si no el drag revienta.
+             (El comentario va acá afuera: dentro del slot cuenta como un hijo más.) -->
         <template #item="{ element: s }">
+          <div data-test="session-item-root">
           <Tooltip :disabled="!collapsed">
             <TooltipTrigger as-child>
               <button
@@ -39,7 +45,7 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
                 :aria-current="store.selectedId === s.id ? 'true' : undefined"
                 :class="cn('flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--radius)] border-0 bg-transparent p-1.5 text-left font-[inherit] text-inherit hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent',
                   store.selectedId === s.id && 'bg-surface-raised shadow-[inset_2px_0_0_var(--accent)]', collapsed && 'justify-center')"
-                @click="store.select(s.id)"
+                @click="goTo(s.id)"
               >
                 <SessionAvatar :session="s" />
                 <span v-if="!collapsed" class="min-w-0 flex-1">
@@ -53,10 +59,10 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
             </TooltipTrigger>
             <TooltipContent side="right">{{ s.name }} · {{ statusLabel(s) }}</TooltipContent>
           </Tooltip>
+          </div>
         </template>
       </draggable>
     </TooltipProvider>
-    <p v-if="!store.list.length && !collapsed" class="p-3 text-sm text-muted">No hay sesiones. Creá una con “+ Nueva sesión”.</p>
     <button data-test="nav-collapse" type="button"
       class="m-2 flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius)] border-0 bg-transparent p-2 text-sm font-[inherit] text-muted hover:bg-surface-raised hover:text-text"
       :aria-label="collapsed ? 'Expandir barra de sesiones' : 'Colapsar barra de sesiones'" @click="toggleCollapsed">

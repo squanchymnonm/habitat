@@ -8,8 +8,10 @@ import { useLayoutMode } from '../../composables/useLayoutMode'
 import { STATUS_LABEL, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
 import { cn } from '@/lib/utils'
+import { useGoToSession } from '../../composables/useGoToSession'
 
 const store = useSessions()
+const goTo = useGoToSession()
 const { collapsed, toggleCollapsed, mode } = useLayoutMode()
 const items = computed<Session[]>({
   get: () => store.list,
@@ -36,7 +38,7 @@ function onWheel(e: WheelEvent) {
           :aria-current="store.selectedId === s.id ? 'true' : undefined"
           :class="cn('flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-t-[var(--radius)] border-0 px-2.5 py-1.5 font-[inherit] text-sm text-muted hover:text-text',
             store.selectedId === s.id ? 'bg-surface-raised text-text shadow-[inset_0_2px_0_var(--accent)]' : 'bg-background/40')"
-          @click="store.select(s.id)"
+          @click="goTo(s.id)"
         >
           <SessionAvatar :session="s" size="sm" />
           <span v-if="!collapsed" class="flex min-w-0 max-w-32 items-center gap-1.5">
