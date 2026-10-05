@@ -9,7 +9,7 @@ const landscape = computed(() => mode.value === 'landscape')
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col bg-background text-text font-ui">
+  <div class="flex h-full flex-col bg-background text-text font-ui">
     <TopBar />
     <div :class="landscape ? 'flex min-h-0 flex-1' : 'flex min-h-0 flex-1 flex-col'">
       <SessionNav />
