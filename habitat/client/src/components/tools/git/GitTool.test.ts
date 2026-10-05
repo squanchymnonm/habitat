@@ -274,3 +274,31 @@ describe('GitTool — estilo con tokens', () => {
     expect(panel.classes()).toContain('absolute')
   })
 })
+
+describe('GitTool — cabecera del repo', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('muestra nombre, rama y ahead/behind del repo activo', async () => {
+    setActivePinia(createPinia())
+    const repoStatus = {
+      ...statusBody,
+      overview: { ...statusBody.overview, branch: 'feature-x', ahead: 2, behind: 3 },
+      repo: { rel: '', name: 'mi-repo' },
+    }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/git/status')) return { ok: true, status: 200, json: async () => repoStatus }
+      if (url.includes('/git/stash')) return { ok: true, status: 200, json: async () => [] }
+      return { ok: true, status: 200, json: async () => ({}) }
+    }))
+
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
+    await flushPromises()
+
+    const header = w.find('[data-test="git-repo"]')
+    expect(header.exists()).toBe(true)
+    expect(header.text()).toContain('mi-repo')
+    expect(header.text()).toContain('feature-x')
+    expect(header.text()).toContain('↑2')
+    expect(header.text()).toContain('↓3')
+  })
+})

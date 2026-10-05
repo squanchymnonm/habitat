@@ -34,12 +34,12 @@ function lineSign(type: string) {
 </script>
 
 <template>
-  <div ref="box" class="absolute inset-0 z-10 flex flex-col bg-surface" role="dialog" aria-modal="true" :aria-label="`Diff de ${file}`" tabindex="-1">
+  <div ref="box" class="absolute inset-0 z-10 flex flex-col bg-surface outline-none" role="dialog" aria-modal="true" :aria-label="`Diff de ${file}`" tabindex="-1">
     <header class="flex items-center justify-between gap-2 border-b border-border px-2.5 py-2">
       <b class="min-w-0 font-mono text-sm font-medium text-text [overflow-wrap:anywhere]">{{ file }}</b>
       <button
         type="button"
-        class="inline-flex cursor-pointer items-center rounded-[var(--radius)] border-0 bg-transparent p-1 text-text hover:text-accent"
+        class="inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-[var(--radius)] border-0 bg-transparent p-1 text-text hover:text-accent"
         aria-label="Cerrar el diff"
         @click="emit('close')"
       >
@@ -53,7 +53,7 @@ function lineSign(type: string) {
           <tr v-for="(l, j) in h.lines" :key="j">
             <td class="w-px select-none px-1.5 text-right tabular-nums text-muted/70">{{ l.oldNo ?? '' }}</td>
             <td class="w-px select-none px-1.5 text-right tabular-nums text-muted/70">{{ l.newNo ?? '' }}</td>
-            <td class="whitespace-pre px-1.5 align-top" :class="lineClass(l.type)">{{ lineSign(l.type) }}{{ l.text }}</td>
+            <td class="whitespace-pre px-1.5 align-top" :class="lineClass(l.type)"><span v-if="lineSign(l.type)" class="select-none">{{ lineSign(l.type) }}</span>{{ l.text }}</td>
           </tr>
         </tbody>
       </table>

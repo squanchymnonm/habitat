@@ -10,6 +10,7 @@ import GitBranches from './GitBranches.vue'
 import GitCommits from './GitCommits.vue'
 import GitDiff from './GitDiff.vue'
 import GitIcon from './GitIcon.vue'
+import { BTN, BTN_PRIMARY, COUNT, COUNT_PRIMARY, GROUP, GROUP_H4, ERR, TAB } from './gitClasses'
 
 const props = defineProps<{ sessionId: string; path: string }>()
 
@@ -144,14 +145,6 @@ const errMsg = computed(() => {
   }
 })
 defineExpose({ repoLabel, refresh })
-
-// Clases compartidas (ex git.css), token por token.
-const BTN = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
-const BTN_PRIMARY = 'bg-accent text-accent-foreground hover:text-accent-foreground'
-const COUNT = 'rounded-full bg-surface px-1.5 text-[10px] tabular-nums text-muted'
-const COUNT_PRIMARY = 'bg-accent-foreground/20 text-accent-foreground'
-const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
-const TAB = 'cursor-pointer border-0 border-b-2 bg-transparent px-3 py-1.5 font-[inherit] text-sm'
 </script>
 
 <template>
@@ -198,8 +191,14 @@ const TAB = 'cursor-pointer border-0 border-b-2 bg-transparent px-3 py-1.5 font-
       </button>
     </nav>
 
-    <p v-if="error" class="m-0 px-3 text-sm text-danger">{{ errMsg }}</p>
-    <p v-if="actionErr" class="m-0 px-3 text-sm text-danger">{{ actionErr }}</p>
+    <p v-if="error" class="mx-3" :class="ERR">
+      <span aria-hidden="true">!</span>
+      <span>{{ errMsg }}</span>
+    </p>
+    <p v-if="actionErr" class="mx-3" :class="ERR">
+      <span aria-hidden="true">!</span>
+      <span>{{ actionErr }}</span>
+    </p>
     <p v-if="prUrl" class="px-3 text-sm [overflow-wrap:anywhere]">
       <a :href="prUrl" target="_blank" rel="noopener" class="font-mono text-accent no-underline hover:underline">{{ prUrl }}</a>
     </p>
@@ -219,7 +218,7 @@ const TAB = 'cursor-pointer border-0 border-b-2 bg-transparent px-3 py-1.5 font-
       <template v-else>
         <!-- El diff contra el default encabeza el historial: es el resumen de
              "qué cambia mi rama", y los commits son el detalle de lo mismo. -->
-        <section class="flex flex-col gap-1.5">
+        <section :class="GROUP">
           <h4 :class="GROUP_H4">
             Contra {{ status.overview.default }}
             <span :class="COUNT">{{ status.overview.files.length }}</span>

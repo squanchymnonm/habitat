@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useGit, type GitStatus, type DiffBase, type LogEntry } from '../../../composables/useGit'
 import GitIcon from './GitIcon.vue'
+import { BTN, GROUP_H4, MUTED, UL, LI, FLAT_A, stColor } from './gitClasses'
 
 const props = defineProps<{ status: GitStatus; id: string; path: string }>()
 const emit = defineEmits<{ (e: 'diff', file: string, base: DiffBase): void }>()
@@ -42,16 +43,6 @@ watch(() => [props.id, props.path] as const, () => {
   if (showAll.value) loadMore()
 })
 watch(showAll, (on) => { if (on && !log.value.length) loadMore() })
-
-// Clases compartidas (ex git.css), token por token.
-const BTN = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
-const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
-const MUTED = 'text-sm text-muted'
-const UL = 'm-0 list-none divide-y divide-border p-0'
-const LI = 'flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] px-1 py-0.5 text-base'
-const FLAT_A = 'min-w-0 flex-1 cursor-pointer font-mono text-sm text-text underline decoration-dotted underline-offset-[3px] hover:text-accent [overflow-wrap:anywhere]'
-const ST_COLOR: Record<string, string> = { M: 'text-state-working', A: 'text-state-done', D: 'text-danger' }
-function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
 </script>
 
 <template>

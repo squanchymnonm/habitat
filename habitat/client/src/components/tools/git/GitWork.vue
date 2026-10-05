@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import type { GitStatus, GitFile, DiffBase, StashEntry } from '../../../composables/useGit'
 import GitIcon from './GitIcon.vue'
+import { BTN, BTN_ICON, BTN_PRIMARY, BTN_DANGER, GROUP, GROUP_H4, COUNT, MUTED, INPUT, UL, LI, FLAT, FLAT_A, stColor } from './gitClasses'
 
 const props = defineProps<{ status: GitStatus; stash: StashEntry[] }>()
 const emit = defineEmits<{
@@ -45,24 +46,6 @@ function doAmend() {
   emit('run', 'amend', { message: commitMsg.value }, warn)
   commitMsg.value = ''
 }
-
-// Clases compartidas (ex git.css), token por token.
-const BTN = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
-const BTN_PRIMARY = 'bg-accent text-accent-foreground hover:text-accent-foreground'
-const BTN_DANGER = 'hover:text-danger'
-const GROUP = 'flex flex-col gap-1.5'
-const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
-const COUNT = 'rounded-full bg-surface px-1.5 text-[10px] tabular-nums text-muted'
-const MUTED = 'text-sm text-muted'
-const INPUT = 'rounded-[var(--radius)] border border-border bg-background px-2 py-1 font-[inherit] text-sm text-text'
-const UL = 'm-0 list-none divide-y divide-border p-0'
-const LI = 'flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] px-1 py-0.5 text-base'
-const FLAT = 'min-w-0 flex-1 bg-transparent font-mono text-sm text-text [overflow-wrap:anywhere]'
-const FLAT_A = 'min-w-0 flex-1 cursor-pointer font-mono text-sm text-text underline decoration-dotted underline-offset-[3px] hover:text-accent [overflow-wrap:anywhere]'
-
-// Color de la letra de estado por token semántico.
-const ST_COLOR: Record<string, string> = { M: 'text-state-working', A: 'text-state-done', D: 'text-danger' }
-function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
 </script>
 
 <template>
@@ -103,7 +86,7 @@ function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
         <li v-for="f in props.status.working.staged" :key="f.rel" :class="LI">
           <span class="w-4 text-center font-mono text-xs" :class="stColor(f.status)">{{ f.status }}</span>
           <a :class="FLAT_A" @click="emit('diff', f.rel, 'staged')">{{ f.rel }}</a>
-          <button type="button" :class="BTN" :aria-label="`Quitar ${f.rel} del stage`"
+          <button type="button" :class="[BTN, BTN_ICON]" :aria-label="`Quitar ${f.rel} del stage`"
             @click="emit('run', 'unstage', { paths: [f.rel] })">
             <GitIcon name="minus" />
           </button>
@@ -125,14 +108,14 @@ function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
         <li v-for="f in props.status.working.unstaged" :key="'u' + f.rel" :class="LI">
           <span class="w-4 text-center font-mono text-xs" :class="stColor(f.status)">{{ f.status }}</span>
           <a :class="FLAT_A" @click="emit('diff', f.rel, 'working')">{{ f.rel }}</a>
-          <button type="button" :class="BTN" :aria-label="`Stagear ${f.rel}`"
+          <button type="button" :class="[BTN, BTN_ICON]" :aria-label="`Stagear ${f.rel}`"
             @click="emit('run', 'stage', { paths: [f.rel] })">
             <GitIcon name="plus" />
           </button>
           <!-- Descartar es irreversible: color semántico, icono explícito (antes
                era un ⌦ que no se entendía) y separado del + para no tocarlo
                apuntando al de al lado. -->
-          <button type="button" class="ml-2" :class="[BTN, BTN_DANGER]" :aria-label="`Descartar cambios de ${f.rel}`"
+          <button type="button" class="ml-2" :class="[BTN, BTN_ICON, BTN_DANGER]" :aria-label="`Descartar cambios de ${f.rel}`"
             @click="emit('run', 'discard', { paths: [f.rel] }, `Descartar cambios de ${f.rel}? No se puede deshacer.`)">
             <GitIcon name="trash" />
           </button>
@@ -140,7 +123,7 @@ function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
         <li v-for="f in props.status.working.untracked" :key="'n' + f.rel" :class="LI">
           <span class="w-4 text-center font-mono text-xs text-muted">?</span>
           <a :class="FLAT_A" @click="emit('diff', f.rel, 'working')">{{ f.rel }}</a>
-          <button type="button" :class="BTN" :aria-label="`Stagear ${f.rel}`"
+          <button type="button" :class="[BTN, BTN_ICON]" :aria-label="`Stagear ${f.rel}`"
             @click="emit('run', 'stage', { paths: [f.rel] })">
             <GitIcon name="plus" />
           </button>
@@ -181,7 +164,7 @@ function stColor(status: string) { return ST_COLOR[status] ?? 'text-muted' }
       <li v-for="s in props.stash" :key="s.index" :class="LI">
         <span :class="FLAT">{{ s.message }}</span>
         <button type="button" :class="BTN" @click="emit('run', 'stash-apply', { index: s.index })">aplicar</button>
-        <button type="button" class="ml-2" :class="[BTN, BTN_DANGER]" :aria-label="`Borrar el stash ${s.message}`"
+        <button type="button" class="ml-2" :class="[BTN, BTN_ICON, BTN_DANGER]" :aria-label="`Borrar el stash ${s.message}`"
           @click="emit('run', 'stash-drop', { index: s.index }, 'Borrar este stash? No se puede deshacer.')">
           <GitIcon name="trash" />
         </button>

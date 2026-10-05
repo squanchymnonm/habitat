@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useGit } from '../../../composables/useGit'
 import { groupBranches, type BranchList } from '../../../composables/gitBranches'
 import GitIcon from './GitIcon.vue'
+import { BTN, BTN_PRIMARY, GROUP_H4, MUTED, ERR, INPUT, UL, LI, FLAT, FLAT_A } from './gitClasses'
 
 const props = defineProps<{ id: string; path: string }>()
 const emit = defineEmits<{
@@ -36,17 +37,6 @@ function doCreate() {
   newName.value = ''; creating.value = false
 }
 defineExpose({ refresh })
-
-// Clases compartidas (ex git.css), token por token.
-const BTN = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
-const BTN_PRIMARY = 'bg-accent text-accent-foreground hover:text-accent-foreground'
-const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
-const MUTED = 'text-sm text-muted'
-const INPUT = 'rounded-[var(--radius)] border border-border bg-background px-2 py-1 font-[inherit] text-sm text-text'
-const UL = 'm-0 list-none divide-y divide-border p-0'
-const LI = 'flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] px-1 py-0.5 text-base'
-const FLAT = 'min-w-0 flex-1 bg-transparent font-mono text-sm text-text [overflow-wrap:anywhere]'
-const FLAT_A = 'min-w-0 flex-1 cursor-pointer font-mono text-sm text-text underline decoration-dotted underline-offset-[3px] hover:text-accent [overflow-wrap:anywhere]'
 </script>
 
 <template>
@@ -69,7 +59,7 @@ const FLAT_A = 'min-w-0 flex-1 cursor-pointer font-mono text-sm text-text underl
         @click="doCreate">Crear</button>
     </div>
 
-    <ul :class="UL">
+    <ul class="mb-4" :class="UL">
       <li v-for="b in groups.local" :key="b.name" :class="[LI, b.current ? 'bg-accent/10' : '']">
         <!-- La rama actual no se marca sólo con un asterisco: lleva icono, el
              fondo del item y la etiqueta "actual". -->
@@ -104,6 +94,9 @@ const FLAT_A = 'min-w-0 flex-1 cursor-pointer font-mono text-sm text-text underl
       </li>
     </ul>
   </div>
-  <p v-else-if="failed" class="m-0 text-sm text-danger">no se pudieron cargar las ramas</p>
+  <p v-else-if="failed" :class="ERR">
+    <span aria-hidden="true">!</span>
+    <span>no se pudieron cargar las ramas</span>
+  </p>
   <p v-else :class="MUTED">cargando ramas…</p>
 </template>
