@@ -236,15 +236,17 @@ async function infraUp(id: string): Promise<{ ok: true } | { ok: false; message:
 }
 
 // Baja esos stacks (containers + red; los volúmenes con datos quedan). Devuelve los
-// proyectos efectivamente bajados.
-async function dockerDown(id: string): Promise<string[]> {
+// proyectos efectivamente bajados, o el motivo para mostrar si no se pudo (409: hay un
+// up/down de infra de la sesión en curso).
+async function dockerDown(id: string): Promise<{ ok: true; stacks: string[] } | { ok: false; message: string }> {
   try {
     const res = await fetch('/docker/down', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ id }) })
-    if (!res.ok) return []
+    if (res.status === 409) return { ok: false, message: 'ocupado: hay una operación de infra en curso' }
+    if (!res.ok) return { ok: false, message: 'no se pudo bajar la infra' }
     const data = (await res.json()) as { stacks?: string[] }
-    return data.stacks ?? []
+    return { ok: true, stacks: data.stacks ?? [] }
   } catch {
-    return []
+    return { ok: false, message: 'no se pudo bajar la infra' }
   }
 }
 

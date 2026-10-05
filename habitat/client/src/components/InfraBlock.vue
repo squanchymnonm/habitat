@@ -26,8 +26,9 @@ async function down() {
   if (typeof window.confirm === 'function' && !window.confirm('¿Bajar la infra de esta sesión? Los volúmenes con datos quedan.')) return
   busy.value = 'down'
   error.value = ''
-  await dockerDown(props.session.id)
+  const r = await dockerDown(props.session.id)
   busy.value = ''
+  if (!r.ok) error.value = r.message
 }
 </script>
 

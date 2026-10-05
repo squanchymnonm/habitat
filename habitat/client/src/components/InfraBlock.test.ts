@@ -40,4 +40,12 @@ describe('InfraBlock', () => {
     await flushPromises()
     expect(calls.find((c) => c.url === '/docker/down')?.body).toEqual({ id: 's1' })
   })
+
+  it('bajar con 409 muestra que hay una operación en curso', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => (u === '/docker/down' ? resp({}, 409) : resp({}))))
+    const w = mount(InfraBlock, { props: { session: session('up') } })
+    await w.get('[data-test="infra-down"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('ocupado: hay una operación de infra en curso')
+  })
 })
