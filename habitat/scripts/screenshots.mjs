@@ -22,13 +22,14 @@ if (!shellDir) { console.error('falta chrome-headless-shell: npx playwright inst
 const bin = join(msRoot, shellDir, 'chrome-headless-shell-linux64/chrome-headless-shell');
 const jb = join(homedir(), '.cache/JetBrains/RemoteDev/dist');
 const libDir = existsSync(jb) ? readdirSync(jb).map((d) => join(jb, d, 'plugins/remote-dev-server/selfcontained/lib')).find(existsSync) : null;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// mkdir antes de spawnear chrome: si falla (p.ej. permisos), no deja el proceso huérfano.
+mkdirSync(OUT, { recursive: true });
 const chrome = spawn(bin, ['--no-sandbox', '--remote-debugging-port=9411', '--hide-scrollbars'], {
   env: { ...process.env, ...(libDir ? { LD_LIBRARY_PATH: libDir } : {}) }, stdio: 'ignore',
 });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-await sleep(1500);
-mkdirSync(OUT, { recursive: true });
 try {
+  await sleep(1500);
   for (const theme of THEMES) for (const [w, h] of SIZES) for (const [view, hash] of Object.entries(VIEWS)) {
     const tab = await (await fetch('http://127.0.0.1:9411/json/new?about:blank', { method: 'PUT' })).json();
     const ws = new WebSocket(tab.webSocketDebuggerUrl); await new Promise((r) => ws.once('open', r));
