@@ -48,14 +48,11 @@ test('setClaudeSummary trunca a 400 y no pisa', () => {
   assert.equal(b.quests[0].claudeSummary.length, 400); // no pisó
 });
 
-test('completeQuest estampa estado + monstruo + daño', () => {
+test('completeQuest estampa estado completed', () => {
   const b = emptyBook();
   upsertQuests(b, [{ content: 'a', status: 'in_progress' }], { now: 1 });
-  completeQuest(b, 'a', { monster: 'a', damage: 1234, hits: 7 });
+  completeQuest(b, 'a');
   assert.equal(b.quests[0].status, 'completed');
-  assert.equal(b.quests[0].monster, 'a');
-  assert.equal(b.quests[0].damage, 1234);
-  assert.equal(b.quests[0].hits, 7);
 });
 
 test('pushEvent agrega y respeta el cap de 50', () => {

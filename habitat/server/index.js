@@ -259,7 +259,7 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       try {
-        const { session, fightResult, removed, rekey } = applyEvent(store, payload, {
+        const { session, removed, rekey } = applyEvent(store, payload, {
           readUsage, readLastAssistantText, gitBranch, now: () => Date.now(),
           worktreeName: config.WORKTREES_DIR ? (cwd) => worktreeName(config.WORKTREES_DIR, cwd) : () => null,
         });
@@ -271,7 +271,6 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
           if (session) hub.broadcast({ type: 'session', session: snapOf(session) });
           if (removed) hub.broadcast({ type: 'remove', id: removed }); // pod provisional adoptado por la sesión real
         }
-        if (fightResult) hub.broadcast({ type: 'fightResult', ...fightResult });
         store.persist(); // respaldo a disco: sobrevive reinicios del server
       } catch { res.writeHead(500).end(); return; }
       res.writeHead(204).end();

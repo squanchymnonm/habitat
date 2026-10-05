@@ -31,9 +31,6 @@ export function upsertQuests(book, todos, ctx = {}) {
         status: t.status || 'pending',
         originPrompt: String(originPrompt || '').slice(0, SYNOPSIS_MAX),
         claudeSummary: '',
-        monster: null,
-        damage: 0,
-        hits: 0,
         since: now,
         dialogue: [],
       });
@@ -47,13 +44,10 @@ export function setClaudeSummary(book, questId, text) {
   q.claudeSummary = String(text || '').slice(0, SUMMARY_MAX);
 }
 
-export function completeQuest(book, questId, { monster = null, damage = 0, hits = 0 } = {}) {
+export function completeQuest(book, questId) {
   const q = book.quests.find((x) => x.id === questId);
   if (!q) return;
   q.status = 'completed';
-  q.monster = monster;
-  q.damage = damage;
-  q.hits = hits;
 }
 
 export function pushEvent(book, event) {
@@ -77,9 +71,6 @@ export function ensureLooseQuest(book, ctx = {}) {
     loose: true,
     originPrompt: book.synopsis || '',
     claudeSummary: '',
-    monster: null,
-    damage: 0,
-    hits: 0,
     since: now,
     dialogue: [],
   };

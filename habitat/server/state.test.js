@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rmSync, existsSync } from 'node:fs';
-import { newSession, createStore, hashType, monsterFromTodos, questFromTodos, randomMonster } from './state.js';
+import { newSession, createStore, questFromTodos } from './state.js';
 
 function tmpStatePath(tag) {
   return join(tmpdir(), `habitat-state-${process.pid}-${tag}.json`);
@@ -15,9 +15,6 @@ test('newSession aplica defaults RPG', () => {
   assert.equal(s.name, 'api');
   assert.equal(s.status, 'idle');
   assert.equal(s.stamina, 100);
-  assert.equal(s.monster, null);
-  assert.deepEqual(s.combat, { hits: 0, tokens: 0 });
-  assert.equal(s._lastTotal, 0);
 });
 
 test('store upsert/get/remove/all', () => {
@@ -33,10 +30,10 @@ test('store upsert/get/remove/all', () => {
 
 test('snapshot oculta campos internos (_)', () => {
   const store = createStore();
-  store.upsert(newSession('a', {}));
+  store.upsert(newSession('a', { _questbook: { synopsis: '', quests: [], events: [] } }));
   const snap = store.snapshot();
   assert.equal(snap.length, 1);
-  assert.equal('_lastTotal' in snap[0], false);
+  assert.equal('_questbook' in snap[0], false);
   assert.equal('stamina' in snap[0], true);
 });
 
@@ -76,60 +73,11 @@ test('persistencia: remove() también persiste', () => {
   }
 });
 
-test('persistencia: _touched (Set) sobrevive el round-trip como Set', () => {
-  const path = tmpStatePath('set');
-  rmSync(path, { force: true });
-  try {
-    const a = createStore({ persistPath: path });
-    const s = newSession('s1', {});
-    s._touched = new Set(['/a.js', '/b.js']);
-    a.upsert(s);
-    a.persist();
-
-    const b = createStore({ persistPath: path });
-    const loaded = b.get('s1');
-    assert.ok(loaded._touched instanceof Set, '_touched debe rehidratarse como Set');
-    assert.equal(loaded._touched.size, 2);
-    assert.ok(loaded._touched.has('/a.js'));
-  } finally {
-    rmSync(path, { force: true });
-  }
-});
-
 test('persistencia: sin persistPath funciona igual (persist es no-op)', () => {
   const store = createStore();
   store.upsert(newSession('a', {}));
   assert.doesNotThrow(() => store.persist());
   assert.equal(store.all().length, 1);
-});
-
-test('hashType es estable y no vacío', () => {
-  assert.equal(hashType('crear modelo User'), hashType('crear modelo User'));
-  assert.ok(hashType('x').length > 0);
-  assert.notEqual(hashType('a'), hashType('b'));
-});
-
-test('monsterFromTodos toma el in_progress y marca boss en el último', () => {
-  const todos = [
-    { content: 'plan', status: 'completed' },
-    { content: 'modelo', status: 'in_progress' },
-    { content: 'review', status: 'pending' },
-  ];
-  const m = monsterFromTodos(todos);
-  assert.equal(m.label, 'modelo');
-  assert.equal(m.isBoss, false);
-  assert.equal(typeof m.type, 'string');
-
-  const last = [
-    { content: 'a', status: 'completed' },
-    { content: 'review', status: 'in_progress' },
-  ];
-  assert.equal(monsterFromTodos(last).isBoss, true);
-});
-
-test('monsterFromTodos sin in_progress devuelve null', () => {
-  assert.equal(monsterFromTodos([{ content: 'a', status: 'completed' }]), null);
-  assert.equal(monsterFromTodos([]), null);
 });
 
 test('questFromTodos cuenta total y done', () => {
@@ -151,25 +99,6 @@ test('pending char: set y take (one-shot)', () => {
 test('pending char: take de inexistente -> undefined', () => {
   const store = createStore();
   assert.equal(store.takePendingChar('nope'), undefined);
-});
-
-test('monsterFromTodos marca source todo', () => {
-  const m = monsterFromTodos([{ content: 'modelo', status: 'in_progress' }]);
-  assert.equal(m.source, 'todo');
-});
-
-test('randomMonster es de turno, no boss, con type aleatorio', () => {
-  const a = randomMonster('arreglar login');
-  assert.equal(a.source, 'turn');
-  assert.equal(a.isBoss, false);
-  assert.equal(a.label, 'arreglar login');
-  assert.equal(typeof a.type, 'string');
-  const b = randomMonster('arreglar login');
-  assert.notEqual(a.type, b.type, 'dos llamadas dan types distintos');
-});
-
-test('randomMonster sin label usa string vacío', () => {
-  assert.equal(randomMonster().label, '');
 });
 
 test('reorder deja el Map en el orden pedido; sobrevivientes al final', () => {
@@ -194,4 +123,18 @@ test('store.getUsage default null; setUsage guarda', () => {
   assert.equal(s.getUsage(), null);
   s.setUsage({ pct: 40, resetAt: 123 });
   assert.deepEqual(s.getUsage(), { pct: 40, resetAt: 123 });
+});
+
+test('reviveSession descarta campos de combate persistidos', async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'habitat-state-'));
+  const p = join(dir, 's.json');
+  writeFileSync(p, JSON.stringify([{ id: 's1', name: 'x', monster: { type: 'm', label: 'l' }, combat: { hits: 1, tokens: 2 }, _touched: ['/a'], _lastTotal: 9 }]));
+  try {
+    const store = createStore({ persistPath: p });
+    const s = store.get('s1');
+    for (const k of ['monster', 'combat', '_touched', '_lastTotal']) assert.equal(k in s, false, k);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
