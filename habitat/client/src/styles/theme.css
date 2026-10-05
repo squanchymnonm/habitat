@@ -5,36 +5,39 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-/* Fuentes self-hosted (variables: un solo woff2 por familia cubre los pesos del rango) */
-@font-face{ font-family:"Fraunces"; font-style:normal; font-weight:400 560; font-display:swap; src:url("/fonts/Fraunces.woff2") format("woff2"); }
-@font-face{ font-family:"Hanken Grotesk"; font-style:normal; font-weight:400 700; font-display:swap; src:url("/fonts/HankenGrotesk.woff2") format("woff2"); }
-@font-face{ font-family:"JetBrains Mono"; font-style:normal; font-weight:400 500; font-display:swap; src:url("/fonts/JetBrainsMono.woff2") format("woff2"); }
+/* Tokens semánticos + fuentes self-hosted (Fontsource), por tema. */
+@import '../theme/tokens.css';
 
-@theme{
-  /* color — ground/estructura/texto */
-  --color-bg:#14100B; --color-surface:#1C160F; --color-surface-2:#251D14; --color-raise:#2C2217;
-  --color-line:#0C0805; --color-edge:#3A2C1B; --color-edge-soft:#4A3722;
-  --color-ink:#F3E9D6; --color-ink-2:#E4D4B4; --color-dim:#AE997A; --color-faint:#7E6E54;
-  /* acento + semánticos + arcano */
-  --color-brass:#E0A94B; --color-brass-2:#C98A33;
-  --color-ember:#E8773A; --color-amber:#F2C94C; --color-moss:#8FB85C; --color-crimson:#D14B3C;
-  --color-mana:#3FA8FF;
-  /* tipografía (3 voces) */
-  --font-lore:"Fraunces", Georgia, serif;
-  --font-system:"Hanken Grotesk", system-ui, -apple-system, sans-serif;
-  --font-machine:"JetBrains Mono", ui-monospace, monospace;
-  /* radios — sm es para controles (botones, inputs, chips); card/medallion para superficies.
-     Faltaba: había CSS pidiendo var(--radius-sm, 4px), así que caía siempre al 4px y los
-     controles quedaban angulosos contra una app redondeada. */
-  --radius-sm:10px; --radius-card:14px; --radius-medallion:18px;
-  /* sombras */
-  --shadow-sh1:0 1px 0 rgba(255,255,255,.03), 0 2px 8px rgba(0,0,0,.4);
-  --shadow-sh2:0 2px 4px rgba(0,0,0,.35), 0 14px 40px rgba(0,0,0,.5);
-  --shadow-glow-brass:0 0 0 1px rgba(224,169,75,.35), 0 0 22px -6px rgba(224,169,75,.5);
+/* Alias legacy: los componentes viejos siguen pidiendo estas variables hasta su migración (PR 2–4). */
+:root {
+  --color-bg: var(--background); --color-surface: var(--surface); --color-surface-2: var(--surface-raised); --color-raise: var(--surface-raised);
+  --color-line: var(--terminal-bg); --color-edge: var(--border); --color-edge-soft: var(--border);
+  --color-ink: var(--text); --color-ink-2: var(--text); --color-dim: var(--text-muted); --color-faint: var(--text-muted);
+  --color-brass: var(--accent); --color-brass-2: var(--accent); --color-ember: var(--state-working); --color-amber: var(--state-working);
+  --color-moss: var(--state-done); --color-crimson: var(--state-error); --color-mana: var(--mana);
+  --font-lore: var(--font-display); --font-system: var(--font-ui); --font-machine: var(--font-mono);
+  --radius-sm: var(--radius); --radius-card: calc(var(--radius) + 4px); --radius-medallion: calc(var(--radius) + 8px);
+  --shadow-sh1: 0 1px 2px rgba(0,0,0,.35); --shadow-sh2: 0 8px 28px rgba(0,0,0,.45); --shadow-glow-brass: 0 0 0 1px var(--accent);
+  /* --color-base no es un token nuevo: sólo dos overlays legacy lo usaban con
+     fallback (nunca estuvo definido). Lo mapeamos al fondo para que dejen de
+     depender del fallback hardcodeado. */
+  --color-base: var(--background);
+}
+
+/* Puente a Tailwind: expone los tokens semánticos como utilidades (bg-accent, text-muted, etc). */
+@theme inline {
+  --color-background: var(--background); --color-surface: var(--surface); --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border); --color-text: var(--text); --color-muted: var(--text-muted);
+  --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground);
+  --color-terminal-bg: var(--terminal-bg); --color-terminal-fg: var(--terminal-fg);
+  --color-state-working: var(--state-working); --color-state-waiting: var(--state-waiting); --color-state-done: var(--state-done);
+  --color-state-idle: var(--state-idle); --color-state-error: var(--state-error);
+  --color-mana: var(--mana); --color-stamina-ok: var(--stamina-ok); --color-stamina-low: var(--stamina-low); --color-danger: var(--danger);
+  --font-ui: var(--font-ui); --font-mono: var(--font-mono); --font-display: var(--font-display);
 }
 
 /* Defaults globales del nuevo tema (no pisan el style.css legacy salvo body font/color) */
 @layer base{
-  body{ font-family:var(--font-system); color:var(--color-ink); }
+  body{ font-family:var(--font-ui); color:var(--text); background:var(--background); }
   .font-machine{ font-variant-numeric:tabular-nums; }
 }

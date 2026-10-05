@@ -1,18 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Session, FightResult } from '../types'
+import type { Session } from '../types'
 import { pickSelection } from './pickSelection'
 
 export const useSessions = defineStore('sessions', () => {
   const list = ref<Session[]>([])
   const selectedId = ref<string | null>(null)
   const selectTick = ref(0)
-  // último fightResult; `seq` permite a los pods reaccionar aunque se repita el id
-  const lastFight = ref<{ id: string; result: FightResult; seq: number } | null>(null)
-  let seq = 0
 
   const selected = computed(() => list.value.find((s) => s.id === selectedId.value) ?? null)
-  const needCount = computed(() => list.value.filter((s) => s.status === 'waiting').length)
+  // "Te necesita": sesiones esperando input o en error.
+  const needCount = computed(() => list.value.filter((s) => s.status === 'waiting' || s.status === 'error').length)
 
   function setAll(sessions: Session[]) {
     list.value = sessions
@@ -46,9 +44,6 @@ export const useSessions = defineStore('sessions', () => {
     const rank = (id: string) => (pos.has(id) ? (pos.get(id) as number) : Number.MAX_SAFE_INTEGER)
     list.value = [...list.value].sort((a, b) => rank(a.id) - rank(b.id))
   }
-  function fight(id: string, result: FightResult) {
-    lastFight.value = { id, result, seq: ++seq }
-  }
   function select(id: string | null) {
     selectedId.value = id
     selectTick.value++
@@ -58,5 +53,5 @@ export const useSessions = defineStore('sessions', () => {
     selectedId.value = pickSelection(list.value.map((s) => s.id), selectedId.value)
   }
 
-  return { list, selected, selectedId, selectTick, needCount, lastFight, setAll, upsert, remove, rekey, reorder, fight, select }
+  return { list, selected, selectedId, selectTick, needCount, setAll, upsert, remove, rekey, reorder, select }
 })

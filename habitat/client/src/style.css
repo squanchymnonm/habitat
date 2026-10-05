@@ -32,51 +32,6 @@
       linear-gradient(160deg, var(--bg), var(--bg2));
     background-attachment:fixed; min-height:100%; image-rendering:pixelated;
   }
-  /* --- Ciclo día/noche global (capa de fondo; detrás del contenido) --- */
-  .sky-ambient{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.85; transition:background .6s linear}
-
-  /* Lista de pods. Por defecto: 1 columna con scroll vertical (landscape/narrow).
-     En portrait ancho se convierte en tira horizontal (ver bloque de orientación). */
-  .rail{display:flex; flex-direction:column; gap:14px; padding:14px 14px 18px; overflow:auto; height:100%}
-  .rail > .pod{flex:0 0 auto}
-
-  .pod-ghost{opacity:.4; border-color:var(--color-brass)}
-
-  .empty{text-align:center; color:var(--color-dim); border:2px dashed var(--color-edge); padding:40px 18px; font-family:var(--font-system); font-size:16px; margin:auto}
-  .empty code{color:var(--color-brass)}
 
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
-  /* Keyframes referenced by MiniArena.vue (scoped) — kept after drawer removal. */
-  @keyframes bdmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
-  @keyframes bflinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
-  @keyframes bfadein{from{opacity:0}to{opacity:1}}
-
-  /* ===== SHELL MASTER-DETAIL ===== */
-  .hlayout{flex:1; min-height:0; min-width:0}
-  /* Wide (≥900px): grid embebido. */
-  .hlayout.wide{display:grid; height:100%}
-  .hlayout.wide .hrail{min-height:0}
-  .hlayout.wide .hpanelhost{min-height:0; min-width:0}
-  .hlayout.wide .hdiv{background:linear-gradient(90deg, transparent, rgba(201,143,46,.35)); cursor:ew-resize}
-  .hlayout.wide .hdiv:hover{background:linear-gradient(90deg, transparent, rgba(201,143,46,.6))}
-  /* La clase .wide ya la decide el JS (useViewport: ambas dimensiones ≥600px),
-     así que estas queries solo distinguen orientación — sin min-width, para no
-     dejar fuera tablets en portrait (~768px de ancho < 900). */
-  @media (orientation:landscape){
-    .hlayout.wide{grid-template-columns:var(--rail-w,340px) 6px 1fr; grid-template-rows:100%}
-    .hlayout.wide .hdiv{height:100%}
-  }
-  @media (orientation:portrait){
-    .hlayout.wide{grid-template-rows:minmax(140px,auto) 6px 1fr; grid-template-columns:100%}
-    .hlayout.wide .hrail{flex-direction:row; overflow-x:auto; overflow-y:hidden}
-    .hlayout.wide .hrail > .pod{width:280px}
-    .hlayout.wide .hdiv{width:100%; height:6px; cursor:default; background:linear-gradient(180deg, transparent, rgba(201,143,46,.35))}
-  }
-  /* Narrow (<900px): rail full + detalle overlay deslizante. */
-  .hlayout.narrow{display:block; height:100%; overflow:auto}
-  .hlayout.narrow .hpanelhost{position:fixed; top:0; right:0; height:100dvh; width:min(94vw,760px);
-    transform:translateX(100%); transition:transform .2s steps(6); z-index:21; border-left:3px solid var(--line)}
-  .hlayout.narrow .hpanelhost.open{transform:none}
-  .scrim{position:fixed; inset:0; background:rgba(8,6,12,.6); opacity:0; pointer-events:none; transition:.15s; z-index:20}
-  .scrim.open{opacity:1; pointer-events:auto}

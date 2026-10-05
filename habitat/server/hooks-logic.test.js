@@ -62,66 +62,6 @@ test('branch no se pisa con vacío si gitBranch falla en un evento', () => {
   assert.equal(session.branch, 'main');
 });
 
-test('TodoWrite setea quest y monster', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  const { session } = applyEvent(store, {
-    session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [
-      { content: 'a', status: 'completed' },
-      { content: 'b', status: 'in_progress' },
-      { content: 'review', status: 'pending' },
-    ] },
-  }, deps(null));
-  assert.deepEqual(session.quest, { total: 3, done: 1 });
-  assert.equal(session.monster.label, 'b');
-  assert.equal(session.monster.isBoss, false);
-});
-
-test('golpe acumula daño = delta de totalTokens', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [{ content: 'b', status: 'in_progress' }] } }, deps(null));
-  // primer golpe: total 1000, _lastTotal era 0 -> damage 1000
-  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash', transcript_path: '/t' },
-    deps({ contextTokens: 40000, totalTokens: 1000 }));
-  assert.equal(r.session.combat.hits, 1);
-  assert.equal(r.session.combat.tokens, 1000);
-  assert.equal(r.session.combat.lastDamage, 1000);
-  // segundo golpe: total 1500 -> damage 500
-  r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Read', transcript_path: '/t' },
-    deps({ contextTokens: 50000, totalTokens: 1500 }));
-  assert.equal(r.session.combat.tokens, 1500);
-  assert.equal(r.session.combat.lastDamage, 500);
-});
-
-test('Write/Edit acumula loot en _touched', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [{ content: 'b', status: 'in_progress' }] } }, deps(null));
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Edit',
-    tool_input: { file_path: 'src/Auth.php' } }, deps({ contextTokens: 10, totalTokens: 10 }));
-  assert.deepEqual([...r.session._touched], ['src/Auth.php']);
-});
-
-test('completar un todo emite fightResult con hp=tokens y loot', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [{ content: 'tests', status: 'in_progress' }, { content: 'review', status: 'pending' }] } }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Write', transcript_path: '/t',
-    tool_input: { file_path: 'tests/AuthTest.php' } }, deps({ contextTokens: 10, totalTokens: 8000 }));
-  // ahora el primer todo pasa a completed
-  const { fightResult } = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [{ content: 'tests', status: 'completed' }, { content: 'review', status: 'in_progress' }] } }, deps(null));
-  assert.ok(fightResult);
-  assert.equal(fightResult.result.monster, 'tests');
-  assert.equal(fightResult.result.hp, 8000);
-  assert.deepEqual(fightResult.result.loot, ['tests/AuthTest.php']);
-});
-
 test('Notification -> waiting; StopFailure -> error', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
@@ -182,44 +122,6 @@ test('SessionEnd -> offline', () => {
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
   assert.equal(r.session.status, 'offline');
-});
-
-test('working sin todos asigna monstruo genérico estable', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
-  assert.ok(r.session.monster, 'debe haber monstruo al trabajar');
-  assert.equal(r.session.monster.isBoss, false);
-  const t1 = r.session.monster.type;
-  const r2 = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'Read' }, deps(null));
-  assert.equal(r2.session.monster.type, t1, 'el type del genérico es estable entre golpes');
-});
-
-test('UserPromptSubmit ya muestra monstruo', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  assert.ok(r.session.monster);
-});
-
-test('los todos tienen prioridad sobre el monstruo genérico', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null)); // genérico
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
-    tool_input: { todos: [{ content: 'arreglar auth', status: 'in_progress' }] } }, deps(null));
-  assert.equal(r.session.monster.label, 'arreglar auth');
-});
-
-test('Stop a idle y SessionEnd limpian el monstruo', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
-  let r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
-  assert.equal(r.session.monster, null);
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Bash' }, deps(null));
-  r = applyEvent(store, { session_id: 's1', hook_event_name: 'SessionEnd' }, deps(null));
-  assert.equal(r.session.monster, null);
 });
 
 test('SessionStart bajo worktree setea s.tmux y project derivados', () => {
@@ -447,59 +349,23 @@ test('staminaFromStatus: sin context_window o sin used_percentage -> null', () =
   assert.equal(staminaFromStatus({ context_window: { used_percentage: 'x' } }), null);
 });
 
-test('dos UserPromptSubmit seguidos dan monstruos de turno distintos', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
-  const a = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  assert.equal(a.session.monster.source, 'turn');
-  const t1 = a.session.monster.type;
-  const b = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  assert.notEqual(b.session.monster.type, t1, 'cada turno trae un monstruo distinto');
-});
-
-test('Stop tras pelea real (monstruo de turno) emite loot y limpia el monstruo', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Edit', transcript_path: '/t',
-    tool_input: { file_path: 'src/Auth.php' } }, deps({ contextTokens: 10, totalTokens: 3000 }));
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
-  assert.ok(r.fightResult, 'debe soltar loot');
-  assert.equal(r.fightResult.result.hp, 3000);
-  assert.equal(r.fightResult.result.hits, 1);
-  assert.deepEqual(r.fightResult.result.loot, ['src/Auth.php']);
-  assert.equal(r.session.monster, null, 'el monstruo de turno muere');
-});
-
-test('Stop sin pelea (turno trivial) no emite loot', () => {
-  const store = createStore();
-  applyEvent(store, { session_id: 's1', cwd: '/home/u/api', hook_event_name: 'SessionStart' }, deps(null));
-  applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
-  assert.equal(r.fightResult, null, 'turno sin tool uses no suelta loot');
-  assert.equal(r.session.monster, null);
-});
-
-test('el monstruo de quest sobrevive al Stop', () => {
+test('la quest activa sobrevive al Stop', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'tarea larga', status: 'in_progress' }] } }, deps(null));
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'Stop' }, deps(null));
-  assert.ok(r.session.monster, 'la quest sigue viva entre turnos');
-  assert.equal(r.session.monster.label, 'tarea larga');
-  assert.equal(r.session.monster.source, 'todo');
+  assert.equal(r.session._activeQuest, 'tarea larga', 'la quest sigue viva entre turnos');
 });
 
-test('UserPromptSubmit no pisa un monstruo de quest activo', () => {
+test('UserPromptSubmit no pisa la quest activa', () => {
   const store = createStore();
   applyEvent(store, { session_id: 's1', cwd: '/x', hook_event_name: 'SessionStart' }, deps(null));
   applyEvent(store, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'TodoWrite',
     tool_input: { todos: [{ content: 'arreglar auth', status: 'in_progress' }] } }, deps(null));
   const r = applyEvent(store, { session_id: 's1', hook_event_name: 'UserPromptSubmit' }, deps(null));
-  assert.equal(r.session.monster.source, 'todo');
-  assert.equal(r.session.monster.label, 'arreglar auth');
+  assert.equal(r.session._activeQuest, 'arreglar auth');
 });
 
 test('usageFromStatus extrae five_hour y clampea pct', () => {
@@ -526,4 +392,37 @@ test('SessionStart que adopta el pod provisional conserva su infra', () => {
   }, { worktreeName: () => ({ project: 'back', tmux: 'back-bob' }) });
   assert.equal(removed, 'pending:back-bob');
   assert.deepEqual(session.infra, { stack: 'back-bob', ports: { db: 21000 }, dir: '/wt/x', branch: 'bob' });
+});
+
+test('sin combate: un PostToolUse no crea monstruo ni stats de combate', () => {
+  const store = createStore();
+  applyEvent(store, { session_id: 's1', cwd: '/home/u/p', hook_event_name: 'SessionStart' }, { now: () => 1 });
+  const { session } = applyEvent(store, {
+    session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: '/x' },
+  }, { now: () => 2, readUsage: () => ({ totalTokens: 500 }) });
+  assert.equal(session.status, 'working');
+  assert.equal('monster' in session, false);
+  assert.equal('combat' in session, false);
+  assert.equal('_touched' in session, false);
+});
+
+test('sin combate: applyEvent no devuelve fightResult y TodoWrite sigue armando la quest', () => {
+  const store = createStore();
+  const r = applyEvent(store, {
+    session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'TodoWrite',
+    tool_input: { todos: [{ content: 'a', status: 'completed' }, { content: 'b', status: 'in_progress' }] },
+  }, { now: () => 1 });
+  assert.equal('fightResult' in r, false);
+  assert.deepEqual(r.session.quest, { total: 2, done: 1 });
+  assert.equal(r.session._activeQuest, 'b');
+});
+
+test('sin combate: completar un todo marca la quest en el Quest Book sin stats', () => {
+  const store = createStore();
+  const ev = (todos) => applyEvent(store, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'TodoWrite', tool_input: { todos } }, { now: () => 1 });
+  ev([{ content: 'a', status: 'in_progress' }]);
+  const { session } = ev([{ content: 'a', status: 'completed' }]);
+  const q = session._questbook.quests.find((x) => x.id === 'a');
+  assert.ok(q);
+  assert.equal(q.monster ?? null, null);
 });

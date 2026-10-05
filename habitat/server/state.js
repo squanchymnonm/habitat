@@ -1,12 +1,5 @@
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 
-export function hashType(text) {
-  let h = 5381;
-  const s = String(text || '');
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return 'm' + (h % 100000).toString(36);
-}
-
 export function newSession(id, fields = {}) {
   return {
     id,
@@ -19,9 +12,6 @@ export function newSession(id, fields = {}) {
     since: 0,
     stamina: 100,
     quest: undefined,
-    monster: null,
-    combat: { hits: 0, tokens: 0 },
-    _lastTotal: 0,
     ...fields,
   };
 }
@@ -31,20 +21,6 @@ export function questFromTodos(todos = []) {
     total: todos.length,
     done: todos.filter((t) => t.status === 'completed').length,
   };
-}
-
-export function monsterFromTodos(todos = []) {
-  const idx = todos.findIndex((t) => t.status === 'in_progress');
-  if (idx === -1) return null;
-  const label = todos[idx].content || todos[idx].activeForm || '';
-  return { type: hashType(label), isBoss: idx === todos.length - 1, label, source: 'todo' };
-}
-
-// Monstruo "de turno": el que aparece cuando la sesión no usa todos. Sprite aleatorio
-// (el cliente mapea cualquier `type` a un sprite vía hash), nunca boss. Nace en
-// UserPromptSubmit y muere en Stop.
-export function randomMonster(label = '') {
-  return { type: 't' + Math.random().toString(36).slice(2, 8), isBoss: false, label, source: 'turn' };
 }
 
 // El store vive en memoria, pero opcionalmente se respalda en disco para que un
@@ -97,15 +73,15 @@ export function createStore({ persistPath } = {}) {
   };
 }
 
-// _touched es un Set en memoria; JSON no lo serializa, así que va y vuelve como array.
+// Campos del combate (eliminado): se descartan al cargar estado viejo y no se vuelven a escribir.
+const DROPPED = ['monster', 'combat', '_touched', '_lastTotal'];
+
 function serializeSession(s) {
-  const out = { ...s };
-  if (s._touched instanceof Set) out._touched = [...s._touched];
-  return out;
+  return { ...s };
 }
 
 function reviveSession(s) {
-  if (Array.isArray(s._touched)) s._touched = new Set(s._touched);
+  for (const k of DROPPED) delete s[k];
   return s;
 }
 

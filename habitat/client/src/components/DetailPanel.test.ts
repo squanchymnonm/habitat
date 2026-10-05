@@ -50,3 +50,22 @@ describe('DetailPanel — bloque de infra', () => {
     expect(w.text()).not.toContain('port is already allocated')
   })
 })
+
+describe('DetailPanel — stamina', () => {
+  it('muestra el ancho de la stamina y usa stamina-low por debajo de 25', async () => {
+    const store = useSessions()
+    store.setAll([{ ...session('a'), stamina: 80 }])
+    store.select('a')
+    const w = mount(DetailPanel, { global: { stubs } })
+    await flushPromises()
+    const fill = w.get('[data-test="stamina-fill"]')
+    expect(fill.attributes('style')).toContain('width: 80%')
+    expect(fill.classes()).toContain('bg-stamina-ok')
+
+    store.setAll([{ ...session('a'), stamina: 10 }])
+    await flushPromises()
+    const lowFill = w.get('[data-test="stamina-fill"]')
+    expect(lowFill.attributes('style')).toContain('width: 10%')
+    expect(lowFill.classes()).toContain('bg-stamina-low')
+  })
+})

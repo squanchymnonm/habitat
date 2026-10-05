@@ -7,11 +7,10 @@ import EditorTerminal from './EditorTerminal.vue'
 import InfraBlock from './InfraBlock.vue'
 import { quotePath } from '../composables/useFiles'
 import { useSessions } from '../stores/sessions'
-import { STATUS_LABEL, type FightResult } from '../types'
-import { faceFor, ago, fmt } from '../sprites'
+import { STATUS_LABEL } from '../types'
+import { faceFor, ago } from '../sprites'
 import { useTerminal, canReadClipboard } from '../composables/useTerminal'
 import { useProjects } from '../composables/useProjects'
-import { useCompactPods } from '../composables/useCompactPods'
 import { createLongPress } from '../composables/longPress'
 import TermKeys from './TermKeys.vue'
 import { useTermKeys } from '../composables/useTermKeys'
@@ -23,7 +22,6 @@ const termEl = ref<HTMLElement | null>(null)
 const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey } =
   useTerminal(termEl, selectedId, { onCopied: flashCopied })
 const { enabled: termKeysEnabled } = useTermKeys()
-const { compact } = useCompactPods()
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // el botón "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
@@ -123,20 +121,6 @@ function onPickFile(rel: string) {
   filesOpen.value = false
 }
 
-// Overlay de loot al vencer — solo para la sesión enfocada.
-const lootShown = ref(false)
-const loot = ref<FightResult | null>(null)
-watch(
-  () => store.lastFight,
-  (lf) => {
-    if (lf && lf.id === store.selected?.id) {
-      loot.value = lf.result
-      lootShown.value = true
-      setTimeout(() => (lootShown.value = false), 2600)
-    }
-  },
-)
-
 const bagSrc = '/assets/ui/bag.png'
 const scrollSrc = '/assets/ui/scroll.png'
 const crateSrc = '/assets/ui/crate.png'
@@ -147,13 +131,29 @@ defineExpose({ fit })
 <template>
   <div class="dpanel">
     <template v-if="store.selected">
-      <div class="dhead" :class="{ compact }" :style="headTint">
+      <div class="dhead compact" :style="headTint">
         <div class="portrait">
           <i class="rivet tl"></i><i class="rivet tr"></i><i class="rivet bl"></i><i class="rivet br"></i>
           <div class="well"><img class="face" :src="faceFor(store.selected.name, store.selected.char)" alt="" /></div>
         </div>
         <div class="dinfo">
-          <div class="dname">{{ store.selected.name }} <span class="chip" :class="store.selected.status">{{ STATUS_LABEL[store.selected.status] }}</span></div>
+          <div class="dname">
+            {{ store.selected.name }}
+            <span class="chip" :class="store.selected.status">{{ STATUS_LABEL[store.selected.status] }}</span>
+            <!-- Interim: barra de stamina; el SessionHeader del PR 2 la reemplaza. -->
+            <span
+              class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-surface-raised"
+              :title="`Stamina ${store.selected.stamina}%`"
+              :aria-label="`Stamina ${store.selected.stamina}%`"
+            >
+              <i
+                data-test="stamina-fill"
+                class="block h-full"
+                :class="store.selected.stamina < 25 ? 'bg-stamina-low' : 'bg-stamina-ok'"
+                :style="{ width: store.selected.stamina + '%' }"
+              />
+            </span>
+          </div>
           <div class="repo">{{ store.selected.project }} <span class="br" v-if="store.selected.branch">⌥ {{ store.selected.branch }}</span></div>
           <div class="action">{{ store.selected.action }}</div>
           <div class="since">activa hace {{ ago(store.selected.since) }}</div>
@@ -215,11 +215,6 @@ defineExpose({ fit })
       <ProjectExplorer v-if="explorerOpen" :id="store.selected.id" :tab="explorerTab"
         @close="explorerOpen = false" @opened="editorOpen = true" />
       <EditorTerminal v-if="editorOpen" :id="store.selected.id" @close="editorOpen = false" />
-      <div class="loot" :class="{ show: lootShown }" v-if="loot">
-        <img src="/assets/ui/chest.png" alt="" />
-        <div><div class="lt">★ Vencido — {{ loot.monster }}</div><div class="ls">HP <b>{{ fmt(loot.hp) }}</b> · {{ loot.hits }} golpes</div></div>
-        <div class="lf"><span>loot:</span> {{ loot.loot.join(' · ') }}</div>
-      </div>
     </template>
   </div>
 </template>
@@ -381,10 +376,11 @@ defineExpose({ fit })
   border-color: rgba(232,119,58,.4);
 }
 
+/* Ojo: --color-amber es alias legacy de --state-working; el chip "esperando" usa su token propio. */
 .dpanel .chip.waiting {
   color: #1b1407;
-  background: var(--color-amber);
-  border-color: var(--color-amber);
+  background: var(--state-waiting);
+  border-color: var(--state-waiting);
 }
 
 .dpanel .chip.done {
@@ -422,6 +418,17 @@ defineExpose({ fit })
 @container (max-width: 780px) {
   .dtools .tool .lbl { display: none; }
   .dtools .tool { padding: 6px 9px; }
+}
+/* Debajo de los ~900px de panel (tablet/teléfono en portrait, sin el modo
+   "compact" de landscape) la cabecera completa (medallón + nombre + chip +
+   stamina + botones con etiqueta) no entra en una fila y se superpone. Sin
+   medallón y con wrap, nombre/chip y botones caen en filas propias. */
+@container (max-width: 900px) {
+  .dhead { flex-wrap: wrap; row-gap: 8px; }
+  .dhead .portrait { display: none; }
+  .dhead .dname { flex-wrap: wrap; row-gap: 4px; }
+  .dpanel .chip { margin-left: 0; }
+  .dhead .dtools { flex: 1 1 100%; }
 }
 .tool {
   display: inline-flex;
@@ -588,49 +595,4 @@ defineExpose({ fit })
 .ctxmenu button:hover:not(:disabled) { background: var(--color-raise); color: var(--color-brass); }
 .ctxmenu button:disabled { opacity: 0.4; cursor: default; }
 .ctxmenu .sc { opacity: 0.5; font-size: 11px; }
-
-/* ===== Loot toast ===== */
-.loot {
-  display: none;
-  margin-top: 14px;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
-  border-radius: var(--radius-card);
-  background: radial-gradient(200px 80px at 12% 50%, rgba(224,169,75,.16), transparent 70%),
-              linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
-  border: 1px solid rgba(224,169,75,.35);
-  box-shadow: var(--shadow-sh1);
-}
-.loot.show {
-  display: flex;
-  animation: bfadein .2s;
-}
-.loot img {
-  width: 34px;
-  height: 34px;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 3px 4px rgba(0,0,0,.5));
-  flex-shrink: 0;
-}
-.loot .lt {
-  font-family: "Fraunces", Georgia, serif;
-  font-weight: 560;
-  font-size: 15px;
-  color: var(--color-brass);
-}
-.loot .ls {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--color-dim);
-}
-.loot .ls b { color: var(--color-ink-2); }
-.loot .lf {
-  margin-left: auto;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--color-moss);
-  text-align: right;
-}
-.loot .lf span { color: var(--color-faint); }
 </style>
