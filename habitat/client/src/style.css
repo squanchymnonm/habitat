@@ -35,6 +35,3 @@
 
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important}}
 
-  @keyframes bdmgfloat{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-8px) scale(1)}100%{opacity:0;transform:translateY(-46px)}}
-  @keyframes bflinch{0%,100%{transform:translateX(0);filter:none}50%{transform:translateX(-8px);filter:brightness(2) sepia(1) hue-rotate(-30deg)}}
-  @keyframes bfadein{from{opacity:0}to{opacity:1}}
