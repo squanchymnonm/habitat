@@ -149,7 +149,7 @@ defineExpose({ repoLabel, refresh })
 
 <template>
   <div class="relative flex h-full min-h-0 flex-col">
-    <!-- Cabecera del repo: antes la mostraba ProjectExplorer, que ya no existe. -->
+    <!-- Cabecera del repo: antes la mostraba el explorador de proyecto, que ya no existe. -->
     <p v-if="repoLabel" data-test="git-repo" class="m-0 px-3 pt-2 font-mono text-xs text-muted">
       repo: <b class="text-text">{{ repoLabel.name }}</b> · ⌥ <b class="text-text">{{ repoLabel.branch }}</b> · ↑{{ repoLabel.ahead }} ↓{{ repoLabel.behind }}
     </p>

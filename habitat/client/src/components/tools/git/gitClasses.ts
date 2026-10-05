@@ -1,5 +1,5 @@
-// Clases Tailwind compartidas por la familia de componentes de git (ex git.css),
-// token por token. Centralizadas acá para no repetir la misma cadena larga en
+// Clases Tailwind compartidas por la familia de componentes de git (antes un
+// stylesheet aparte), token por token. Centralizadas acá para no repetir la misma cadena larga en
 // cada componente — ver el brief de la Task 6 para la tabla de equivalencias.
 
 // Objetivo táctil ≥40px (spec §5): min-h-10 en botones/inputs/pestañas.

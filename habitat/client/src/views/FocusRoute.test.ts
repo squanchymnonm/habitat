@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 
 const canSpawn = ref(false)
 vi.mock('../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
-vi.mock('../components/DetailPanel.vue', () => ({ default: { template: '<div data-test="detail-panel" />', methods: { fit() {} } } }))
+vi.mock('../components/focus/FocusView.vue', () => ({ default: { template: '<div data-test="focus-view" />', methods: { fit() {} } } }))
 import FocusRoute from './FocusRoute.vue'
 import { useSessions } from '../stores/sessions'
 
@@ -22,7 +22,7 @@ describe('FocusRoute — estado vacío', () => {
     expect(empty).toContain('No hay sesiones abiertas')
     expect(empty).toContain('Nueva sesión')
     expect(empty).not.toContain('mono <proyecto>')
-    expect(w.find('[data-test="detail-panel"]').exists()).toBe(false)
+    expect(w.find('[data-test="focus-view"]').exists()).toBe(false)
   })
   it('sin sesiones y sin spawn explica que se arrancan con mono en el server', () => {
     canSpawn.value = false
@@ -32,10 +32,10 @@ describe('FocusRoute — estado vacío', () => {
     expect(empty).toContain('mono <proyecto>')
     expect(empty).not.toContain('Nueva sesión')
   })
-  it('con sesiones muestra el panel de detalle', () => {
+  it('con sesiones muestra el foco', () => {
     useSessions().setAll([sess('a')])
     const w = mount(FocusRoute)
     expect(w.find('[data-test="empty-sessions"]').exists()).toBe(false)
-    expect(w.find('[data-test="detail-panel"]').exists()).toBe(true)
+    expect(w.find('[data-test="focus-view"]').exists()).toBe(true)
   })
 })
