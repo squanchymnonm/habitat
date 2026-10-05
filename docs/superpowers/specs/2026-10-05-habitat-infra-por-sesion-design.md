@@ -176,12 +176,15 @@ configuración.
    `git -C <related.dir> branch -d <rama>`, que sólo borra si la rama no tiene commits
    sin mergear. La rama se busca en `session.infra.branch` (no en `session.branch`,
    que cambia si la sesión hace checkout). Los fallos se ignoran (best-effort).
-3. **Worktree principal**: igual que hoy.
+3. **Worktree principal**: igual que hoy, salvo que si dentro de `.habitat-related/`
+   quedó algún worktree relacionado (sucio, o quitado de la configuración) el principal
+   **no se remueve**: como `.habitat-related/` está en `info/exclude`, git lo vería limpio
+   y lo borraría recursivamente junto con el trabajo anidado.
 4. **Puertos**: se liberan al eliminar la sesión del store.
 
 La lista de relacionados a limpiar se toma de la **configuración actual** del proyecto.
 Si un relacionado se quitó de la configuración mientras había una sesión viva, su
-worktree queda en disco y git lo informa al remover el principal. Ese caso se acepta.
+worktree queda en disco y, con él, el worktree principal (ver paso 3). Ese caso se acepta.
 
 ## 3. UI
 

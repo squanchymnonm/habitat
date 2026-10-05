@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, basename, resolve, relative } from 'node:path';
-import { existsSync, createWriteStream } from 'node:fs';
+import { existsSync, readdirSync, createWriteStream } from 'node:fs';
 import config from './config.js';
 import { createStore, newSession } from './state.js';
 import { createSettings } from './settings.js';
@@ -30,7 +30,7 @@ import { createProjects, hasConfig } from './projects.js';
 import { createEnvStore } from './env-store.js';
 import { scan } from './env-template.js';
 import { allocatePorts, usedPorts, probePort as defaultProbePort } from './ports.js';
-import { prepareSession, teardownRelated } from './session-setup.js';
+import { prepareSession, teardownRelated, RELATED_DIR } from './session-setup.js';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 // Contador de parciales de upload, para que dos subidas simultáneas no pisen el mismo .part.
@@ -159,6 +159,12 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   function sessionWorktree(s) {
     if (!config.WORKTREES_DIR || !s || !s.project || !s.branch || !s.tmux || s.tmux === s.project) return null;
     return worktreePaths(config.WORKTREES_DIR, s.project, s.branch).path;
+  }
+
+  // ¿Quedó algo dentro de <worktree>/.habitat-related/? (los relacionados removidos dejan
+  // la carpeta vacía).
+  function hasLeftoverRelated(wtPath) {
+    try { return readdirSync(join(wtPath, RELATED_DIR)).length > 0; } catch { return false; }
   }
 
   // Baja (o lista, con dryRun) los stacks de compose de un worktree. Best-effort: si el
@@ -902,7 +908,10 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
           for (const name of nested) {
             await git.worktreeRemove(join(projectDir, name), join(wtPath, name));
           }
-          await git.worktreeRemove(projectDir, wtPath);
+          // Si quedó algún relacionado (sucio, o quitado de la config mientras la sesión
+          // vivía), el principal tampoco se remueve: .habitat-related/ está en info/exclude,
+          // así que git lo vería limpio y borraría recursivamente el trabajo anidado.
+          if (!hasLeftoverRelated(wtPath)) await git.worktreeRemove(projectDir, wtPath);
         }
       }
       store.remove(id); // ya persiste a disco

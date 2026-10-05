@@ -2110,6 +2110,27 @@ test('POST /kill limpia los worktrees relacionados y su rama', async () => {
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
 
+const killReq = (port, id) => fetch(`http://127.0.0.1:${port}/kill`, {
+  method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id }),
+});
+
+test('POST /kill con un relacionado sucio conserva su trabajo y el worktree principal', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    const wt = join(f.root, 'wt', 'back', 'bob');
+    const sucio = join(wt, RELATED_DIR, 'infra', 'sucio.txt');
+    writeFileSync(sucio, 'wip');
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.equal(readFileSync(sucio, 'utf8'), 'wip');
+    assert.ok(existsSync(join(wt, 'README.md'))); // el principal sigue en disco
+    assert.match(execFileSync('git', ['-C', f.docker, 'branch', '--list', 'bob']).toString(), /bob/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('GET /projects expone la config (sin plantillas)', async () => {
   const f = infraSetup();
   const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
