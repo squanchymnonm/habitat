@@ -2149,6 +2149,19 @@ test('POST /spawn fallido sobre un worktree reutilizado no borra el trabajo que 
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('POST /kill encuentra el worktree aunque la sesión haya cambiado de rama', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await spawnReq(port, { dir: f.back, name: 'bob' })).status, 200);
+    store.upsert({ ...store.get('pending:back-bob'), branch: 'otra-rama' }); // checkout dentro de la sesión
+    assert.equal((await killReq(port, 'pending:back-bob')).status, 200);
+    assert.equal(existsSync(join(f.root, 'wt', 'back', 'bob')), false);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('GET /projects expone la config (sin plantillas)', async () => {
   const f = infraSetup();
   const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
@@ -2193,6 +2206,31 @@ test('POST /spawn concurrentes del mismo proyecto no compiten por el mismo puert
   const f = infraSetup();
   const store = createStore();
   const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const [r1, r2] = await Promise.all([
+      spawnReq(port, { dir: f.back, name: 'bob' }),
+      spawnReq(port, { dir: f.back, name: 'ana' }),
+    ]);
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('POST /spawn concurrentes con un probe lento no reciben el mismo puerto', async () => {
+  const f = infraSetup();
+  const store = createStore();
+  // Probe que se queda esperando hasta que llegue otra llamada (o un timeout): sin
+  // serializar la asignación, los dos spawns prueban el mismo puerto a la vez.
+  let waiting = null;
+  const probePort = async () => {
+    if (waiting) { waiting(); waiting = null; return true; }
+    await new Promise((r) => { waiting = r; setTimeout(r, 300); });
+    waiting = null;
+    return true;
+  };
+  const { server } = createApp({ config: f.cfg, store, projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux, probePort });
   try {
     const port = await listen(server);
     const [r1, r2] = await Promise.all([

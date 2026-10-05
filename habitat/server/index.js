@@ -99,11 +99,18 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   // Puertos asignados por un spawn en vuelo que todavía no está en el store: sin esto dos
   // spawns simultáneos podrían recibir el mismo puerto.
   const reservedPorts = new Set();
-  async function allocateForSpawn(names) {
-    const used = new Set([...usedPorts(store.all()), ...reservedPorts]);
-    const r = await allocatePorts(names, { range: config.PORT_RANGE || [20000, 29999], used, probe: probePort });
-    if (r.ok) for (const p of Object.values(r.ports)) reservedPorts.add(p);
-    return r;
+  // Las asignaciones van en fila: `used` se toma antes de los probes (que son async) y la
+  // reserva recién al final, así que dos asignaciones solapadas podían elegir el mismo puerto.
+  let allocChain = Promise.resolve();
+  function allocateForSpawn(names) {
+    const p = allocChain.then(async () => {
+      const used = new Set([...usedPorts(store.all()), ...reservedPorts]);
+      const r = await allocatePorts(names, { range: config.PORT_RANGE || [20000, 29999], used, probe: probePort });
+      if (r.ok) for (const port of Object.values(r.ports)) reservedPorts.add(port);
+      return r;
+    });
+    allocChain = p.catch(() => {});
+    return p;
   }
   // Whitelist de owners para clonar, normalizada: GitHub no distingue mayúsculas.
   const cloneOwners = (config.CLONE_OWNERS || []).map((o) => o.toLowerCase());
@@ -156,9 +163,11 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   // Path del worktree de la sesión, o null si es una sesión "plana" (abierta sobre el
   // repo principal). La distinción importa para docker: en un worktree los containers los
   // levantó esta sesión; en el repo principal son el entorno de desarrollo del usuario.
+  // La rama de creación (infra.branch) manda sobre s.branch, que un checkout pisa.
   function sessionWorktree(s) {
-    if (!config.WORKTREES_DIR || !s || !s.project || !s.branch || !s.tmux || s.tmux === s.project) return null;
-    return worktreePaths(config.WORKTREES_DIR, s.project, s.branch).path;
+    const branch = s && ((s.infra && s.infra.branch) || s.branch);
+    if (!config.WORKTREES_DIR || !s || !s.project || !branch || !s.tmux || s.tmux === s.project) return null;
+    return worktreePaths(config.WORKTREES_DIR, s.project, branch).path;
   }
 
   // ¿Quedó algo dentro de <worktree>/.habitat-related/? (los relacionados removidos dejan
