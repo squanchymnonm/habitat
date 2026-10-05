@@ -130,10 +130,11 @@ test('downForDir con dryRun lista sin bajar nada', async () => {
 });
 
 test('containerStates parsea working_dir y estado; sin docker devuelve []', async () => {
-  let args;
-  const exec = async (f, a) => { args = a; return '/wt/a/infra\trunning\n/wt/a/infra\texited\n\trunning\n/otro\trunning\n'; };
+  let args, opts;
+  const exec = async (f, a, o) => { args = a; opts = o; return '/wt/a/infra\trunning\n/wt/a/infra\texited\n\trunning\n/otro\trunning\n'; };
   const r = await containerStates(exec);
   assert.deepEqual(args, ['ps', '-a', '--format', STATE_FORMAT]);
+  assert.equal(opts.timeout, 10_000); // un daemon colgado no puede trabar el poller
   assert.deepEqual(r, [{ dir: '/wt/a/infra', state: 'running' }, { dir: '/wt/a/infra', state: 'exited' }, { dir: '/otro', state: 'running' }]);
   assert.deepEqual(await containerStates(async () => { throw new Error('no docker'); }), []);
 });

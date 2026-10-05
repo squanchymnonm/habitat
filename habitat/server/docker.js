@@ -107,7 +107,8 @@ export const STATE_FORMAT = '{{.Label "com.docker.compose.project.working_dir"}}
 export async function containerStates(exec = defaultExec) {
   let out;
   try {
-    out = await exec('docker', ['ps', '-a', '--format', STATE_FORMAT]);
+    // Timeout: corre cada 15s; un daemon colgado no puede dejar polls apilados.
+    out = await exec('docker', ['ps', '-a', '--format', STATE_FORMAT], { timeout: 10_000 });
   } catch {
     return [];
   }

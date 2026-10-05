@@ -1156,6 +1156,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { server, pollInfra } = createApp({ config, store, settingsStore, projectsStore });
   server.listen(config.PORT, config.BIND, () => {
     console.log(`hábitat en http://${config.BIND}:${config.PORT}`);
+    // Primer poll al arrancar: el estado persistido puede ser viejo (containers que se
+    // cayeron o levantaron con el server apagado) y el tick tarda 15s.
+    if (config.ALLOW_SPAWN) pollInfra().catch((err) => console.error('[habitat] poll de infra falló (ignorado):', err && err.message));
   });
   if (config.ALLOW_SPAWN) {
     setInterval(() => { pollInfra().catch((err) => console.error('[habitat] poll de infra falló (ignorado):', err && err.message)); }, 15_000).unref();
