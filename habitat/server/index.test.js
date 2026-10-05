@@ -2404,3 +2404,150 @@ test('POST /infra/up corre el comando del proyecto en la carpeta de infra, con l
     assert.equal((await fetch(`http://127.0.0.1:${port}/infra/up?id=nope`, { method: 'POST', headers: auth })).status, 404);
   } finally { server.close(); }
 });
+
+// Cliente ws que junta los mensajes de un tipo (espera el snapshot inicial antes de devolver).
+async function wsCollect(port, type) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=secret`);
+  await new Promise((r, rej) => { ws.once('message', () => r()); ws.once('error', rej); });
+  const msgs = [];
+  ws.on('message', (d) => { const m = JSON.parse(d.toString()); if (m.type === type) msgs.push(m); });
+  return { ws, msgs };
+}
+const INFRA_DIR = '/home/u/habitat-worktrees/proj-api/bob/.habitat-related/infra';
+const infraSession = (id) => newSession(id, { name: 'bob', project: 'proj-api', tmux: 'proj-api-bob', branch: 'bob', infra: { stack: 'b', ports: {}, dir: INFRA_DIR, branch: 'bob' } });
+// /infra/up con el runner trabado en un gate: deja el lock `infra:<id>` tomado hasta release().
+function gatedInfra() {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  return { infra: { runInfraCommand: async () => { await gate; return { ok: true }; } }, release: () => release() };
+}
+
+test('pollInfra no broadcastea una sesión removida mientras esperaba a docker', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const docker = { containerStates: async () => { await gate; return [{ dir: INFRA_DIR, state: 'running' }]; } };
+  const { server, pollInfra } = createApp({ config: spawnConfig(), store, docker });
+  const port = await listen(server);
+  const { ws, msgs } = await wsCollect(port, 'session');
+  try {
+    const p = pollInfra();
+    await new Promise((r) => setTimeout(r, 20));
+    store.remove('s1'); // /kill o la adopción del pod provisional, en plena espera
+    release();
+    await p;
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(msgs, []); // sin pod fantasma en el cliente
+  } finally { release(); ws.close(); server.close(); }
+});
+
+test('pollInfra serializa: un poll no arranca hasta que termina el anterior', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  let calls = 0;
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const docker = { containerStates: async () => { calls++; await gate; return []; } };
+  const { server, pollInfra } = createApp({ config: spawnConfig(), store, docker });
+  try {
+    const a = pollInfra();
+    const b = pollInfra();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(calls, 1); // el segundo espera: no hay respuestas de docker fuera de orden
+    release();
+    await Promise.all([a, b]);
+    assert.equal(calls, 2);
+  } finally { release(); server.close(); }
+});
+
+test('pollInfra saltea una sesión con su lock de infra tomado (up/down en curso)', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  const projectsStore = createProjects({ seed: ['/home/u/proj-api'] });
+  const g = gatedInfra();
+  const docker = { containerStates: async () => [{ dir: INFRA_DIR, state: 'running' }] };
+  const { server, pollInfra } = createApp({ config: spawnConfig(), store, projectsStore, infra: g.infra, docker });
+  const port = await listen(server);
+  const { ws, msgs } = await wsCollect(port, 'session');
+  try {
+    const up = fetch(`http://127.0.0.1:${port}/infra/up?id=s1`, { method: 'POST', headers: auth });
+    await new Promise((r) => setTimeout(r, 50));
+    await pollInfra();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(msgs, []); // mitad de un up: no se muestrea
+    g.release();
+    assert.equal((await up).status, 200);
+    await new Promise((r) => setTimeout(r, 50));
+    // el re-poll de /infra/up corre con el lock ya liberado: refleja el estado final
+    assert.deepEqual(msgs.map((m) => [m.session.id, m.session.infra.state]), [['s1', 'up']]);
+  } finally { g.release(); ws.close(); server.close(); }
+});
+
+test('POST /docker/down con una operación de infra en curso -> 409 sin bajar nada', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  const projectsStore = createProjects({ seed: ['/home/u/proj-api'] });
+  const g = gatedInfra();
+  let downs = 0;
+  const docker = fakeDocker({ downForDir: async () => { downs++; return []; }, containerStates: async () => [] });
+  const { server } = createApp({ config: spawnConfig(), store, projectsStore, infra: g.infra, docker });
+  try {
+    const port = await listen(server);
+    const up = fetch(`http://127.0.0.1:${port}/infra/up?id=s1`, { method: 'POST', headers: auth });
+    await new Promise((r) => setTimeout(r, 50));
+    const r = await fetch(`http://127.0.0.1:${port}/docker/down`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id: 's1' }),
+    });
+    assert.equal(r.status, 409);
+    assert.equal(downs, 0);
+    // el dry run (status) no toma el lock
+    assert.equal((await fetch(`http://127.0.0.1:${port}/docker/status?id=s1`, { headers: auth })).status, 200);
+    g.release();
+    await up;
+  } finally { g.release(); server.close(); }
+});
+
+test('POST /docker/down broadcastea el estado final de la infra antes de responder', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  store.get('s1').infra.state = 'up';
+  let containers = [{ dir: INFRA_DIR, state: 'running' }];
+  const docker = fakeDocker({
+    downForDir: async () => { containers = []; return ['proj-api-bob']; },
+    containerStates: async () => containers,
+  });
+  const { server } = createApp({ config: spawnConfig(), store, docker });
+  const port = await listen(server);
+  const { ws, msgs } = await wsCollect(port, 'session');
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/docker/down`, {
+      method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id: 's1' }),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { stacks: ['proj-api-bob'] });
+    assert.equal(store.get('s1').infra.state, 'off');
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(msgs.map((m) => [m.session.id, m.session.infra.state]), [['s1', 'off']]);
+  } finally { ws.close(); server.close(); }
+});
+
+test('POST /kill con un up de infra en curso -> 409 y la sesión sigue', async () => {
+  const store = createStore();
+  store.upsert(infraSession('s1'));
+  const projectsStore = createProjects({ seed: ['/home/u/proj-api'] });
+  const g = gatedInfra();
+  let killed = false;
+  const tmux = { listSessions: async () => [], newTmuxSession: async () => true, killTmuxSession: async () => { killed = true; return true; } };
+  const { server } = createApp({ config: spawnConfig(), store, projectsStore, infra: g.infra, tmux, docker: { containerStates: async () => [] } });
+  try {
+    const port = await listen(server);
+    const up = fetch(`http://127.0.0.1:${port}/infra/up?id=s1`, { method: 'POST', headers: auth });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await killReq(port, 's1')).status, 409);
+    assert.equal(killed, false);
+    assert.ok(store.get('s1'));
+    g.release();
+    await up;
+  } finally { g.release(); server.close(); }
+});

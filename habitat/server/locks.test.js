@@ -27,3 +27,15 @@ test('run libera la key aunque fn lance', async () => {
   await assert.rejects(() => locks.run('/repo', async () => { throw new Error('boom'); }), /boom/);
   assert.equal(await locks.run('/repo', async () => 'ok'), 'ok');
 });
+
+test('has indica si la key está tomada mientras corre fn', async () => {
+  const locks = createLocks();
+  let release;
+  assert.equal(locks.has('infra:s1'), false);
+  const p = locks.run('infra:s1', () => new Promise((r) => { release = r; }));
+  assert.equal(locks.has('infra:s1'), true);
+  assert.equal(locks.has('infra:s2'), false);
+  release();
+  await p;
+  assert.equal(locks.has('infra:s1'), false);
+});

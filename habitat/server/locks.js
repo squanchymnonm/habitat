@@ -11,5 +11,8 @@ export function createLocks() {
       try { return await fn(); }
       finally { held.delete(key); }
     },
+    // Consulta sin tomar: el poller de infra la usa para no muestrear un stack a mitad
+    // de un up/down (vería un estado intermedio y lo broadcastearía).
+    has: (key) => held.has(key),
   };
 }

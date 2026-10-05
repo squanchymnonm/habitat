@@ -206,12 +206,26 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
   // Estado de la infra de cada sesión. Claude puede levantarla/bajarla desde su terminal,
   // así que no alcanza con las acciones de la UI: se consulta docker periódicamente (una
   // sola llamada para todas las sesiones) y se broadcastea sólo lo que cambió.
-  async function pollInfra() {
-    const sessions = store.all().filter((s) => s.infra && s.infra.dir);
+  // Polls en fila: dos `docker ps` superpuestos pueden resolver fuera de orden y uno
+  // viejo pisaría el estado fresco que dejó /infra/up.
+  let pollChain = Promise.resolve();
+  function pollInfra() {
+    const p = pollChain.then(pollOnce);
+    pollChain = p.catch(() => {});
+    return p;
+  }
+  // Una sesión con su lock de infra tomado está a mitad de un up/down: muestrearla daría
+  // un estado intermedio (el endpoint re-pollea al terminar, ya sin el lock).
+  const infraBusy = (s) => locks.has(`infra:${s.id}`);
+  async function pollOnce() {
+    const sessions = store.all().filter((s) => s.infra && s.infra.dir && !infraBusy(s));
     if (!sessions.length) return;
     const containers = await docker.containerStates();
     let changed = false;
     for (const s of sessions) {
+      // Durante el await la sesión pudo irse (/kill, adopción del pod provisional, rekey de
+      // /clear) o tomar el lock: broadcastearla haría reaparecer un pod fantasma.
+      if (store.get(s.id) !== s || infraBusy(s)) continue;
       const state = stateForDir(containers, s.infra.dir);
       if (s.infra.state === state) continue;
       s.infra.state = state; // misma referencia: no pisamos campos escritos por hooks en vuelo
@@ -931,6 +945,8 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       if (typeof id !== 'string' || !id) { res.writeHead(400).end(); return; }
       const s = store.get(id);
       if (!s) { res.writeHead(404).end(); return; }
+      // Un up/down de infra en curso: cerrar ahora borraría el worktree debajo del compose.
+      if (locks.has(`infra:${id}`)) { res.writeHead(409).end(); return; }
       await tmux.killTmuxSession(s.tmux || s.name); // best-effort: ignoramos el resultado
       await tmux.killTmuxSession(`${s.tmux || s.name}-edit`); // best-effort: terminal de editor
       // Sesión por rama (worktree): el tmux es `<proyecto>-<rama>` y difiere del proyecto.
@@ -989,7 +1005,20 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       const wt = sessionWorktree(s);
       // Sesión plana (repo principal): sus containers son el entorno del usuario, no algo
       // que levantó hábitat. No los listamos ni los bajamos.
-      const stacks = wt ? await dockerDown(wt, { dryRun: !isDown }) : [];
+      let stacks = [];
+      if (wt && isDown) {
+        // Bajar toma el lock de infra de la sesión (como /infra/up): el poller no muestrea a
+        // mitad del down y un up/down simultáneo recibe 409. El dry run no lo necesita.
+        try {
+          stacks = await locks.run(`infra:${id}`, () => dockerDown(wt));
+        } catch (e) {
+          res.writeHead(e && e.message === 'busy' ? 409 : 500).end();
+          return;
+        }
+        await pollInfra().catch(() => {}); // ya sin el lock: refleja el estado final
+      } else if (wt) {
+        stacks = await dockerDown(wt, { dryRun: true });
+      }
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ stacks }));
       return;
     }
