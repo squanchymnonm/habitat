@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import GitWork from './GitWork.vue'
-import type { GitStatus } from '../composables/useGit'
+import type { GitStatus } from '../../../composables/useGit'
 
 const status = (over: Partial<GitStatus> = {}): GitStatus => ({
   working: { staged: [], unstaged: [], untracked: [], conflicted: [] },
@@ -12,7 +12,7 @@ const status = (over: Partial<GitStatus> = {}): GitStatus => ({
 })
 
 const amendBtn = (w: ReturnType<typeof mount>) =>
-  w.findAll('.gw-commit .g-btn').find((b) => b.text() === 'amend')!
+  w.findAll('[data-test="git-commit-actions"]').find((b) => b.text() === 'amend')!
 
 // El aviso de amend estaba invertido: status.commits son los commits en
 // default..HEAD, así que con la lista vacía `last` era undefined y no se avisaba

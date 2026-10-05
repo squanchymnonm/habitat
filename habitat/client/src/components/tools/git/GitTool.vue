@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount, computed } from 'vue'
-import { useGit, type DiffBase, type StashEntry } from '../composables/useGit'
-import { canCreatePr } from '../composables/gitBranches'
-import { parseDiff, type DiffHunk } from '../composables/parseDiff'
-import { useSessions } from '../stores/sessions'
+import { useGit, type DiffBase, type StashEntry } from '../../../composables/useGit'
+import { canCreatePr } from '../../../composables/gitBranches'
+import { parseDiff, type DiffHunk } from '../../../composables/parseDiff'
+import { useSessions } from '../../../stores/sessions'
 import GitWork from './GitWork.vue'
 import GitBranchDiff from './GitBranchDiff.vue'
 import GitBranches from './GitBranches.vue'
 import GitCommits from './GitCommits.vue'
 import GitDiff from './GitDiff.vue'
 import GitIcon from './GitIcon.vue'
-import '../styles/git.css'
 
-const props = defineProps<{ id: string; path: string }>()
+const props = defineProps<{ sessionId: string; path: string }>()
 
 const store = useSessions()
 const { status, loading, error, loadStatus, loadDiff, loadStash, action } = useGit()
@@ -32,14 +31,14 @@ const retry = ref<{ branch: string } | null>(null)
 const prUrl = ref('')
 
 async function refresh() {
-  await loadStatus(props.id, props.path)
-  stash.value = await loadStash(props.id, props.path)
+  await loadStatus(props.sessionId, props.path)
+  stash.value = await loadStash(props.sessionId, props.path)
 }
 
 async function openDiff(file: string, base: DiffBase) {
   diff.value = null
   try {
-    const r = await loadDiff(props.id, file, base, props.path)
+    const r = await loadDiff(props.sessionId, file, base, props.path)
     diff.value = { file, hunks: r.binary ? [] : parseDiff(r.patch), binary: r.binary }
   } catch { actionErr.value = 'no se pudo cargar el diff' }
 }
@@ -47,7 +46,7 @@ async function openDiff(file: string, base: DiffBase) {
 async function run(name: string, payload: Record<string, unknown> = {}, confirmMsg?: string) {
   if (confirmMsg && !confirm(confirmMsg)) return
   busy.value = name; actionErr.value = ''
-  const r = await action(props.id, name, { path: props.path, ...payload })
+  const r = await action(props.sessionId, name, { path: props.path, ...payload })
   busy.value = ''
   if (!r.ok) {
     actionErr.value = r.conflict ? `Conflicto en: ${(r.files ?? []).join(', ')}` : (r.message || 'falló')
@@ -73,7 +72,7 @@ async function stashAndRetry() {
 
 async function doPr() {
   busy.value = 'pr-create'; actionErr.value = ''; prUrl.value = ''
-  const r = await action(props.id, 'pr-create', { path: props.path })
+  const r = await action(props.sessionId, 'pr-create', { path: props.path })
   busy.value = ''
   if (r.url) prUrl.value = r.url
   if (!r.ok) actionErr.value = r.message || 'no se pudo crear el PR'
@@ -84,7 +83,7 @@ async function doPr() {
 // cambia de identidad; debounced para no spamear git.
 let t: ReturnType<typeof setTimeout> | null = null
 function schedule() { if (t) clearTimeout(t); t = setTimeout(refresh, 800) }
-watch(() => store.list.find((s) => s.id === props.id), schedule)
+watch(() => store.list.find((s) => s.id === props.sessionId), schedule)
 // El path lo manda el shell: al navegar a otra carpeta hay que re-scopear.
 // Cambiar de sesión o de path invalida cualquier oferta de recuperación pendiente:
 // "retry" (y el error que la originó) apuntan a la rama/repo que falló, que ya no
@@ -93,7 +92,7 @@ watch(() => store.list.find((s) => s.id === props.id), schedule)
 // prUrl tiene la misma fuga: es el link del PR del repo/rama anterior, y si no
 // se limpia queda visible apuntando a un PR que no tiene nada que ver con el
 // repo activo nuevo.
-watch(() => [props.id, props.path] as const, () => {
+watch(() => [props.sessionId, props.path] as const, () => {
   retry.value = null
   actionErr.value = ''
   prUrl.value = ''
@@ -145,53 +144,89 @@ const errMsg = computed(() => {
   }
 })
 defineExpose({ repoLabel, refresh })
+
+// Clases compartidas (ex git.css), token por token.
+const BTN = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
+const BTN_PRIMARY = 'bg-accent text-accent-foreground hover:text-accent-foreground'
+const COUNT = 'rounded-full bg-surface px-1.5 text-[10px] tabular-nums text-muted'
+const COUNT_PRIMARY = 'bg-accent-foreground/20 text-accent-foreground'
+const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
+const TAB = 'cursor-pointer border-0 border-b-2 bg-transparent px-3 py-1.5 font-[inherit] text-sm'
 </script>
 
 <template>
-  <div class="gp">
+  <div class="relative flex h-full min-h-0 flex-col">
+    <!-- Cabecera del repo: antes la mostraba ProjectExplorer, que ya no existe. -->
+    <p v-if="repoLabel" data-test="git-repo" class="m-0 px-3 pt-2 font-mono text-xs text-muted">
+      repo: <b class="text-text">{{ repoLabel.name }}</b> · ⌥ <b class="text-text">{{ repoLabel.branch }}</b> · ↑{{ repoLabel.ahead }} ↓{{ repoLabel.behind }}
+    </p>
+
     <!-- Tres pestañas, todas en español: antes eran cuatro y mezclaba idiomas
          (Trabajo | Rama | Branches | Commits). El contador de cambios va en la
          pestaña porque es el dato que decide si entrar. -->
-    <nav class="gp-tabs" role="tablist" aria-label="Vistas de git">
-      <button role="tab" :aria-selected="tab === 'work'" :class="{ on: tab === 'work' }" @click="tab = 'work'">
+    <nav class="flex gap-1.5 px-3 py-2" role="tablist" aria-label="Vistas de git">
+      <button
+        role="tab"
+        type="button"
+        data-test="git-tab"
+        :aria-selected="tab === 'work'"
+        :class="[TAB, tab === 'work' ? 'border-accent text-text' : 'border-transparent text-muted']"
+        @click="tab = 'work'"
+      >
         Cambios
-        <span v-if="pendingCount" class="g-count">{{ pendingCount }}</span>
+        <span v-if="pendingCount" :class="COUNT">{{ pendingCount }}</span>
       </button>
-      <button role="tab" :aria-selected="tab === 'branches'" :class="{ on: tab === 'branches' }" @click="tab = 'branches'">
+      <button
+        role="tab"
+        type="button"
+        data-test="git-tab"
+        :aria-selected="tab === 'branches'"
+        :class="[TAB, tab === 'branches' ? 'border-accent text-text' : 'border-transparent text-muted']"
+        @click="tab = 'branches'"
+      >
         Ramas
       </button>
-      <button role="tab" :aria-selected="tab === 'commits'" :class="{ on: tab === 'commits' }" @click="tab = 'commits'">
+      <button
+        role="tab"
+        type="button"
+        data-test="git-tab"
+        :aria-selected="tab === 'commits'"
+        :class="[TAB, tab === 'commits' ? 'border-accent text-text' : 'border-transparent text-muted']"
+        @click="tab = 'commits'"
+      >
         Historial
       </button>
     </nav>
 
-    <p v-if="error" class="g-err">{{ errMsg }}</p>
-    <p v-if="actionErr" class="g-err">{{ actionErr }}</p>
-    <p v-if="prUrl" class="gp-pr"><a :href="prUrl" target="_blank" rel="noopener">{{ prUrl }}</a></p>
+    <p v-if="error" class="m-0 px-3 text-sm text-danger">{{ errMsg }}</p>
+    <p v-if="actionErr" class="m-0 px-3 text-sm text-danger">{{ actionErr }}</p>
+    <p v-if="prUrl" class="px-3 text-sm [overflow-wrap:anywhere]">
+      <a :href="prUrl" target="_blank" rel="noopener" class="font-mono text-accent no-underline hover:underline">{{ prUrl }}</a>
+    </p>
     <!-- La salida del checkout que falló por árbol sucio. No es un error nuevo:
          es la acción de recuperación del error de arriba, así que va pegada. -->
-    <p v-if="retry" class="gp-retry">
-      <button class="g-btn" :disabled="!!busy" @click="stashAndRetry">
+    <p v-if="retry" class="m-0 px-3">
+      <button type="button" data-test="git-btn" :class="BTN" :disabled="!!busy" @click="stashAndRetry">
         <GitIcon name="stack" />
         Stashear y reintentar
       </button>
     </p>
-    <p v-if="loading" class="g-muted gp-loading">cargando…</p>
+    <p v-if="loading" class="px-3 text-sm text-muted">cargando…</p>
 
-    <div v-if="status" class="gp-body">
+    <div v-if="status" class="min-h-0 flex-1 overflow-y-auto px-3 py-2">
       <GitWork v-if="tab === 'work'" :status="status" :stash="stash" @run="run" @diff="openDiff" />
-      <GitBranches v-else-if="tab === 'branches'" ref="branchesEl" :id="props.id" :path="props.path" @run="run" />
+      <GitBranches v-else-if="tab === 'branches'" ref="branchesEl" :id="props.sessionId" :path="props.path" @run="run" />
       <template v-else>
         <!-- El diff contra el default encabeza el historial: es el resumen de
              "qué cambia mi rama", y los commits son el detalle de lo mismo. -->
-        <section class="g-group">
-          <h4>
+        <section class="flex flex-col gap-1.5">
+          <h4 :class="GROUP_H4">
             Contra {{ status.overview.default }}
-            <span class="g-count">{{ status.overview.files.length }}</span>
+            <span :class="COUNT">{{ status.overview.files.length }}</span>
           </h4>
           <GitBranchDiff :status="status" @diff="openDiff" />
         </section>
-        <GitCommits :status="status" :id="props.id" :path="props.path" @diff="openDiff" />
+        <GitCommits :status="status" :id="props.sessionId" :path="props.path" @diff="openDiff" />
       </template>
     </div>
 
@@ -200,30 +235,46 @@ defineExpose({ repoLabel, refresh })
          Una sola acción va marcada como primaria según el estado del repo; el
          resto queda secundario, y el PR aparte porque es la única que sale
          hacia afuera (crea algo en GitHub). -->
-    <footer v-if="status" class="gp-actions">
-      <button class="g-btn" :class="{ primary: primary === 'merge-default' }" :disabled="busy === 'merge-default'"
-        @click="run('merge-default', {}, `Traer ${status.overview.default} a la rama?`)">
+    <footer v-if="status" class="flex flex-wrap gap-2 border-t border-border bg-surface p-2">
+      <button
+        type="button"
+        data-test="git-btn"
+        :class="[BTN, primary === 'merge-default' ? BTN_PRIMARY : '']"
+        :disabled="busy === 'merge-default'"
+        @click="run('merge-default', {}, `Traer ${status.overview.default} a la rama?`)"
+      >
         <GitIcon name="merge" />
         Actualizar
-        <span v-if="status.overview.behind" class="g-count">{{ status.overview.behind }}</span>
+        <span v-if="status.overview.behind" :class="[COUNT, primary === 'merge-default' ? COUNT_PRIMARY : '']">{{ status.overview.behind }}</span>
       </button>
-      <button class="g-btn" :class="{ primary: primary === 'fetch' }" :disabled="busy === 'fetch'"
-        @click="run('fetch')">
+      <button
+        type="button"
+        data-test="git-btn"
+        :class="[BTN, primary === 'fetch' ? BTN_PRIMARY : '']"
+        :disabled="busy === 'fetch'"
+        @click="run('fetch')"
+      >
         <GitIcon name="refresh" />
         Fetch
       </button>
-      <button class="g-btn" :disabled="busy === 'pull'" @click="run('pull')">
+      <button type="button" data-test="git-btn" :class="BTN" :disabled="busy === 'pull'" @click="run('pull')">
         <GitIcon name="download" />
         Pull
       </button>
-      <button class="g-btn" :class="{ primary: primary === 'push' }" :disabled="busy === 'push'"
-        @click="run('push')">
+      <button
+        type="button"
+        data-test="git-btn"
+        :class="[BTN, primary === 'push' ? BTN_PRIMARY : '']"
+        :disabled="busy === 'push'"
+        @click="run('push')"
+      >
         <GitIcon name="upload" />
         Push
-        <span v-if="unpushedCount" class="g-count">{{ unpushedCount }}</span>
+        <span v-if="unpushedCount" :class="[COUNT, primary === 'push' ? COUNT_PRIMARY : '']">{{ unpushedCount }}</span>
       </button>
-      <button class="g-btn gp-pr-btn" :disabled="busy === 'pr-create' || !pr.can" :title="pr.why"
-        @click="doPr">
+      <!-- El PR empuja a la derecha: es la única acción que sale hacia afuera, y
+           separarla evita tocarla apuntando a Push. -->
+      <button type="button" data-test="git-btn" class="ml-auto" :class="BTN" :disabled="busy === 'pr-create' || !pr.can" :title="pr.why" @click="doPr">
         <GitIcon name="pr" />
         PR
       </button>
@@ -232,64 +283,3 @@ defineExpose({ repoLabel, refresh })
     <GitDiff v-if="diff" :file="diff.file" :hunks="diff.hunks" :binary="diff.binary" @close="diff = null" />
   </div>
 </template>
-
-<style scoped>
-.gp { position: relative; display: flex; flex-direction: column; min-height: 0; flex: 1; }
-
-/* Pestañas: 44px como todo lo tocable (antes 40) y 8px de separación. */
-.gp-tabs { display: flex; gap: var(--g-gap); padding: var(--g-gap) var(--g-pad); }
-.gp-tabs button {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .4rem;
-  min-height: var(--g-target);
-  padding: 0 .5rem;
-  font-family: var(--font-system);
-  font-size: .95rem;
-  color: var(--color-dim);
-  background: transparent;
-  border: 1px solid var(--color-edge);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: color 160ms ease-out, border-color 160ms ease-out;
-}
-.gp-tabs button:hover { color: var(--color-ink-2); border-color: var(--color-edge-soft); }
-/* La pestaña activa no se marca sólo por color: además lleva el peso y el
-   borde brass, y aria-selected para el lector de pantalla. */
-.gp-tabs button.on {
-  color: var(--color-brass);
-  border-color: var(--color-brass);
-  font-weight: 600;
-  background: color-mix(in srgb, var(--color-brass) 12%, transparent);
-}
-.gp-tabs button.on .g-count { color: var(--color-brass); }
-
-.gp-body { flex: 1; overflow: auto; padding: var(--g-gap) var(--g-pad); }
-
-.gp-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--g-gap);
-  padding: var(--g-gap) var(--g-pad);
-  border-top: 1px solid var(--color-edge);
-  background: var(--color-surface);
-}
-/* El PR empuja a la derecha: es la única acción que sale hacia afuera, y
-   separarla evita tocarla apuntando a Push. */
-.gp-pr-btn { margin-left: auto; }
-
-.gp-retry { margin: 0 0 var(--g-gap); }
-.gp-loading { padding: 0 var(--g-pad); }
-
-.gp-pr { padding: 0 var(--g-pad); font-size: .9rem; overflow-wrap: anywhere; }
-.gp-pr a { color: var(--color-brass); font-family: var(--font-machine); }
-
-/* Tablet en vertical y teléfono: las acciones no caben en una fila sin
-   apretarse, así que se reparten en dos columnas de target completo. */
-@media (max-width: 640px) {
-  .gp-actions > .g-btn { flex: 1 1 calc(50% - var(--g-gap)); }
-  .gp-pr-btn { margin-left: 0; }
-}
-</style>

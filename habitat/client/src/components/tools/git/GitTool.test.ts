@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import GitPanel from './GitPanel.vue'
+import GitTool from './GitTool.vue'
 import GitBranches from './GitBranches.vue'
 
 // Respuestas mínimas para que el panel llegue a mostrar contenido sin
@@ -37,7 +37,7 @@ function stubFetch() {
   }))
 }
 
-describe('GitPanel — retry de checkout sucio', () => {
+describe('GitTool — retry de checkout sucio', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     stubFetch()
@@ -45,17 +45,17 @@ describe('GitPanel — retry de checkout sucio', () => {
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('un checkout que falla por árbol sucio muestra "Stashear y reintentar", y el refresh() interno de run() no lo borra', async () => {
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
 
     // Vamos a la pestaña Branches: es la que emite 'checkout'.
-    const tabs = w.findAll('.gp-tabs button')
+    const tabs = w.findAll('[data-test="git-tab"]')
     const branchesTab = tabs.find((b) => b.text().includes('Ramas'))
     await branchesTab!.trigger('click')
     await flushPromises()
 
     // Simulamos lo mismo que produciría un click en una rama: GitBranches emite
-    // 'run' con el checkout, que index.js/GitPanel.run() procesa.
+    // 'run' con el checkout, que index.js/GitTool.run() procesa.
     w.findComponent(GitBranches).vm.$emit('run', 'checkout', { branch: 'feature-x' })
     await flushPromises()
 
@@ -64,10 +64,10 @@ describe('GitPanel — retry de checkout sucio', () => {
   })
 
   it('cambiar de path limpia "retry" y el error viejo (no queda apuntando a un repo/rama que ya no es el activo)', async () => {
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
 
-    const tabs = w.findAll('.gp-tabs button')
+    const tabs = w.findAll('[data-test="git-tab"]')
     const branchesTab = tabs.find((b) => b.text().includes('Ramas'))
     await branchesTab!.trigger('click')
     await flushPromises()
@@ -85,10 +85,10 @@ describe('GitPanel — retry de checkout sucio', () => {
   })
 
   it('cambiar de sesión (id) también limpia "retry"', async () => {
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
 
-    const tabs = w.findAll('.gp-tabs button')
+    const tabs = w.findAll('[data-test="git-tab"]')
     const branchesTab = tabs.find((b) => b.text().includes('Ramas'))
     await branchesTab!.trigger('click')
     await flushPromises()
@@ -97,14 +97,14 @@ describe('GitPanel — retry de checkout sucio', () => {
     await flushPromises()
     expect(w.text()).toContain('Stashear y reintentar')
 
-    await w.setProps({ id: 's2' })
+    await w.setProps({ sessionId: 's2' })
     await flushPromises()
 
     expect(w.text()).not.toContain('Stashear y reintentar')
   })
 })
 
-describe('GitPanel — el stash del retry pasa por run()', () => {
+describe('GitTool — el stash del retry pasa por run()', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
   afterEach(() => { vi.unstubAllGlobals() })
 
@@ -129,9 +129,9 @@ describe('GitPanel — el stash del retry pasa por run()', () => {
       return { ok: true, status: 200, json: async () => ({}) }
     }))
 
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
-    await w.findAll('.gp-tabs button').find((b) => b.text().includes('Ramas'))!.trigger('click')
+    await w.findAll('[data-test="git-tab"]').find((b) => b.text().includes('Ramas'))!.trigger('click')
     await flushPromises()
 
     w.findComponent(GitBranches).vm.$emit('run', 'checkout', { branch: 'feature-x' })
@@ -139,7 +139,7 @@ describe('GitPanel — el stash del retry pasa por run()', () => {
     expect(w.text()).toContain('Stashear y reintentar') // precondición
 
     calls.length = 0
-    await w.findAll('.g-btn').find((b) => b.text() === 'Stashear y reintentar')!.trigger('click')
+    await w.findAll('[data-test="git-btn"]').find((b) => b.text() === 'Stashear y reintentar')!.trigger('click')
     await flushPromises()
 
     const iStash = calls.indexOf('action:stash-push')
@@ -152,7 +152,7 @@ describe('GitPanel — el stash del retry pasa por run()', () => {
   })
 })
 
-describe('GitPanel — diagnóstico del 409', () => {
+describe('GitTool — diagnóstico del 409', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
   afterEach(() => { vi.unstubAllGlobals() })
 
@@ -165,7 +165,7 @@ describe('GitPanel — diagnóstico del 409', () => {
       }
       return { ok: true, status: 200, json: async () => [] }
     }))
-    const w = mount(GitPanel, { props: { id: 's1', path: 'sub' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: 'sub' } })
     await flushPromises()
     expect(w.text()).toContain('por encima del directorio de la sesión')
     expect(w.text()).not.toContain('sin repo git acá')
@@ -178,7 +178,7 @@ describe('GitPanel — diagnóstico del 409', () => {
       }
       return { ok: true, status: 200, json: async () => [] }
     }))
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
     expect(w.text()).toContain('sin repo git acá')
   })
@@ -208,7 +208,7 @@ function stubFetchWithPr() {
   }))
 }
 
-describe('GitPanel — prUrl no se filtra entre repos', () => {
+describe('GitTool — prUrl no se filtra entre repos', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     stubFetchWithPr()
@@ -216,10 +216,10 @@ describe('GitPanel — prUrl no se filtra entre repos', () => {
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('cambiar de path limpia el link del PR creado en el repo anterior', async () => {
-    const w = mount(GitPanel, { props: { id: 's1', path: '' } })
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
     await flushPromises()
 
-    const prButton = w.findAll('.g-btn').find((b) => b.text() === 'PR')
+    const prButton = w.findAll('[data-test="git-btn"]').find((b) => b.text() === 'PR')
     await prButton!.trigger('click')
     await flushPromises()
 
@@ -229,5 +229,48 @@ describe('GitPanel — prUrl no se filtra entre repos', () => {
     await flushPromises()
 
     expect(w.html()).not.toContain('pull/42')
+  })
+})
+
+describe('GitTool — estilo con tokens', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    stubFetch()
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('los botones de la barra de acciones no usan borde nativo y son clickeables', async () => {
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
+    await flushPromises()
+
+    const actionButtons = w.findAll('footer [data-test="git-btn"]')
+    expect(actionButtons.length).toBeGreaterThan(0)
+    for (const b of actionButtons) {
+      expect(b.classes()).toContain('border-0')
+      expect(b.classes()).toContain('cursor-pointer')
+    }
+  })
+
+  it('el diff se abre dentro de la herramienta: el contenedor queda posicionado "absolute", no como overlay aparte', async () => {
+    const withFile = {
+      ...statusBody,
+      working: { ...statusBody.working, staged: [{ rel: 'a.txt', status: 'M' }] },
+    }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/git/status')) return { ok: true, status: 200, json: async () => withFile }
+      if (url.includes('/git/stash')) return { ok: true, status: 200, json: async () => [] }
+      if (url.includes('/git/diff')) return { ok: true, status: 200, json: async () => ({ binary: false, patch: '' }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    }))
+
+    const w = mount(GitTool, { props: { sessionId: 's1', path: '' } })
+    await flushPromises()
+
+    await w.find('a').trigger('click') // el nombre del archivo staged emite 'diff'
+    await flushPromises()
+
+    const panel = w.find('[role="dialog"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('absolute')
   })
 })

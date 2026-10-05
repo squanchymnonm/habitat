@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import GitCommits from './GitCommits.vue'
-import type { GitStatus } from '../composables/useGit'
+import type { GitStatus } from '../../../composables/useGit'
 
 // Status mínimo: estos tests ejercitan sólo la vista "historial completo"
 // (loadLog), la de props.status.commits no está en juego.
@@ -37,7 +37,7 @@ describe('GitCommits — historial completo: condiciones de carrera', () => {
     await flushPromises()
 
     // Activar "historial completo": dispara loadMore() para el repo s1.
-    await w.find('.gc-toggle').trigger('click')
+    await w.find('[data-test="git-commit-toggle"]').trigger('click')
     await flushPromises()
     expect(pending.filter((p) => p.url.includes('/git/log')).length).toBe(1)
 
@@ -64,7 +64,7 @@ describe('GitCommits — historial completo: condiciones de carrera', () => {
     const w = mount(GitCommits, { props: { status: statusBody, id: 's1', path: '' } })
     await flushPromises()
 
-    const toggle = () => w.find('.gc-toggle').trigger('click')
+    const toggle = () => w.find('[data-test="git-commit-toggle"]').trigger('click')
 
     // historial completo -> loadMore() #1 en vuelo (sin resolver todavía).
     await toggle()
@@ -80,7 +80,7 @@ describe('GitCommits — historial completo: condiciones de carrera', () => {
     resolveNext('id=s1', [{ sha: 'xxx', shortSha: 'xxx', subject: 'commit único', author: 'X', date: 'd1' }])
     await flushPromises()
 
-    const rows = w.findAll('.gc-row')
+    const rows = w.findAll('[data-test="git-commit-row"]')
     expect(rows.length).toBe(1) // sin duplicados
   })
 })
