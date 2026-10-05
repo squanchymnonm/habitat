@@ -13,7 +13,7 @@ const { zoomPct, zoomIn, zoomOut, resetZoom, canZoomIn, canZoomOut } = useZoom()
 
 <template>
   <DropdownMenu>
-    <DropdownMenuTrigger class="cursor-pointer rounded-[var(--radius)] border-0 bg-transparent p-2 font-[inherit] text-muted hover:bg-surface-raised hover:text-text" aria-label="Menú">
+    <DropdownMenuTrigger class="shrink-0 cursor-pointer rounded-[var(--radius)] border-0 bg-transparent p-2 font-[inherit] text-muted hover:bg-surface-raised hover:text-text" aria-label="Menú">
       <CircleUser class="size-5" />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-52">

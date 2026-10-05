@@ -21,8 +21,21 @@ describe('TopBar', () => {
     expect(sum).toContain('4')
     expect(sum).toContain('2 trabajando')
     expect(sum).toContain('1 te necesita')
+    // En teléfono sólo números: el texto "te necesita" se oculta bajo sm.
+    expect(w.get('[data-test="need-label"]').classes()).toEqual(expect.arrayContaining(['hidden', 'sm:inline']))
     expect(w.get('[data-test="mana-fill"]').attributes('style')).toContain('width: 70%')
     expect(w.find('[data-test="spawn"]').exists()).toBe(true)
+  })
+  // Regresión: en teléfono (400px) la barra desbordaba; el resumen cede ancho y los controles no.
+  it('la fila de la barra encoge sin desbordar: resumen min-w-0, controles shrink-0', () => {
+    setActivePinia(createPinia())
+    useSessions().setAll([sess('c', 'waiting')])
+    setUsage({ pct: 30, resetAt: Math.floor(Date.now() / 1000) + 3600 })
+    const w = mount(TopBar, { global: { plugins: [router] } })
+    expect(w.get('[data-test="session-summary"]').classes()).toContain('min-w-0')
+    expect(w.get('a').classes()).toContain('shrink-0')
+    expect(w.get('[aria-label="Menú"]').classes()).toContain('shrink-0')
+    expect(w.get('[aria-label="Maná: uso de Claude restante"]').classes()).toContain('shrink-0')
   })
   // Regresión: sin el preflight de Tailwind, el trigger del menú de usuario (reka-ui
   // DropdownMenuTrigger, un <button> real) heredaba cara blanca nativa.
