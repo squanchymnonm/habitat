@@ -13,9 +13,16 @@ function typingTarget(t: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable || t.getAttribute('contenteditable') === 'true'
 }
 
+// Un diálogo (Reka) es dueño de su propio teclado: ningún atajo nuestro debe actuar
+// si el evento viene de ahí adentro.
+function insideDialog(t: EventTarget | null): boolean {
+  return t instanceof HTMLElement && !!t.closest('[role="dialog"]')
+}
+
 export function shortcutFor(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>, target: EventTarget | null): Shortcut | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null
   if (typingTarget(target)) return null
+  if (insideDialog(target)) return null
   if (e.key === '[') return 'prev'
   if (e.key === ']') return 'next'
   if (e.key === 'Escape') return 'escape'
@@ -30,7 +37,14 @@ export function useFocusShortcuts(opts: { onEscape: () => boolean }) {
   function onKey(e: KeyboardEvent) {
     const s = shortcutFor(e, e.target)
     if (!s) return
-    if (s === 'escape') { if (opts.onEscape()) e.preventDefault(); return }
+    if (s === 'escape') {
+      // Reka's DismissableLayer escucha Esc en window y sólo cierra si el evento no
+      // llegó con preventDefault: nunca lo llamamos acá, y si hay un diálogo abierto
+      // en cualquier parte del documento (no sólo dentro del target), el Esc es suyo.
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return
+      opts.onEscape()
+      return
+    }
     const ids = store.list.map((x) => x.id)
     if (!ids.length) return
     const i = Math.max(0, ids.indexOf(store.selectedId ?? ''))

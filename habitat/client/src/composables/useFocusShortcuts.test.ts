@@ -27,4 +27,10 @@ describe('shortcutFor', () => {
     const wrap = el('div', 'xterm'); const inner = el('div'); wrap.appendChild(inner)
     expect(shortcutFor(ev(']'), inner)).toBeNull()
   })
+  it('dentro de un diálogo (role=dialog) tampoco: el diálogo es dueño de su teclado', () => {
+    const dialog = el('div'); dialog.setAttribute('role', 'dialog'); const inner = el('div'); dialog.appendChild(inner)
+    expect(shortcutFor(ev(']'), inner)).toBeNull()
+    expect(shortcutFor(ev('Escape'), inner)).toBeNull()
+    expect(shortcutFor(ev('['), dialog)).toBeNull()
+  })
 })

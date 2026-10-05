@@ -127,6 +127,23 @@ describe('FocusView', () => {
       expect(useFocusTools(ref('a')).pinned.value).toBe('quest')
       w.unmount()
     })
+    // Reka's DismissableLayer escucha Esc en window y sólo cierra si el evento no llegó
+    // con preventDefault; nuestro atajo tampoco debe actuar mientras hay un diálogo
+    // abierto en cualquier parte del documento: el diálogo es dueño del Esc.
+    it('Esc con un diálogo abierto no cierra el editor (el diálogo es dueño del Esc)', async () => {
+      const { w } = await mountFocus([sess('a')])
+      await w.get('[data-test="header-editor"]').trigger('click')
+      expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+      const dialog = document.createElement('div')
+      dialog.setAttribute('role', 'dialog')
+      dialog.setAttribute('data-state', 'open')
+      document.body.appendChild(dialog)
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+      expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+      dialog.remove()
+      w.unmount()
+    })
   })
 
   describe('selección de Infra obsoleta', () => {
@@ -146,6 +163,16 @@ describe('FocusView', () => {
       useFocusTools(ref('a')).select('infra'); await flushPromises()
       expect(w.find('[data-test="infra-tool"]').exists()).toBe(true)
       canSpawn.value = false
+      await flushPromises()
+      expect(useFocusTools(ref('a')).active.value).toBe('terminal')
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
+      w.unmount()
+    })
+    it('si session.infra.dir queda vacío (canSpawn sigue en true), vuelve a terminal', async () => {
+      const { w, store } = await mountFocus([sess('a', { dir: '/wt/infra' })])
+      useFocusTools(ref('a')).select('infra'); await flushPromises()
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(true)
+      store.upsert(sess('a', { dir: '' }))
       await flushPromises()
       expect(useFocusTools(ref('a')).active.value).toBe('terminal')
       expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
