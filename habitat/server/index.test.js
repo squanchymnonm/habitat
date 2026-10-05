@@ -2042,6 +2042,9 @@ function infraSetup() {
 const spawnReq = (port, body) => fetch(`http://127.0.0.1:${port}/spawn`, {
   method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body),
 });
+const jsonReq = (port, method, path, body) => fetch(`http://127.0.0.1:${port}${path}`, {
+  method, headers: { ...auth, 'content-type': 'application/json' }, body: body && JSON.stringify(body),
+});
 
 test('POST /spawn con config arma relacionados, .env e infra en la sesión provisional', async () => {
   const f = infraSetup();
@@ -2160,5 +2163,84 @@ test('POST /spawn concurrentes del mismo proyecto no compiten por el mismo puert
     assert.equal(r1.status, 200);
     assert.equal(r2.status, 200);
     assert.notEqual(store.get('pending:back-bob').infra.ports.db, store.get('pending:back-ana').infra.ports.db);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('PATCH /projects guarda config válida y rechaza relacionados fuera del root o no-repo', async () => {
+  const f = infraSetup();
+  const outside = mkdtempSync(join(tmpdir(), 'habitat-out-')); initRepoAt(outside);
+  const notRepo = join(f.root, 'proyectos', 'plain'); mkdirSync(notRepo);
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const ok = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, infra: { repo: 'self', path: 'docker', up: '', down: '' } });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).infra.path, 'docker');
+    // dir relativo al root (lo que manda el navegador de carpetas) se resuelve en el server
+    const relOk = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: 'docker', name: 'infra' }] });
+    assert.equal(relOk.status, 200);
+    assert.equal((await relOk.json()).related[0].dir, f.docker);
+    const out = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: outside, name: 'x' }] });
+    assert.equal(out.status, 400);
+    assert.match((await out.json()).error, /fuera de la carpeta de proyectos/);
+    const plain = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [{ dir: notRepo, name: 'x' }] });
+    assert.equal(plain.status, 400);
+    assert.match((await plain.json()).error, /no es un repo git/);
+    const dangling = await jsonReq(port, 'PATCH', '/projects', { dir: f.back, related: [] });
+    assert.equal(dangling.status, 400);
+    assert.match((await dangling.json()).error, /referencias a relacionados inexistentes/);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
+});
+
+test('PATCH /projects quitar un envFile borra su plantilla', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await jsonReq(port, 'PATCH', '/projects', { dir: f.back, envFiles: [] })).status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), '');
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET/PUT /projects/env leen y validan la plantilla', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const q = `dir=${encodeURIComponent(f.back)}&repo=infra&path=.env`;
+    const g = await fetch(`http://127.0.0.1:${port}/projects/env?${q}`, { headers: auth });
+    assert.match((await g.json()).content, /COMPOSE_PROJECT_NAME/);
+    const bad = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A={{path:front}}' });
+    assert.equal(bad.status, 400);
+    assert.deepEqual(await bad.json(), { unknown: ['{{path:front}}'] });
+    const good = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'infra', path: '.env', content: 'A={{path:infra}}' });
+    assert.equal(good.status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), 'A={{path:infra}}');
+    const missing = await jsonReq(port, 'PUT', '/projects/env', { dir: f.back, repo: 'self', path: '.env', content: 'x' });
+    assert.equal(missing.status, 404); // (self, .env) no está en envFiles
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('GET /projects/env/import lee el .env del checkout y no se escapa del repo', async () => {
+  const f = infraSetup();
+  writeFileSync(join(f.docker, '.env'), 'REAL=1\n');
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    const base = `http://127.0.0.1:${port}/projects/env/import?dir=${encodeURIComponent(f.back)}`;
+    const r = await fetch(`${base}&repo=infra&path=.env`, { headers: auth });
+    assert.deepEqual(await r.json(), { content: 'REAL=1\n' });
+    assert.equal((await fetch(`${base}&repo=infra&path=..%2Fback%2FREADME.md`, { headers: auth })).status, 400);
+    assert.equal((await fetch(`${base}&repo=self&path=.env`, { headers: auth })).status, 404);
+  } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('DELETE /projects borra las plantillas del proyecto', async () => {
+  const f = infraSetup();
+  const { server } = createApp({ config: f.cfg, store: createStore(), projectsStore: f.projectsStore, envStore: f.envStore, tmux: f.tmux });
+  try {
+    const port = await listen(server);
+    assert.equal((await jsonReq(port, 'DELETE', '/projects', { dir: f.back })).status, 200);
+    assert.equal(f.envStore.get('back', 'infra', '.env'), '');
   } finally { server.close(); rmSync(f.root, { recursive: true, force: true }); }
 });

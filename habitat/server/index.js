@@ -28,6 +28,7 @@ import { verifyPassword } from './password.js';
 import { isAuthenticated, parseCookies, COOKIE_NAME } from './auth.js';
 import { createProjects, hasConfig } from './projects.js';
 import { createEnvStore } from './env-store.js';
+import { scan } from './env-template.js';
 import { allocatePorts, usedPorts, probePort as defaultProbePort } from './ports.js';
 import { prepareSession, teardownRelated } from './session-setup.js';
 
@@ -646,6 +647,16 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       return real === realRoot || real.startsWith(realRoot + sep);
     }
 
+    const MAX_ENV_BYTES = 256 * 1024;
+    const projectJson = (r) => ({
+      dir: r.dir, name: r.label, color: r.color, chars: r.chars,
+      related: r.related.map((x) => ({ ...x, exists: existsSync(x.dir) })), infra: r.infra, envFiles: r.envFiles,
+    });
+    const sendJson = (status, obj) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(obj));
+    // Dir del checkout principal de un repo del proyecto ('self' o un relacionado).
+    const repoDirOf = (proj, repo) => (repo === 'self' ? proj.dir : (proj.related.find((r) => r.name === repo) || {}).dir);
+    const hasEnvFile = (proj, repo, path) => proj.envFiles.some((e) => e.repo === repo && e.path === path);
+
     if (req.method === 'POST' && url.pathname === '/projects') {
       if (!authorize(req, res)) return;
       if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
@@ -670,12 +681,31 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       let body;
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
-      if (!projects.has(body.dir)) { res.writeHead(404).end(); return; }
-      const r = projects.update({ dir: body.dir, label: body.label, color: body.color, chars: body.chars });
-      if (!r.ok) { res.writeHead(400).end(); return; }
+      const before = projects.get(body.dir);
+      if (!before) { res.writeHead(404).end(); return; }
+      const touchesConfig = body.related !== undefined || body.infra !== undefined || body.envFiles !== undefined;
+      if (touchesConfig) {
+        if (Array.isArray(body.related)) {
+          for (const r of body.related) {
+            // El cliente manda rel (respecto de PROJECTS_ROOT) para los recién elegidos.
+            if (r && typeof r.dir === 'string' && r.dir && !r.dir.startsWith(sep)) r.dir = resolve(config.PROJECTS_ROOT || '', r.dir);
+            if (!r || typeof r.dir !== 'string' || !(await dirWithinRoot(r.dir))) { sendJson(400, { error: `relacionado ${r && r.name}: no existe o está fuera de la carpeta de proyectos` }); return; }
+            if (!existsSync(join(r.dir, '.git'))) { sendJson(400, { error: `relacionado ${r.name}: no es un repo git` }); return; }
+          }
+        }
+        if ((await git.findNestedRepos(body.dir)).length) { sendJson(400, { error: 'un proyecto contenedor no admite relacionados ni infra' }); return; }
+      }
+      const r = projects.update({
+        dir: body.dir, label: body.label, color: body.color, chars: body.chars,
+        related: body.related, infra: body.infra, envFiles: body.envFiles,
+      });
+      if (!r.ok) { sendJson(400, { error: r.error }); return; }
+      // Plantillas de envFiles que dejaron de existir: se borran (tienen secretos).
+      for (const e of before.envFiles) {
+        if (!hasEnvFile(r.record, e.repo, e.path)) envStore.remove(basename(before.dir), e.repo, e.path);
+      }
       broadcastProjects();
-      res.writeHead(200, { 'content-type': 'application/json' })
-        .end(JSON.stringify({ dir: r.record.dir, name: r.record.label, color: r.record.color, chars: r.record.chars }));
+      sendJson(200, projectJson(r.record));
       return;
     }
 
@@ -686,7 +716,49 @@ export function createApp({ config, store, settingsStore = createSettings(), pro
       try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400).end(); return; }
       if (!body || typeof body.dir !== 'string') { res.writeHead(400).end(); return; }
       if (!projects.remove(body.dir)) { res.writeHead(404).end(); return; }
+      envStore.removeProject(basename(body.dir));
       broadcastProjects();
+      res.writeHead(200).end();
+      return;
+    }
+
+    if (url.pathname === '/projects/env' || url.pathname === '/projects/env/import') {
+      if (!authorize(req, res)) return;
+      if (!config.ALLOW_SPAWN) { res.writeHead(403).end(); return; }
+      const isImport = url.pathname === '/projects/env/import';
+      const isPut = req.method === 'PUT' && !isImport;
+      if (!isPut && req.method !== 'GET') { res.writeHead(405).end(); return; }
+      let q;
+      if (isPut) {
+        let raw;
+        try { raw = await readBody(req); } catch { res.writeHead(400).end(); return; }
+        if (Buffer.byteLength(raw) > MAX_ENV_BYTES) { res.writeHead(413).end(); return; }
+        try { q = JSON.parse(raw); } catch { res.writeHead(400).end(); return; }
+      } else {
+        q = { dir: url.searchParams.get('dir'), repo: url.searchParams.get('repo'), path: url.searchParams.get('path') };
+      }
+      const proj = q && typeof q.dir === 'string' ? projects.get(q.dir) : null;
+      if (!proj) { res.writeHead(404).end(); return; }
+      const project = basename(proj.dir);
+      if (isImport) {
+        const repoDir = repoDirOf(proj, q.repo);
+        if (!repoDir || typeof q.path !== 'string' || !q.path) { res.writeHead(404).end(); return; }
+        const target = resolve(repoDir, q.path);
+        if (!target.startsWith(repoDir + sep)) { res.writeHead(400).end(); return; }
+        let realTarget, realRepo;
+        try { realTarget = await realpath(target); realRepo = await realpath(repoDir); }
+        catch { res.writeHead(404).end(); return; }
+        if (!realTarget.startsWith(realRepo + sep)) { res.writeHead(400).end(); return; }
+        try { sendJson(200, { content: await readFile(realTarget, 'utf8') }); }
+        catch { res.writeHead(404).end(); }
+        return;
+      }
+      if (!hasEnvFile(proj, q.repo, q.path)) { res.writeHead(404).end(); return; }
+      if (!isPut) { sendJson(200, { content: envStore.get(project, q.repo, q.path) }); return; }
+      if (typeof q.content !== 'string') { res.writeHead(400).end(); return; }
+      const { unknown } = scan(q.content, ['self', ...proj.related.map((r) => r.name)]);
+      if (unknown.length) { sendJson(400, { unknown }); return; }
+      envStore.set(project, q.repo, q.path, q.content);
       res.writeHead(200).end();
       return;
     }
