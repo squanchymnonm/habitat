@@ -9,9 +9,11 @@ const emit = defineEmits<{ (e: 'close'): void }>()
 const box = ref<HTMLElement | null>(null)
 
 // Escape cierra el diff, no la herramienta entera. Va en captura y detiene la
-// propagación para ganarle a cualquier handler de arriba.
+// propagación para ganarle a cualquier handler de arriba, pero sólo si el Esc nace
+// dentro del panel: con Git fijado, un Esc tipeado en la terminal (o nvim) es de la PTY.
 function onKey(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
+  if (!(e.target instanceof Node) || !box.value?.contains(e.target)) return
   e.stopPropagation()
   e.preventDefault()
   emit('close')
@@ -34,7 +36,7 @@ function lineSign(type: string) {
 </script>
 
 <template>
-  <div ref="box" class="absolute inset-0 z-10 flex flex-col bg-surface outline-none" role="dialog" aria-modal="true" :aria-label="`Diff de ${file}`" tabindex="-1">
+  <div ref="box" class="absolute inset-0 z-10 flex flex-col bg-surface outline-none" role="dialog" :aria-label="`Diff de ${file}`" tabindex="-1">
     <header class="flex items-center justify-between gap-2 border-b border-border px-2.5 py-2">
       <b class="min-w-0 font-mono text-sm font-medium text-text [overflow-wrap:anywhere]">{{ file }}</b>
       <button
@@ -46,7 +48,7 @@ function lineSign(type: string) {
         <GitIcon name="close" />
       </button>
     </header>
-    <p v-if="binary" class="p-2.5 text-sm text-muted">archivo binario</p>
+    <p v-if="binary" class="m-0 p-2.5 text-sm text-muted">archivo binario</p>
     <div v-else class="flex-1 overflow-auto bg-terminal-bg font-mono text-xs">
       <table v-for="(h, i) in hunks" :key="i" class="w-full border-collapse">
         <tbody>
