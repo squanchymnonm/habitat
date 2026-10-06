@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, effectScope } from 'vue'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 vi.mock('./useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
@@ -54,6 +54,19 @@ describe('useFocusTools', () => {
   })
   it('al salir de landscape se desfija y la herramienta pasa a la pestaña activa', async () => {
     const t = useFocusTools(ref('a'))
+    t.pin('git')
+    mode.value = 'portrait'
+    await nextTick()
+    expect(t.pinned.value).toBeNull()
+    expect(t.active.value).toBe('git')
+  })
+  it('el desfijado al salir de landscape sobrevive al scope del primer llamador', async () => {
+    // Simula FocusView desmontándose (ir a #/settings): su scope se detiene.
+    const scope = effectScope()
+    scope.run(() => useFocusTools(ref('a')))
+    scope.stop()
+    const t = useFocusTools(ref('a'))
+    t.select('git')
     t.pin('git')
     mode.value = 'portrait'
     await nextTick()

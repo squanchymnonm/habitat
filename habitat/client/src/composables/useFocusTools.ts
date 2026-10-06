@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch, type Ref } from 'vue'
+import { computed, effectScope, reactive, ref, watch, type EffectScope, type Ref } from 'vue'
 import { useLayoutMode } from './useLayoutMode'
 
 // Estado del modo foco. Pestaña activa, panel fijado y carpeta actual son por sesión
@@ -23,12 +23,32 @@ function readSize(): number {
 
 let bySession = reactive<Record<string, SessionTools>>({})
 const pinnedSize = ref(readSize())
-let watching = false
+// El watch que desfija al salir de landscape vive en un scope propio (detached):
+// si naciera dentro del primer componente que llama a useFocusTools, se cortaría
+// cuando ese componente se desmonta (p. ej. al ir a #/settings) y no volvería más.
+let modeScope: EffectScope | null = null
+
+function ensureModeWatch() {
+  if (modeScope) return
+  const { mode } = useLayoutMode()
+  modeScope = effectScope(true)
+  modeScope.run(() => {
+    // Al salir de landscape con paneles fijados, cada uno se desfija y su herramienta
+    // pasa a ser la pestaña activa de su sesión.
+    watch(mode, (m) => {
+      if (m === 'landscape') return
+      for (const s of Object.values(bySession)) {
+        if (s.pinned) { s.active = s.pinned; s.pinned = null }
+      }
+    })
+  })
+}
 
 export function resetFocusTools() {
   bySession = reactive({})
   pinnedSize.value = readSize()
-  watching = false
+  modeScope?.stop()
+  modeScope = null
 }
 
 export function useFocusTools(sessionId: Ref<string | null>) {
@@ -43,17 +63,7 @@ export function useFocusTools(sessionId: Ref<string | null>) {
   // Fijar al costado sólo tiene sentido con ancho de sobra (landscape).
   const canPin = computed(() => mode.value === 'landscape')
 
-  // Al salir de landscape con paneles fijados, cada uno se desfija y su herramienta
-  // pasa a ser la pestaña activa de su sesión.
-  if (!watching) {
-    watching = true
-    watch(mode, (m) => {
-      if (m === 'landscape') return
-      for (const s of Object.values(bySession)) {
-        if (s.pinned) { s.active = s.pinned; s.pinned = null }
-      }
-    })
-  }
+  ensureModeWatch()
 
   function select(tool: ToolId) {
     const s = entry()
