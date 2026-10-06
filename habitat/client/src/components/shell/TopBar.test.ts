@@ -61,26 +61,17 @@ describe('TopBar', () => {
     const w = mount(TopBar, { global: { plugins: [router] } })
     expect(w.get('a').classes()).toContain('no-underline')
   })
-  // Regresión: los botones de zoom del menú de usuario (−/100%/+) también son <button>
-  // reales sin bg/border explícitos. El contenido del DropdownMenu se teleporta a
-  // document.body (reka-ui), así que montamos con attachTo y lo buscamos ahí tras abrir.
-  it('los botones de zoom del menú de usuario no dependen del estilo nativo del botón', async () => {
+  // Regresión: el zoom se mudó a Ajustes → Apariencia (PR 4); el menú de usuario ya
+  // no lo incluye. El contenido del DropdownMenu se teleporta a document.body
+  // (reka-ui), así que montamos con attachTo y lo buscamos ahí tras abrir.
+  it('el menú de usuario ya no tiene zoom', async () => {
     setActivePinia(createPinia())
     useSessions().setAll([])
     const w = mount(TopBar, { global: { plugins: [router] }, attachTo: document.body })
     try {
       await w.get('[aria-label="Menú"]').trigger('click')
       await new Promise((r) => setTimeout(r, 0))
-      const zoomOut = document.body.querySelector('[aria-label="Alejar"]')
-      const zoomReset = document.body.querySelector('[title="Volver a 100%"]')
-      const zoomIn = document.body.querySelector('[aria-label="Acercar"]')
-      expect(zoomOut, 'botón "Alejar" no se encontró en document.body tras abrir el menú').toBeTruthy()
-      expect(zoomReset, 'botón de reset de zoom no se encontró en document.body tras abrir el menú').toBeTruthy()
-      expect(zoomIn, 'botón "Acercar" no se encontró en document.body tras abrir el menú').toBeTruthy()
-      for (const el of [zoomOut, zoomReset, zoomIn]) {
-        expect(el!.className).toContain('bg-transparent')
-        expect(el!.className).toContain('border-0')
-      }
+      expect(document.body.querySelector('[aria-label="Acercar"]')).toBeNull()
     } finally {
       w.unmount()
     }

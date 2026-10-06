@@ -31,3 +31,21 @@ describe('useLayoutMode colapsado por modo', () => {
     expect(localStorage.getItem('habitat.nav.collapsed.portrait')).toBeNull()
   })
 })
+
+describe('colapsado por defecto', () => {
+  beforeEach(() => { localStorage.clear(); vi.resetModules() })
+  it('setCollapsedAll fija landscape y portrait y lo persiste', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true })
+    const { useLayoutMode } = await import('./useLayoutMode')
+    const l = useLayoutMode()
+    expect(l.allCollapsed.value).toBe(false)
+    l.setCollapsedAll(true)
+    expect(l.allCollapsed.value).toBe(true)
+    expect(l.collapsed.value).toBe(true)
+    expect(localStorage.getItem('habitat.nav.collapsed.landscape')).toBe('1')
+    expect(localStorage.getItem('habitat.nav.collapsed.portrait')).toBe('1')
+    l.toggleCollapsed() // el botón de la barra sigue alternando sólo el modo actual
+    expect(l.allCollapsed.value).toBe(false)
+  })
+})
