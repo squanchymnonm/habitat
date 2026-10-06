@@ -1,11 +1,19 @@
 <script setup lang="ts">
+import { watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import FocusView from '../components/focus/FocusView.vue'
 import { useSessions } from '../stores/sessions'
 import { useProjects } from '../composables/useProjects'
+import { useLayoutMode } from '../composables/useLayoutMode'
 
 const store = useSessions()
 // Sólo si el server permite spawnear tiene sentido apuntar al botón "+ Nueva sesión".
 const { canSpawn } = useProjects()
+const route = useRoute()
+const router = useRouter()
+const { mode } = useLayoutMode()
+// En celular la pantalla principal es la lista; el foco sólo con una sesión explícita (#/s/:id).
+watch([mode, () => route.name], ([m, name]) => { if (m === 'phone' && name === 'focus') router.replace('/sessions') }, { immediate: true })
 </script>
 
 <template>
