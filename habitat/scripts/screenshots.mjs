@@ -30,10 +30,11 @@ const ALL_VIEWS = {
   focus: { hash: '#/' },
   settings: { hash: '#/settings/general' },
   'focus-git': { hash: '#/', prepare: [clickTab('Git')] },
-  'focus-files': { hash: '#/', prepare: [clickTab('Archivos')] },
+  // Con la vista previa del primer archivo (no carpeta) abierta: es lo que se queda sin lugar en el teléfono.
+  'focus-files': { hash: '#/', prepare: [clickTab('Archivos'), clickSel('[data-test="file-entry"]:not([data-dir])')] },
   'focus-quest': { hash: '#/', prepare: [clickTab('Quest')] },
-  // Sólo tiene sentido en landscape >=900 (único tamaño donde existe "Fijar al costado").
-  'focus-pinned': { hash: '#/', prepare: [clickTab('Git'), clickSel('[data-test="pin-tool"]')] },
+  // "Fijar al costado" sólo existe en landscape (useLayoutMode): en otros tamaños se saltea.
+  'focus-pinned': { hash: '#/', landscapeOnly: true, prepare: [clickTab('Git'), clickSel('[data-test="pin-tool"]')] },
 };
 const THEMES = list(args.themes) ?? ['forja', 'pizarra', 'taberna'];
 const SIZES = (list(args.sizes) ?? ['1440x900', '820x1180', '400x860']).map((s) => s.split('x').map(Number));
@@ -48,6 +49,8 @@ if (!shellDir) { console.error('falta chrome-headless-shell: npx playwright inst
 const bin = join(msRoot, shellDir, 'chrome-headless-shell-linux64/chrome-headless-shell');
 const jb = join(homedir(), '.cache/JetBrains/RemoteDev/dist');
 const libDir = existsSync(jb) ? readdirSync(jb).map((d) => join(jb, d, 'plugins/remote-dev-server/selfcontained/lib')).find(existsSync) : null;
+// Mismo criterio que useLayoutMode para 'landscape'.
+const isLandscape = (w, h) => w > h && w >= 900 && Math.min(w, h) >= 600;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // mkdir antes de spawnear chrome: si falla (p.ej. permisos), no deja el proceso huérfano.
 mkdirSync(OUT, { recursive: true });
@@ -57,6 +60,7 @@ const chrome = spawn(bin, ['--no-sandbox', '--remote-debugging-port=9411', '--hi
 try {
   await sleep(1500);
   for (const zoom of ZOOMS) for (const theme of THEMES) for (const [w, h] of SIZES) for (const [view, cfg] of Object.entries(VIEWS)) {
+    if (cfg.landscapeOnly && !isLandscape(w, h)) { console.log(`skip ${theme}-${w}x${h}-${view}: sólo en landscape`); continue; }
     const tab = await (await fetch('http://127.0.0.1:9411/json/new?about:blank', { method: 'PUT' })).json();
     const ws = new WebSocket(tab.webSocketDebuggerUrl); await new Promise((r) => ws.once('open', r));
     let id = 0; const pend = new Map();
