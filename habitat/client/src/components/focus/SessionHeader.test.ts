@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
+import { createRouter, createMemoryHistory, createWebHashHistory, type RouterHistory } from 'vue-router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
@@ -24,9 +24,9 @@ const base = { id: 's1', name: 'ezio', project: 'back', branch: 'feat/x', status
 // llevan un router de memoria con las rutas mínimas (componentes vacíos: a este test
 // sólo le importa a dónde navega, no qué se renderiza ahí).
 const blank = { template: '<div/>' }
-function buildRouter() {
+function buildRouter(history: RouterHistory = createMemoryHistory()) {
   return createRouter({
-    history: createMemoryHistory(),
+    history,
     routes: [
       { path: '/', component: blank },
       { path: '/s/:id', component: blank },
@@ -120,14 +120,62 @@ describe('SessionHeader', () => {
     await w.setProps({ session: { ...base, id: 's2' } })
     expect(w.text()).not.toContain('nvim no está')
   })
-  it('en phone hay botón volver a la lista', async () => {
+  it('en phone hay botón volver a la lista; entrando directo a /s/:id reemplaza (no apila)', async () => {
     mode.value = 'phone'
     const { w, router } = await mountHeader()
     const back = w.get('[data-test="back-to-list"]')
     expect(back.attributes('aria-label')).toBe('Volver a la lista')
     expect(back.classes()).toEqual(expect.arrayContaining(['min-h-10', 'min-w-10', 'border-0']))
+    const push = vi.spyOn(router, 'push'); const replace = vi.spyOn(router, 'replace'); const goBack = vi.spyOn(router, 'back')
     await back.trigger('click'); await flushPromises()
     expect(router.currentRoute.value.path).toBe('/sessions')
+    expect(replace).toHaveBeenCalledWith('/sessions')
+    expect(push).not.toHaveBeenCalled()
+    expect(goBack).not.toHaveBeenCalled()
+  })
+  it('en phone, viniendo de /sessions, volver retrocede en el historial', async () => {
+    mode.value = 'phone'
+    // Historial real (hash): es el que guarda state.back.
+    const router = buildRouter(createWebHashHistory())
+    await router.push('/sessions'); await router.isReady()
+    await router.push('/s/s1')
+    expect(router.options.history.state.back).toBe('/sessions')
+    const w = mount(SessionHeader, { props: { session: base }, global: { plugins: [router] } })
+    const goBack = vi.spyOn(router, 'back'); const replace = vi.spyOn(router, 'replace')
+    await w.get('[data-test="back-to-list"]').trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/sessions'))
+    expect(goBack).toHaveBeenCalled()
+    expect(replace).not.toHaveBeenCalled()
+    w.unmount()
+  })
+  it('en phone, cerrar la sesión en foco vuelve a la lista', async () => {
+    mode.value = 'phone'
+    const { w, router } = await mountHeader({ session: base }, { attachTo: document.body })
+    await w.get('[data-test="close-session"]').trigger('click'); await flushPromises()
+    ;(document.body.querySelector('[data-test="confirm-ok"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(kill).toHaveBeenCalledWith('s1')
+    expect(router.currentRoute.value.path).toBe('/sessions')
+    w.unmount()
+  })
+  it('fuera de phone, cerrar la sesión no navega a la lista', async () => {
+    const { w, router } = await mountHeader({ session: base }, { attachTo: document.body })
+    await w.get('[data-test="close-session"]').trigger('click'); await flushPromises()
+    ;(document.body.querySelector('[data-test="confirm-ok"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(kill).toHaveBeenCalledWith('s1')
+    expect(router.currentRoute.value.path).toBe('/s/s1')
+    w.unmount()
+  })
+  it('en phone, si el kill falla no navega', async () => {
+    mode.value = 'phone'
+    kill.mockResolvedValueOnce(false)
+    const { w, router } = await mountHeader({ session: base }, { attachTo: document.body })
+    await w.get('[data-test="close-session"]').trigger('click'); await flushPromises()
+    ;(document.body.querySelector('[data-test="confirm-ok"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/s/s1')
+    w.unmount()
   })
   it('fuera de phone no hay botón volver', async () => {
     mode.value = 'landscape'

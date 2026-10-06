@@ -54,6 +54,19 @@ async function doDockerDown() {
   refreshDocker()
 }
 
+// Volver a la lista: si venimos de ella, retroceder (no apilar historial); si se entró
+// directo a #/s/:id, reemplazar.
+function backToList() {
+  if (router.options.history.state.back === '/sessions') router.back()
+  else router.replace('/sessions')
+}
+
+// En celular, al cerrar la sesión en foco se vuelve a la lista en vez de saltar al foco de otra.
+async function closeSession() {
+  const ok = await kill(props.session.id)
+  if (ok && mode.value === 'phone') router.replace('/sessions')
+}
+
 const confirmClose = ref(false)
 const confirmDocker = ref(false)
 // min-h-10/min-w-10: objetivo táctil ≥40px (spec §5); en el teléfono Editor y Cerrar quedan sólo con ícono.
@@ -64,7 +77,7 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
   <header class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[calc(var(--radius)+4px)] border border-border bg-surface px-3 py-2">
     <button v-if="mode === 'phone'" data-test="back-to-list" type="button" aria-label="Volver a la lista" title="Volver a la lista"
       class="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius)] border-0 bg-transparent text-muted hover:bg-surface-raised hover:text-text"
-      @click="router.push('/sessions')">
+      @click="backToList">
       <ArrowLeft class="size-5" />
     </button>
     <SessionAvatar :session="session" />
@@ -100,7 +113,7 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
       </button>
     </div>
     <ConfirmDialog v-model:open="confirmClose" :title="`¿Cerrar la sesión “${session.name}”?`"
-      description="Se pierde el trabajo en curso." confirm-label="Cerrar sesión" danger @confirm="kill(session.id)" />
+      description="Se pierde el trabajo en curso." confirm-label="Cerrar sesión" danger @confirm="closeSession" />
     <ConfirmDialog v-model:open="confirmDocker" title="¿Bajar los containers de esta sesión?"
       :description="`${dockerStacks.join(', ')}\n\nSe eliminan containers y red; los volúmenes con datos quedan.`"
       confirm-label="Bajar" danger @confirm="doDockerDown" />
