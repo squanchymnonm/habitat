@@ -27,7 +27,11 @@ function onLight(e: MouseEvent) {
       :class="cn('absolute -right-0.5 -bottom-0.5 size-3 rounded-full ring-2 ring-surface', light, dismissable && 'cursor-pointer animate-pulse motion-reduce:animate-none')"
       :title="dismissable ? `${STATUS_LABEL[session.status]} · tocar para descartar` : STATUS_LABEL[session.status]"
       @click="onLight"
-    />
+    >
+      <!-- Área táctil de 40px (12px + 2×14px) alrededor de la luz, sin cambiar su tamaño
+           visible: sólo cuando se puede descartar, para no robarle clics a la fila. -->
+      <span v-if="dismissable" data-test="state-light-hit" aria-hidden="true" class="absolute -inset-[14px] rounded-full" />
+    </span>
   </span>
 </template>
 
