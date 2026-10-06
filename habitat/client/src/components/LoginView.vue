@@ -41,7 +41,7 @@ async function submit() {
         class="min-h-10 cursor-pointer rounded-[var(--radius)] border-0 bg-accent px-4 font-[inherit] text-sm font-semibold text-accent-foreground disabled:opacity-60">
         {{ busy ? 'Entrando…' : 'Entrar' }}
       </button>
-      <p v-if="error" class="m-0 rounded-[var(--radius)] border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger"><span aria-hidden="true">! </span>{{ error }}</p>
+      <p v-if="error" role="alert" class="m-0 rounded-[var(--radius)] border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger"><span aria-hidden="true">! </span>{{ error }}</p>
     </form>
   </div>
 </template>

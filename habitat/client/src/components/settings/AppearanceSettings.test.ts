@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import AppearanceSettings from './AppearanceSettings.vue'
 import { useZoom } from '../../composables/useZoom'
 import { useLayoutMode } from '../../composables/useLayoutMode'
+import { useTermKeys } from '../../composables/useTermKeys'
 
 beforeEach(() => { localStorage.clear() })
 
@@ -26,6 +27,18 @@ describe('AppearanceSettings', () => {
     await w.get('[data-test="nav-collapsed-switch"]').trigger('click')
     await flushPromises()
     expect(useLayoutMode().allCollapsed.value).toBe(true)
+    w.unmount()
+  })
+  it('teclas en pantalla: el switch prende y apaga useTermKeys', async () => {
+    const w = mount(AppearanceSettings, { attachTo: document.body })
+    const { enabled } = useTermKeys()
+    const start = enabled.value
+    await w.get('[data-test="termkeys-switch"]').trigger('click')
+    await flushPromises()
+    expect(enabled.value).toBe(!start)
+    await w.get('[data-test="termkeys-switch"]').trigger('click')
+    await flushPromises()
+    expect(enabled.value).toBe(start)
     w.unmount()
   })
 })

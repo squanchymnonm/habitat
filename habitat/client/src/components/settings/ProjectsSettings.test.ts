@@ -4,6 +4,8 @@ import { ref } from 'vue'
 import { createMemoryHistory } from 'vue-router'
 import type { BrowseResult, RepoList } from '../../composables/useProjects'
 import type { Project } from '../../types'
+import { PALETTE } from '../../palette'
+import { CHARACTERS } from '../../sprites'
 
 const projects = ref<Project[]>([])
 const canManage = ref(true)
@@ -73,8 +75,8 @@ describe('ProjectsSettings: lista y navegación', () => {
     expect(addProject).toHaveBeenCalledWith({
       dir: 'front',
       label: 'Front',
-      color: expect.any(String),
-      chars: [expect.any(String)],
+      color: PALETTE[1],
+      chars: [CHARACTERS[0]],
     })
   })
 })

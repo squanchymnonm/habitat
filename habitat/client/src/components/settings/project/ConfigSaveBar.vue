@@ -14,7 +14,7 @@ const { save, saving, configOk, configError } = props.draft
         Guardar configuración
       </button>
     </div>
-    <p v-if="configOk" class="m-0 text-sm text-muted">configuración guardada</p>
-    <p v-if="configError" class="m-0 text-sm text-danger">{{ configError }}</p>
+    <p v-if="configOk" aria-live="polite" class="m-0 text-sm text-muted">configuración guardada</p>
+    <p v-if="configError" role="alert" class="m-0 text-sm text-danger">{{ configError }}</p>
   </div>
 </template>

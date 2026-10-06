@@ -58,8 +58,8 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
     <div class="flex flex-col gap-1">
       <span class="text-sm text-text">Color</span>
       <div class="flex flex-wrap gap-2">
-        <button v-for="c in PALETTE" :key="c" type="button" data-test="project-color" :style="{ background: c }" :title="c"
-          :aria-pressed="c === project.color ? 'true' : 'false'"
+        <button v-for="(c, i) in PALETTE" :key="c" type="button" data-test="project-color" :style="{ background: c }"
+          :title="c" :aria-label="`Color ${i + 1}`" :aria-pressed="c === project.color ? 'true' : 'false'"
           :class="cn('size-10 cursor-pointer rounded-[var(--radius)] border-0', c === project.color && 'ring-2 ring-accent')"
           @click="setColor(c)" />
       </div>
