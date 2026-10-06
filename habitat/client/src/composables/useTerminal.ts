@@ -375,7 +375,7 @@ export function useTerminal(
     // Copy-on-select: al soltar la selección la copiamos sola al portapapeles. El navegador
     // RESERVA Ctrl+Shift+C para DevTools y una página no lo puede cancelar, así que en
     // Linux/Win no se puede depender de ese atajo; copy-on-select + el menú de click derecho
-    // (en DetailPanel) son los caminos confiables. El atajo de teclado queda igual como bonus
+    // (en TerminalPane) son los caminos confiables. El atajo de teclado queda igual como bonus
     // (útil sobre todo para Cmd+C/V en Mac, que sí funciona).
     term.onSelectionChange(() => {
       const sel = term?.getSelection()
