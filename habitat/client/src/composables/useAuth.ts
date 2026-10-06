@@ -30,11 +30,11 @@ export function useAuth() {
     }
   }
 
-  async function login(user: string, password: string): Promise<boolean> {
+  async function login(username: string, password: string): Promise<boolean> {
     const res = await fetch('/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ user, password }),
+      body: JSON.stringify({ user: username, password }),
     })
     const ok = res.status === 204
     if (ok) await checkAuth()

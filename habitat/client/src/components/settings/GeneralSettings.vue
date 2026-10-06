@@ -17,7 +17,7 @@ const desc = computed(() => MODES.find((m) => m.value === permissionMode.value)?
   <section class="flex max-w-xl flex-col gap-2">
     <label for="pmode" class="text-sm font-semibold text-text">Permission mode de las sesiones nuevas</label>
     <select id="pmode" data-test="pmode" :value="permissionMode" :disabled="saving"
-      class="min-h-10 rounded-[var(--radius)] border border-border bg-background px-3 font-[inherit] text-sm text-text"
+      class="min-h-10 cursor-pointer rounded-[var(--radius)] border border-border bg-background px-3 font-[inherit] text-sm text-text"
       @change="save(($event.target as HTMLSelectElement).value as PermissionMode)">
       <option v-for="m in MODES" :key="m.value" :value="m.value">{{ m.label }}</option>
     </select>
