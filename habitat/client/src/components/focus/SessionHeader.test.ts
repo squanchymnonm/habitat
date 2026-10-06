@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory, createWebHashHistory, type RouterHistory } from 'vue-router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 const canSpawn = ref(true)
 const kill = vi.fn(async () => true)
 const dockerStatus = vi.fn(async () => [] as string[])

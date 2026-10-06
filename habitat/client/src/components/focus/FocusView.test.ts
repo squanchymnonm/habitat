@@ -7,7 +7,7 @@ import { createHabitatRouter, syncSelectionWithRoute } from '../../router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 const canSpawn = ref(true)
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
 const insert = vi.fn()
 vi.mock('./TerminalPane.vue', () => ({ default: defineComponent({ props: ['session'], setup(_, { expose }) { expose({ fit: () => {}, insert }); return () => h('div', { 'data-test': 'terminal-pane' }) } }) }))

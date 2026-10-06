@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 const projects = ref([
   { dir: '/p/back', name: 'back', color: '#888888', chars: ['Knight', 'Monk'] },
   { dir: '/p/front', name: 'front', color: '#888888' },

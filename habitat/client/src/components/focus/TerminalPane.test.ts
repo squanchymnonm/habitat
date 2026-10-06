@@ -9,7 +9,7 @@ const term = {
 }
 vi.mock('../../composables/useTerminal', () => ({ canReadClipboard: () => true, useTerminal: () => term }))
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 const termKeysEnabled = ref(false)
 vi.mock('../../composables/useTermKeys', () => ({ useTermKeys: () => ({ enabled: termKeysEnabled }) }))
 import TerminalPane from './TerminalPane.vue'

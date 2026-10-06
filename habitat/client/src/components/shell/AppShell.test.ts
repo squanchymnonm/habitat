@@ -6,7 +6,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { vi, beforeEach } from 'vitest'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }) }))
 import AppShell from './AppShell.vue'
 import { useSessions } from '../../stores/sessions'
 

@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 const canSpawn = ref(true)
 vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
 import ToolTabs from './ToolTabs.vue'

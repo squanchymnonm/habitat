@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }) }))
 vi.mock('../../composables/useSocket', () => ({ send: vi.fn() }))
 import BoardView from './BoardView.vue'
 import { useSessions } from '../../stores/sessions'
