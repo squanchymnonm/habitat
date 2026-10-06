@@ -11,7 +11,11 @@ const { WebSocket } = wsPkg;
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, arr) => (v.startsWith('--') ? [...a, [v.slice(2), arr[i + 1]]] : a), []));
 const BASE = args.url; const OUT = args.out || 'shots';
-if (!BASE) { console.error('uso: screenshots.mjs --url "http://127.0.0.1:8399/?token=XXX" [--out dir] [--zoom 1,1.25,0.8] [--themes forja,…] [--sizes 1440x900,…] [--views focus,settings]'); process.exit(1); }
+if (!BASE) { console.error('uso: screenshots.mjs --url "http://127.0.0.1:8399/?token=XXX" [--out dir] [--zoom 1,1.25,0.8] [--themes forja,…] [--sizes 1440x900,…] [--views focus,settings] [--project <carpeta>]'); process.exit(1); }
+// Carpeta (slug) del primer proyecto de la instancia, para armar la URL de settings-project
+// (#/settings/projects/<carpeta>/infra). Es el último segmento de HABITAT_PROJECTS, igual
+// que `projectSlug` en el cliente.
+const PROJECT = args.project || 'proyecto';
 const list = (v) => (v ? String(v).split(',').map((x) => x.trim()).filter(Boolean) : null);
 // `prepare` corre después de navegar (con la 1ra sesión ya sola y seleccionada): clickea
 // por CDP (Runtime.evaluate) para llegar a una pestaña de herramienta que no está en la URL.
@@ -29,6 +33,12 @@ const clickSel = (sel) => ({
 const ALL_VIEWS = {
   focus: { hash: '#/' },
   settings: { hash: '#/settings/general' },
+  'settings-appearance': { hash: '#/settings/appearance' },
+  'settings-projects': { hash: '#/settings/projects' },
+  'settings-project': { hash: `#/settings/projects/${PROJECT}/infra` },
+  // Sin login (USER/PASSWORD_HASH seteados) y sin ?token en la URL: authed queda en false
+  // y App.vue muestra LoginView sea cual sea el hash.
+  login: { hash: '#/' },
   'focus-git': { hash: '#/', prepare: [clickTab('Git')] },
   // Con la vista previa del primer archivo (no carpeta) abierta: es lo que se queda sin lugar en el teléfono.
   'focus-files': { hash: '#/', prepare: [clickTab('Archivos'), clickSel('[data-test="file-entry"]:not([data-dir])')] },

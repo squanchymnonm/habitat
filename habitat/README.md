@@ -157,10 +157,16 @@ una sesión existente.
 
 La UI tiene temas intercambiables (Forja refinada, Pizarra pixel, Noche de taberna) definidos por
 tokens en `client/src/theme/` (`themes.ts` + `tokens.css`; el test de contraste verifica AA y que
-ambos coincidan). El tema se guarda por dispositivo (`localStorage: habitat.theme`).
+ambos coincidan). El tema se elige en **Ajustes → Apariencia** (junto con el zoom, las teclas en
+pantalla y si la barra de sesiones arranca colapsada); se guarda por dispositivo
+(`localStorage: habitat.theme`).
 
 Para revisar la UI en los 3 temas y 3 tamaños: levantá una instancia de dev y corré
 `node scripts/screenshots.mjs --url "http://127.0.0.1:8399/?token=<token>" --out /tmp/shots`.
+El script acepta `--themes`, `--sizes` y `--views` para filtrar, `--zoom` para probar el zoom de
+UI, y `--project <carpeta>` para armar la URL de la vista `settings-project` (la carpeta del
+primer proyecto sembrado con `HABITAT_PROJECTS`). La vista `login` necesita una instancia aparte
+con `HABITAT_USER`/`HABITAT_PASSWORD_HASH` de prueba y sin `?token=` en la URL.
 
 ### Atajos
 
