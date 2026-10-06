@@ -10,7 +10,8 @@ import { useSessions } from '../stores/sessions'
 const router = useRouter()
 const { mode } = useLayoutMode()
 const store = useSessions()
-watch(mode, (m) => { if (m !== 'phone') router.replace('/') }, { immediate: true })
+// Al salir de phone, volver al foco de la sesión elegida (la URL refleja la selección).
+watch(mode, (m) => { if (m !== 'phone') router.replace(store.selectedId ? `/s/${store.selectedId}` : '/') }, { immediate: true })
 </script>
 
 <template>
