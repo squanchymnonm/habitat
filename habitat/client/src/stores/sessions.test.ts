@@ -36,16 +36,6 @@ describe('sessions store — selección', () => {
     expect(s.selectedId).toBe('z')
   })
 
-  it('select() incrementa selectTick pero reconcile no', () => {
-    const s = useSessions()
-    s.setAll([mk('a'), mk('b')]) // auto-selección vía reconcile: no incrementa
-    expect(s.selectTick).toBe(0)
-    s.select('b')
-    expect(s.selectTick).toBe(1)
-    s.remove('b') // reconcile reselecciona 'a': no incrementa
-    expect(s.selectTick).toBe(1)
-  })
-
   it('rekey conserva la posición del pod y migra la selección', () => {
     const s = useSessions()
     s.setAll([mk('a'), mk('b'), mk('c')])

@@ -2,6 +2,8 @@ import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { Terminal, type IDisposable } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { createLinkProvider } from './terminalLinks'
+import { useTheme } from './useTheme'
+import { THEMES } from '../theme/themes'
 import '@xterm/xterm/css/xterm.css'
 
 const token = () => new URLSearchParams(location.search).get('token') ?? ''
@@ -127,12 +129,19 @@ export function keySeq(key: SpecialKey, appCursorKeys: boolean): string {
   }
 }
 
+// Colores de la terminal según el tema activo (tokens terminal-bg/terminal-fg del registro).
+export function terminalTheme(id: string) {
+  const t = THEMES.find((x) => x.id === id) ?? THEMES[0]
+  return { background: t.colors['terminal-bg'], foreground: t.colors['terminal-fg'] }
+}
+
 // Monta una terminal xterm sobre el WS /term mientras `id` esté seteado.
 export function useTerminal(
   container: Ref<HTMLElement | null>,
   id: Ref<string | null | undefined>,
   opts: { onCopied?: () => void; role?: string } = {},
 ) {
+  const { theme } = useTheme()
   let term: Terminal | null = null
   let fitAddon: FitAddon | null = null
   let ws: WebSocket | null = null
@@ -345,7 +354,7 @@ export function useTerminal(
     term = new Terminal({
       fontFamily: 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace',
       fontSize: 13,
-      theme: { background: '#160e07' },
+      theme: terminalTheme(theme.value),
       cursorBlink: true,
       // En Mac, tmux mouse mode se traga el arrastre y xterm solo fuerza su selección
       // nativa con Option(Alt)+arrastrar SI esta opción está activa (default false).
@@ -426,6 +435,8 @@ export function useTerminal(
     { immediate: true },
   )
 
+  // Cambiar de tema en Apariencia recolorea la terminal abierta.
+  watch(theme, (id) => { if (term) term.options.theme = terminalTheme(id) })
   onUnmounted(teardown)
   return { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey }
 }

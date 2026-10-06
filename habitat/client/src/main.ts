@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
-import './style.css'
 import './styles/theme.css'
 import { applyStoredTheme } from './composables/useTheme'
 import { createHabitatRouter, syncSelectionWithRoute } from './router'

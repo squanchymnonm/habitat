@@ -9,7 +9,7 @@ const working = computed(() => store.list.filter((s) => s.status === 'working').
 <template>
   <span data-test="session-summary" class="flex min-w-0 items-center gap-2 overflow-hidden text-sm text-muted tabular-nums">
     <b class="text-text">{{ store.list.length }}</b>
-    <span v-if="working" class="hidden items-center gap-1 sm:flex"><i class="size-2 rounded-full bg-state-working" />{{ working }} trabajando</span>
+    <span v-if="working" class="hidden shrink-0 items-center gap-1 whitespace-nowrap sm:flex" :title="`${working} trabajando`"><i class="size-2 rounded-full bg-state-working" />{{ working }}<span class="hidden lg:inline"> trabajando</span></span>
     <!-- En teléfono sólo números: el texto "te necesita" aparece desde sm. -->
     <span v-if="store.needCount" data-test="need-count" class="flex shrink-0 items-center gap-1 font-semibold text-state-waiting" :title="`${store.needCount} te necesita`"><i class="size-2 rounded-full bg-state-waiting" />{{ store.needCount }}<span data-test="need-label" class="hidden sm:inline"> te necesita</span></span>
   </span>

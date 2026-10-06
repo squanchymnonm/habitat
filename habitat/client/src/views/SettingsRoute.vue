@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import SettingsView from '../components/SettingsView.vue'
+import SettingsLayout from '../components/settings/SettingsLayout.vue'
 </script>
 
 <template>
-  <div class="h-full overflow-auto"><SettingsView /></div>
+  <div class="h-full min-h-0"><SettingsLayout /></div>
 </template>

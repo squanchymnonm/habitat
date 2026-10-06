@@ -39,5 +39,13 @@ export function useLayoutMode() {
     try { localStorage.setItem(KEY(mode.value), v ? '1' : '0') } catch { /* sin storage */ }
   }
   function toggleCollapsed() { setCollapsed(!collapsed.value) }
-  return { mode, collapsed, setCollapsed, toggleCollapsed }
+  // "Colapsada por defecto" (Ajustes → Apariencia): fija landscape y portrait a la vez.
+  const allCollapsed = computed(() => collapsedByMode.value.landscape && collapsedByMode.value.portrait)
+  function setCollapsedAll(v: boolean) {
+    collapsedByMode.value = { ...collapsedByMode.value, landscape: v, portrait: v }
+    for (const m of ['landscape', 'portrait'] as const) {
+      try { localStorage.setItem(KEY(m), v ? '1' : '0') } catch { /* sin storage */ }
+    }
+  }
+  return { mode, collapsed, setCollapsed, toggleCollapsed, allCollapsed, setCollapsedAll }
 }

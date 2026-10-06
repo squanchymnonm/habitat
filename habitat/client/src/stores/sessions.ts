@@ -6,7 +6,6 @@ import { pickSelection } from './pickSelection'
 export const useSessions = defineStore('sessions', () => {
   const list = ref<Session[]>([])
   const selectedId = ref<string | null>(null)
-  const selectTick = ref(0)
 
   const selected = computed(() => list.value.find((s) => s.id === selectedId.value) ?? null)
   // "Te necesita": sesiones esperando input o en error.
@@ -46,12 +45,11 @@ export const useSessions = defineStore('sessions', () => {
   }
   function select(id: string | null) {
     selectedId.value = id
-    selectTick.value++
   }
   // Mantiene una selección válida: conserva la actual o cae al primero.
   function reconcile() {
     selectedId.value = pickSelection(list.value.map((s) => s.id), selectedId.value)
   }
 
-  return { list, selected, selectedId, selectTick, needCount, setAll, upsert, remove, rekey, reorder, select }
+  return { list, selected, selectedId, needCount, setAll, upsert, remove, rekey, reorder, select }
 })
