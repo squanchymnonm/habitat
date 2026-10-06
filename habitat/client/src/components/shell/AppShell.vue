@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useLayoutMode } from '../../composables/useLayoutMode'
+import { useGlobalShortcuts } from '../../composables/useGlobalShortcuts'
 import TopBar from './TopBar.vue'
 import SessionNav from '../sessions/SessionNav.vue'
 
 const { mode } = useLayoutMode()
 const landscape = computed(() => mode.value === 'landscape')
+useGlobalShortcuts()
 </script>
 
 <template>
