@@ -44,7 +44,7 @@ const opt = 'flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-[var
   <p v-if="!projects.length" data-test="ns-no-projects" class="m-0 flex flex-wrap items-center gap-x-2 text-sm text-muted">
     No hay proyectos. Agregalos en Ajustes → Proyectos.
     <a href="#/settings/projects" data-test="ns-go-settings" @click="emit('done')"
-      class="inline-flex min-h-10 items-center rounded-[var(--radius)] px-2 font-semibold text-accent no-underline hover:underline">Ir a Ajustes</a>
+      class="-ml-2 inline-flex min-h-10 items-center rounded-[var(--radius)] px-2 font-semibold text-accent no-underline hover:underline">Ir a Ajustes</a>
   </p>
   <ul v-else-if="!project" class="m-0 flex list-none flex-col gap-2 p-0">
     <li v-for="p in projects" :key="p.dir">
