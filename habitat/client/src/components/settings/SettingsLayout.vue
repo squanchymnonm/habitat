@@ -7,7 +7,7 @@ import GeneralSettings from './GeneralSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import AccountSettings from './AccountSettings.vue'
 import ProjectsSettings from './ProjectsSettings.vue'
-import ProjectsManager from '../ProjectsManager.vue'
+import ProjectDetail from './ProjectDetail.vue'
 import { cn } from '@/lib/utils'
 
 const route = useRoute()
@@ -38,9 +38,8 @@ const side = computed(() => mode.value === 'landscape')
       <GeneralSettings v-if="current === 'general'" />
       <AppearanceSettings v-else-if="current === 'appearance'" />
       <AccountSettings v-else-if="current === 'account'" />
-      <ProjectsSettings v-else-if="route.name !== 'project'" />
-      <!-- Legacy hasta que llegue ProjectDetail (Task 4). -->
-      <ProjectsManager v-else />
+      <ProjectDetail v-else-if="route.name === 'project'" />
+      <ProjectsSettings v-else />
     </div>
   </div>
 </template>

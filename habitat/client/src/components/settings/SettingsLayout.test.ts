@@ -8,7 +8,7 @@ vi.mock('../../composables/useLayoutMode', async (orig) => ({
   ...(await orig<typeof import('../../composables/useLayoutMode')>()),
   useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {}, allCollapsed: ref(false), setCollapsedAll: () => {} }),
 }))
-vi.mock('../ProjectsManager.vue', () => ({ default: { template: '<div data-test="projects-stub" />' } }))
+vi.mock('./ProjectDetail.vue', () => ({ default: { template: '<div data-test="project-detail-stub" />' } }))
 vi.mock('./ProjectsSettings.vue', () => ({ default: { template: '<div data-test="projects-settings-stub" />' } }))
 import SettingsLayout from './SettingsLayout.vue'
 import { createHabitatRouter } from '../../router'
@@ -39,12 +39,12 @@ describe('SettingsLayout', () => {
   it('en /settings/projects muestra ProjectsSettings', async () => {
     const { w } = await mountAt('/settings/projects')
     expect(w.find('[data-test="projects-settings-stub"]').exists()).toBe(true)
-    expect(w.find('[data-test="projects-stub"]').exists()).toBe(false)
+    expect(w.find('[data-test="project-detail-stub"]').exists()).toBe(false)
   })
 
-  it('en la página de un proyecto muestra ProjectsManager (legacy, hasta la Task 4) con Proyectos activo', async () => {
+  it('en la página de un proyecto muestra ProjectDetail con Proyectos activo', async () => {
     const { w } = await mountAt('/settings/projects/back/general')
-    expect(w.find('[data-test="projects-stub"]').exists()).toBe(true)
+    expect(w.find('[data-test="project-detail-stub"]').exists()).toBe(true)
     expect(w.find('[data-test="projects-settings-stub"]').exists()).toBe(false)
     const links = w.findAll('[data-test="settings-link"]')
     expect(links[2].attributes('aria-current')).toBe('page')
