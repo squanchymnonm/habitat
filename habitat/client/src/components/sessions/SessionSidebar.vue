@@ -7,6 +7,7 @@ import { postOrder } from '../../composables/useSessionOrder'
 import { useLayoutMode } from '../../composables/useLayoutMode'
 import { STATUS_LABEL, STATE_TOKEN, STATE_TEXT, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
+import ProjectStripe from './ProjectStripe.vue'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useGoToSession } from '../../composables/useGoToSession'
@@ -48,6 +49,7 @@ const statusClass = (s: Session) => STATE_TEXT[STATE_TOKEN[s.status]]
                   store.selectedId === s.id && 'bg-surface-raised shadow-[inset_2px_0_0_var(--accent)]', collapsed && 'justify-center')"
                 @click="goTo(s.id)"
               >
+                <ProjectStripe :project="s.project" />
                 <SessionAvatar :session="s" />
                 <span v-if="!collapsed" class="min-w-0 flex-1">
                   <span class="flex min-w-0 items-center gap-1.5">
