@@ -6,6 +6,7 @@ import { useGoToSession } from '../../composables/useGoToSession'
 import { STATUS_LABEL, STATE_TOKEN, STATE_TEXT, type Session } from '../../types'
 import { ago } from '../../sprites'
 import SessionAvatar from './SessionAvatar.vue'
+import ProjectStripe from './ProjectStripe.vue'
 import { cn } from '@/lib/utils'
 
 // Pantalla principal del celular: filas grandes, "te necesita" primero.
@@ -22,6 +23,7 @@ const rows = computed(() => [...store.list.filter(needs), ...store.list.filter((
         <button data-test="session-row" :data-id="s.id" type="button" @click="goTo(s.id)"
           :class="cn('flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-[calc(var(--radius)+4px)] border-0 bg-surface px-3 py-2 text-left font-[inherit] text-text hover:bg-surface-raised',
             needs(s) && 'ring-1 ring-state-waiting', s.status === 'offline' && 'opacity-60')">
+          <ProjectStripe :project="s.project" />
           <SessionAvatar :session="s" />
           <span class="flex min-w-0 flex-1 flex-col">
             <span class="flex min-w-0 items-center gap-2">

@@ -7,6 +7,7 @@ import { postOrder } from '../../composables/useSessionOrder'
 import { useLayoutMode } from '../../composables/useLayoutMode'
 import { STATUS_LABEL, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
+import ProjectStripe from './ProjectStripe.vue'
 import { cn } from '@/lib/utils'
 import { useGoToSession } from '../../composables/useGoToSession'
 
@@ -40,6 +41,7 @@ function onWheel(e: WheelEvent) {
             store.selectedId === s.id ? 'bg-surface-raised text-text shadow-[inset_0_2px_0_var(--accent)]' : 'bg-background/40')"
           @click="goTo(s.id)"
         >
+          <ProjectStripe :project="s.project" />
           <SessionAvatar :session="s" size="sm" />
           <span v-if="!collapsed" class="flex min-w-0 max-w-32 items-center gap-1.5">
             <span data-test="session-name" class="min-w-0 truncate font-medium">{{ s.name }}</span>
