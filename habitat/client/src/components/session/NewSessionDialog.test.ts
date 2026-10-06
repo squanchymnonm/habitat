@@ -60,6 +60,12 @@ describe('NewSessionDialog', () => {
     expect(w.emitted('update:open')).toBeUndefined()
     w.unmount()
   })
+  it('al reabrir no arrastra el error de un intento anterior', async () => {
+    error.value = 'ya existe un personaje con ese nombre'
+    const w = await open()
+    expect(q('[data-test="ns-error"]')).toBeNull()
+    w.unmount()
+  })
   it('en phone es un Sheet inferior', async () => {
     mode.value = 'phone'
     const w = await open()

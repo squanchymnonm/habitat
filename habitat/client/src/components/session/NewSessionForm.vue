@@ -10,6 +10,11 @@ import { cn } from '@/lib/utils'
 // proyecto → nombre (opcional) y personaje → crear.
 const emit = defineEmits<{ (e: 'done'): void }>()
 const { projects, error, spawn } = useProjects()
+// `error` es un ref compartido a nivel de módulo (useProjects): si quedó seteado por un
+// intento fallido anterior, no debe reaparecer al reabrir el diálogo. Como este componente
+// sólo existe mientras el diálogo está abierto (v-if="open" en NewSessionDialog), se crea de
+// cero en cada apertura: limpiarlo acá alcanza.
+error.value = ''
 
 const dir = ref('')
 const name = ref('')
