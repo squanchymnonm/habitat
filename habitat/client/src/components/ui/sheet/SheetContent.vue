@@ -39,13 +39,13 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       :class="cn(
         'bg-background text-text data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
         side === 'right'
-          && 'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm',
+          && 'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 rounded-l-[calc(var(--radius)+4px)] border-l border-border sm:max-w-sm',
         side === 'left'
-          && 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm',
+          && 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 rounded-r-[calc(var(--radius)+4px)] border-r border-border sm:max-w-sm',
         side === 'top'
-          && 'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b border-border',
+          && 'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto rounded-b-[calc(var(--radius)+4px)] border-b border-border',
         side === 'bottom'
-          && 'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t border-border',
+          && 'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto rounded-t-[calc(var(--radius)+4px)] border-t border-border',
         props.class)"
       v-bind="{ ...$attrs, ...forwarded }"
     >
@@ -53,7 +53,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
       <DialogClose
         data-slot="sheet-close"
-        class="focus:ring-accent data-[state=open]:bg-surface-raised absolute top-4 right-4 flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-xs border-0 bg-transparent font-[inherit] text-muted opacity-70 transition-opacity hover:text-text hover:opacity-100 focus:ring-2 focus:outline-hidden disabled:pointer-events-none"
+        class="focus:ring-accent data-[state=open]:bg-surface-raised absolute top-4 right-4 flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-[var(--radius)] border-0 bg-transparent font-[inherit] text-muted opacity-70 transition-opacity hover:text-text hover:opacity-100 focus:ring-2 focus:outline-hidden disabled:pointer-events-none"
       >
         <X class="size-4" />
         <span class="sr-only">Cerrar</span>
