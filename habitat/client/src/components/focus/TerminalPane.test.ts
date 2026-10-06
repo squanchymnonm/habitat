@@ -8,11 +8,15 @@ const term = {
   copyVisible: vi.fn(() => true), selectMode, sendKey: vi.fn(),
 }
 vi.mock('../../composables/useTerminal', () => ({ canReadClipboard: () => true, useTerminal: () => term }))
+const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
+vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+const termKeysEnabled = ref(false)
+vi.mock('../../composables/useTermKeys', () => ({ useTermKeys: () => ({ enabled: termKeysEnabled }) }))
 import TerminalPane from './TerminalPane.vue'
 
 const session = { id: 's1', name: 'ezio', project: 'back', branch: 'feat/x', status: 'working', action: '', since: 0, stamina: 90 } as any
 
-beforeEach(() => { vi.clearAllMocks(); selectMode.value = false })
+beforeEach(() => { vi.clearAllMocks(); selectMode.value = false; mode.value = 'landscape'; termKeysEnabled.value = false })
 
 describe('TerminalPane', () => {
   it('barra con proyecto · rama, seleccionar y copiar visible', async () => {
@@ -55,5 +59,12 @@ describe('TerminalPane', () => {
     await w.vm.$nextTick()
     expect(document.querySelector('[data-term-menu]')).toBeNull()
     w.unmount()
+  })
+  it('en phone las teclas en pantalla van en su fila, tamaño táctil (no dense)', () => {
+    mode.value = 'phone'
+    termKeysEnabled.value = true
+    const w = mount(TerminalPane, { props: { session } })
+    const row = w.get('[data-test="term-keys-row"]')
+    expect(row.find('.termkeys').classes()).not.toContain('dense')
   })
 })

@@ -60,4 +60,12 @@ describe('ToolTabs', () => {
     const w = mount(ToolTabs, { props: { session: sess() } })
     expect(w.findAll('[data-test="tool-tab"]')[0].classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer']))
   })
+  it('en phone es una barra inferior con ícono y etiqueta, táctil', async () => {
+    mode.value = 'phone'
+    const w = mount(ToolTabs, { props: { session: sess() } })
+    const bar = w.get('[data-test="tool-bar"]')
+    expect(bar.attributes('role')).toBe('tablist')
+    const first = w.findAll('[data-test="tool-tab"]')[0]
+    expect(first.classes()).toEqual(expect.arrayContaining(['flex-col', 'min-h-14', 'flex-1', 'border-0', 'cursor-pointer']))
+  })
 })

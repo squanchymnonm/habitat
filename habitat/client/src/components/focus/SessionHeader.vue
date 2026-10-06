@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { SquarePen, X, Container } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { SquarePen, X, Container, ArrowLeft } from 'lucide-vue-next'
 import SessionAvatar from '../sessions/SessionAvatar.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import { useProjects } from '../../composables/useProjects'
 import { useProjectTree } from '../../composables/useProjectTree'
+import { useLayoutMode } from '../../composables/useLayoutMode'
 import { STATUS_LABEL, STATE_TOKEN, type Session } from '../../types'
 import { ago } from '../../sprites'
 import { cn } from '@/lib/utils'
@@ -13,6 +15,8 @@ const props = defineProps<{ session: Session }>()
 const emit = defineEmits<{ (e: 'open-editor'): void }>()
 const { canSpawn, kill, colorForProject, dockerStatus, dockerDown } = useProjects()
 const { openInNvim } = useProjectTree()
+const { mode } = useLayoutMode()
+const router = useRouter()
 
 // Clases literales para que Tailwind las detecte.
 const BADGE: Record<string, string> = {
@@ -58,6 +62,11 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
 
 <template>
   <header class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[calc(var(--radius)+4px)] border border-border bg-surface px-3 py-2">
+    <button v-if="mode === 'phone'" data-test="back-to-list" type="button" aria-label="Volver a la lista" title="Volver a la lista"
+      class="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius)] border-0 bg-transparent text-muted hover:bg-surface-raised hover:text-text"
+      @click="router.push('/sessions')">
+      <ArrowLeft class="size-5" />
+    </button>
     <SessionAvatar :session="session" />
     <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
       <h1 data-test="session-name" class="m-0 truncate font-display text-lg font-semibold text-text">{{ session.name }}</h1>
@@ -67,9 +76,9 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
       <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-surface-raised" :title="`Stamina ${session.stamina}%`" :aria-label="`Stamina ${session.stamina}%`">
         <i data-test="stamina-fill" class="block h-full" :class="session.stamina < 25 ? 'bg-stamina-low' : 'bg-stamina-ok'" :style="{ width: session.stamina + '%' }" />
       </span>
-      <span class="flex min-w-0 items-center gap-1.5 truncate font-mono text-xs text-muted">
+      <span class="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted">
         <i class="size-2 shrink-0 rounded-sm" :style="{ background: projectColor }" />
-        {{ session.project }}<template v-if="session.branch"> · <span class="text-accent">{{ session.branch }}</span></template>
+        <span data-test="session-repo" class="block min-w-0 truncate">{{ session.project }}<template v-if="session.branch"> · <span class="text-accent">{{ session.branch }}</span></template></span>
       </span>
       <span v-if="editorErr" class="text-xs text-danger">{{ editorErr }}</span>
       <span data-test="session-activity" class="w-full min-w-0 truncate text-xs text-muted">

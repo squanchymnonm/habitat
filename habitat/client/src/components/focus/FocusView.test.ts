@@ -109,6 +109,14 @@ describe('FocusView', () => {
     expect(w.find('[data-test="terminal-pane"]').exists()).toBe(false)
     w.unmount()
   })
+  it('en phone la barra de herramientas va abajo del área', async () => {
+    mode.value = 'phone'
+    const { w } = await mountFocus([sess('a')])
+    const root = w.element as HTMLElement
+    const last = root.children[root.children.length - 1]
+    expect(last.matches('[data-test="tool-bar"]') || !!last.querySelector('[data-test="tool-bar"]')).toBe(true)
+    w.unmount()
+  })
 
   describe('atajos de teclado', () => {
     it('] navega a la sesión siguiente y [ a la anterior, de forma circular', async () => {
