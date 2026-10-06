@@ -1,8 +1,22 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { LayoutGrid, Focus } from 'lucide-vue-next'
 import SessionSummary from './SessionSummary.vue'
 import ManaMeter from './ManaMeter.vue'
 import UserMenu from './UserMenu.vue'
 import SpawnMenu from '../SpawnMenu.vue'
+import { useSessions } from '../../stores/sessions'
+
+const route = useRoute()
+const router = useRouter()
+const store = useSessions()
+const onBoard = computed(() => route.name === 'board' || route.path === '/board')
+// Alterna tablero ↔ foco (la última sesión seleccionada, o el foco vacío).
+function toggleBoard() {
+  if (onBoard.value) router.push(store.selectedId ? `/s/${store.selectedId}` : '/')
+  else router.push('/board')
+}
 </script>
 
 <template>
@@ -12,6 +26,13 @@ import SpawnMenu from '../SpawnMenu.vue'
     <span class="flex-1" />
     <!-- En teléfono el que cede ancho es el resumen (min-w-0); maná, spawn y menú son shrink-0. -->
     <ManaMeter />
+    <button data-test="board-toggle" type="button" @click="toggleBoard"
+      :aria-label="onBoard ? 'Foco' : 'Tablero'"
+      :title="onBoard ? 'Ver la sesión en foco (g f)' : 'Ver el tablero (g b)'"
+      class="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius)] border-0 bg-transparent px-2 font-[inherit] text-sm text-muted hover:bg-surface-raised hover:text-text">
+      <Focus v-if="onBoard" class="size-4" /><LayoutGrid v-else class="size-4" />
+      <span class="hidden sm:inline">{{ onBoard ? 'Foco' : 'Tablero' }}</span>
+    </button>
     <SpawnMenu class="shrink-0" />
     <UserMenu />
   </header>

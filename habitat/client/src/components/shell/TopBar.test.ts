@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
@@ -9,7 +9,12 @@ import { useSessions } from '../../stores/sessions'
 import { setUsage } from '../../composables/useUsage'
 
 const sess = (id: string, status: string) => ({ id, name: id, project: 'p', branch: '', status, action: '', since: 0, stamina: 100 }) as any
-const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div/>' } }, { path: '/settings/:section?', component: { template: '<div/>' } }] })
+const router = createRouter({ history: createMemoryHistory(), routes: [
+  { path: '/', component: { template: '<div/>' } },
+  { path: '/s/:id', component: { template: '<div/>' } },
+  { path: '/board', component: { template: '<div/>' } },
+  { path: '/settings/:section?', component: { template: '<div/>' } },
+] })
 
 describe('TopBar', () => {
   it('resumen con totales por estado y maná', async () => {
@@ -77,5 +82,25 @@ describe('TopBar', () => {
     } finally {
       w.unmount()
     }
+  })
+  it('el botón tablero/foco alterna entre /board y el foco', async () => {
+    setActivePinia(createPinia())
+    const r = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/', component: { template: '<div/>' } },
+      { path: '/s/:id', component: { template: '<div/>' } },
+      { path: '/board', component: { template: '<div/>' } },
+      { path: '/settings/:section?', component: { template: '<div/>' } },
+    ] })
+    useSessions().setAll([sess('a', 'idle')]); useSessions().select('a')
+    await r.push('/s/a'); await r.isReady()
+    const w = mount(TopBar, { global: { plugins: [r] } })
+    const btn = w.get('[data-test="board-toggle"]')
+    expect(btn.text()).toContain('Tablero')
+    expect(btn.classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer', 'min-h-10']))
+    await btn.trigger('click'); await flushPromises()
+    expect(r.currentRoute.value.path).toBe('/board')
+    expect(w.get('[data-test="board-toggle"]').text()).toContain('Foco')
+    await w.get('[data-test="board-toggle"]').trigger('click'); await flushPromises()
+    expect(r.currentRoute.value.path).toBe('/s/a')
   })
 })

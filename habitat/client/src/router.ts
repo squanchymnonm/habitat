@@ -9,7 +9,7 @@ export function createHabitatRouter(history: RouterHistory = createWebHashHistor
     routes: [
       { path: '/', name: 'focus', component: () => import('./views/FocusRoute.vue') },
       { path: '/s/:id', name: 'session', component: () => import('./views/FocusRoute.vue') },
-      { path: '/board', redirect: '/' }, // el tablero llega en el PR 3
+      { path: '/board', name: 'board', component: () => import('./views/BoardRoute.vue') },
       { path: '/settings/:section?', name: 'settings', component: () => import('./views/SettingsRoute.vue') },
       { path: '/:pathMatch(.*)*', redirect: '/' },
     ],

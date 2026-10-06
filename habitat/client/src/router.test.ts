@@ -28,10 +28,10 @@ describe('router', () => {
     await router.push('/s/zzz'); await router.isReady(); await new Promise((r) => setTimeout(r, 0))
     expect(router.currentRoute.value.path).toBe('/')
   })
-  it('/board redirige a / (el tablero llega en el PR 3)', async () => {
+  it('/board muestra el tablero', async () => {
     const router = createHabitatRouter(createMemoryHistory())
     await router.push('/board'); await router.isReady()
-    expect(router.currentRoute.value.path).toBe('/')
+    expect(router.currentRoute.value.name).toBe('board')
   })
   it('settings acepta sección', async () => {
     const router = createHabitatRouter(createMemoryHistory())
