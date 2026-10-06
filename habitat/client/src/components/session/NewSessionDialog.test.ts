@@ -26,6 +26,28 @@ async function open() {
 }
 
 describe('NewSessionDialog', () => {
+  it('sin proyectos explica y lleva a Ajustes → Proyectos (y cierra)', async () => {
+    const saved = projects.value
+    projects.value = []
+    const w = await open()
+    const msg = q('[data-test="ns-no-projects"]')
+    expect(msg.textContent).toContain('No hay proyectos. Agregalos en Ajustes → Proyectos.')
+    expect(Array.from(msg.classList)).toEqual(expect.arrayContaining(['m-0', 'text-sm', 'text-muted']))
+    const link = q('[data-test="ns-go-settings"]') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('#/settings/projects')
+    expect(link.classList.contains('min-h-10')).toBe(true)
+    expect(qa('[data-test="ns-project"]')).toHaveLength(0)
+    link.click(); await flushPromises()
+    const ev = w.emitted('update:open')
+    expect(ev?.[ev.length - 1]).toEqual([false])
+    w.unmount()
+    projects.value = saved
+  })
+  it('con proyectos no muestra el aviso', async () => {
+    const w = await open()
+    expect(q('[data-test="ns-no-projects"]')).toBeNull()
+    w.unmount()
+  })
   it('elegir proyecto muestra sólo los personajes permitidos', async () => {
     const w = await open()
     expect(qa('[data-test="ns-project"]').map((b) => b.textContent?.trim())).toEqual(['back', 'front'])
