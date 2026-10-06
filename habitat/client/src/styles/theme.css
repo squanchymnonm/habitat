@@ -26,5 +26,7 @@
      unidades de viewport, así que sin dividir la app no llena la pantalla. */
   #app{ display:flex; flex-direction:column; height:calc(100dvh / var(--zoom, 1)); overflow:hidden; }
   body{ font-family:var(--font-ui); font-size:15px; color:var(--text); background:var(--background); }
+  /* Con el preflight, el anillo de foco nativo queda blanco: que use el acento del tema. */
+  :focus-visible{ outline-color:var(--accent); }
   @media (prefers-reduced-motion: reduce){ *, ::before, ::after{ animation:none !important; transition:none !important; } }
 }

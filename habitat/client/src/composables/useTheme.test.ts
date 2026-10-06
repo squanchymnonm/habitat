@@ -31,3 +31,12 @@ describe('useTheme', () => {
     spy.mockRestore()
   })
 })
+
+describe('terminalTheme', () => {
+  it('toma terminal-bg/fg del tema y cae al primero si no existe', async () => {
+    const { terminalTheme } = await import('./useTerminal')
+    const { THEMES } = await import('../theme/themes')
+    expect(terminalTheme('pizarra')).toEqual({ background: THEMES[1].colors['terminal-bg'], foreground: THEMES[1].colors['terminal-fg'] })
+    expect(terminalTheme('nada').background).toBe(THEMES[0].colors['terminal-bg'])
+  })
+})
