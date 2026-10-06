@@ -26,7 +26,9 @@ const canManage = ref(false)
 const canClone = ref(false)
 const projects = ref<Project[]>([])
 const error = ref('')
-let loaded = false
+// true cuando llegó (o falló) la primera lista: antes de eso "no hay proyectos" no es definitivo.
+const loaded = ref(false)
+let started = false
 
 const basenameOf = (dir: string) => dir.split('/').filter(Boolean).pop() ?? dir
 
@@ -41,12 +43,15 @@ async function load() {
     projects.value = data.projects
   } catch {
     /* sin red: el botón simplemente no aparece */
+  } finally {
+    loaded.value = true
   }
 }
 
 // Aplica un broadcast del server (otra pestaña/cambio de proyectos). No dispara load().
 export function applyServerProjects(list: Project[]) {
   projects.value = list
+  loaded.value = true
   canSpawn.value = canSpawn.value || list.length > 0
 }
 
@@ -251,9 +256,9 @@ async function dockerDown(id: string): Promise<{ ok: true; stacks: string[] } | 
 }
 
 export function useProjects() {
-  if (!loaded) {
-    loaded = true
+  if (!started) {
+    started = true
     load()
   }
-  return { canSpawn, canManage, canClone, projects, error, spawn, kill, browse, listRepos, cloneRepo, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown, infraUp, saveConfig, getEnv, importEnv, saveEnv }
+  return { loaded, canSpawn, canManage, canClone, projects, error, spawn, kill, browse, listRepos, cloneRepo, addProject, updateProject, removeProject, colorForProject, dockerStatus, dockerDown, infraUp, saveConfig, getEnv, importEnv, saveEnv }
 }

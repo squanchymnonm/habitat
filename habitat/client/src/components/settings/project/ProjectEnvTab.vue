@@ -51,6 +51,14 @@ async function doSaveEnv() {
   envErr.value = r.ok ? '' : r.error
 }
 
+// Ayuda de variables de la plantilla.
+const ENV_VARS = [
+  { code: '{{stack}}', desc: 'nombre único del stack de la sesión' },
+  { code: '{{port:NOMBRE}}', desc: 'un puerto libre por nombre (mismo nombre, mismo puerto)' },
+  { code: '{{path:self}} / {{path:<relacionado>}}', desc: 'ruta del worktree' },
+  { code: '{{branch}}', desc: 'rama de la sesión' },
+]
+
 const btn = 'min-h-10 cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised px-3 font-[inherit] text-sm text-text hover:text-accent disabled:opacity-50'
 const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-background px-3 font-[inherit] text-sm text-text'
 </script>
@@ -80,11 +88,11 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
       <Textarea v-model="envText" data-test="env-text" spellcheck="false" class="min-h-48 font-mono" />
       <details class="text-sm text-muted">
         <summary class="min-h-10 cursor-pointer leading-10">Variables disponibles</summary>
-        <ul class="m-0 flex flex-col gap-1 pl-5">
-          <li><code v-pre class="font-mono">{{stack}}</code>: nombre único del stack de la sesión</li>
-          <li><code v-pre class="font-mono">{{port:NOMBRE}}</code>: un puerto libre por nombre (mismo nombre, mismo puerto)</li>
-          <li><code v-pre class="font-mono">{{path:self}}</code> / <code v-pre class="font-mono">{{path:&lt;relacionado&gt;}}</code>: ruta del worktree</li>
-          <li><code v-pre class="font-mono">{{branch}}</code>: rama de la sesión</li>
+        <ul class="m-0 flex list-none flex-col gap-1 p-0">
+          <li v-for="v in ENV_VARS" :key="v.code" class="flex gap-2">
+            <span aria-hidden="true">·</span>
+            <span><code class="font-mono">{{ v.code }}</code>: {{ v.desc }}</span>
+          </li>
         </ul>
       </details>
       <div class="flex flex-wrap gap-2">

@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import ProjectRelatedTab from './ProjectRelatedTab.vue'
 import { useProjectConfigDraft } from '../../../composables/useProjectConfigDraft'
-import { PROJECT, stub, type Call } from './fetchStub'
+import { PROJECT, stub, type Call } from './configTabs.test-utils'
 
 afterEach(() => { vi.unstubAllGlobals() })
 

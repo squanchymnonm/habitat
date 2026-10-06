@@ -7,6 +7,7 @@ import { PALETTE } from '../../palette'
 
 const projects = ref<Project[]>([])
 const error = ref('')
+const loaded = ref(true)
 const updateProject = vi.fn<(p: { dir: string; label?: string; color?: string; chars?: string[] }) => Promise<boolean>>()
 const removeProject = vi.fn<(dir: string) => Promise<boolean>>()
 const saveConfig = vi.fn()
@@ -16,7 +17,7 @@ const importEnv = vi.fn()
 const saveEnv = vi.fn()
 
 vi.mock('../../composables/useProjects', () => ({
-  useProjects: () => ({ projects, error, updateProject, removeProject, saveConfig, browse, getEnv, importEnv, saveEnv }),
+  useProjects: () => ({ projects, loaded, error, updateProject, removeProject, saveConfig, browse, getEnv, importEnv, saveEnv }),
 }))
 
 import ProjectDetail from './ProjectDetail.vue'
@@ -35,6 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   projects.value = [{ dir: '/p/back', name: 'Back', color: '#61afef', related: [], infra: null, envFiles: [] }]
   error.value = ''
+  loaded.value = true
   updateProject.mockResolvedValue(true)
   removeProject.mockResolvedValue(true)
 })
@@ -79,6 +81,34 @@ describe('ProjectDetail', () => {
     w.unmount()
   })
 
+  it('mientras la lista no llegó muestra "Cargando…", no "no encontrado"', async () => {
+    projects.value = []
+    loaded.value = false
+    const { w } = await mountAt('/settings/projects/back/infra')
+    expect(w.text()).toContain('Cargando…')
+    expect(w.text()).not.toContain('Proyecto no encontrado')
+    projects.value = [{ dir: '/p/back', name: 'Back', color: '#61afef', related: [], infra: null, envFiles: [] }]
+    loaded.value = true
+    await flushPromises()
+    expect(w.get('[data-test="project-title"]').text()).toBe('Back')
+    expect(w.find('[data-test="infra-repo"]').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('el borrador es por proyecto: cambiar de proyecto no arrastra lo editado', async () => {
+    projects.value = [
+      { dir: '/p/back', name: 'Back', color: '#61afef', related: [], infra: null, envFiles: [] },
+      { dir: '/p/front', name: 'Front', color: '#e06c75', related: [], infra: { repo: 'self', path: 'ops', up: '', down: '' }, envFiles: [] },
+    ]
+    const { w, router } = await mountAt('/settings/projects/back/infra')
+    await w.get('[data-test="infra-repo"]').setValue('self')
+    await w.get('[data-test="infra-path"]').setValue('editado')
+    await router.push('/settings/projects/front/infra')
+    await flushPromises()
+    expect((w.get('[data-test="infra-path"]').element as HTMLInputElement).value).toBe('ops')
+    w.unmount()
+  })
+
   it('quitar pide confirmación y vuelve a la lista', async () => {
     const { w, router } = await mountAt('/settings/projects/back/general')
     await w.get('[data-test="project-remove"]').trigger('click')
@@ -110,6 +140,35 @@ describe('ProjectDetail', () => {
     expect(updateProject).toHaveBeenCalledWith({ dir: '/p/back', label: 'Backend' })
     await w.findAll('[data-test="project-char"]')[0].trigger('click')
     expect(updateProject).toHaveBeenLastCalledWith({ dir: '/p/back', chars: ['Boy'] })
+    w.unmount()
+  })
+
+  it('clics seguidos en personajes no se pisan aunque la lista no se haya recargado', async () => {
+    updateProject.mockReturnValue(new Promise(() => {})) // el server nunca contesta
+    const { w } = await mountAt('/settings/projects/back/general')
+    const chars = w.findAll('[data-test="project-char"]')
+    await chars[0].trigger('click')
+    await chars[1].trigger('click')
+    expect(updateProject).toHaveBeenLastCalledWith({ dir: '/p/back', chars: ['Boy', 'Cavegirl'] })
+    expect(chars[1].attributes('aria-pressed')).toBe('true')
+    w.unmount()
+  })
+
+  it('un cambio de label que llega del server no pisa lo que se está escribiendo', async () => {
+    const { w } = await mountAt('/settings/projects/back/general')
+    const label = w.get('[data-test="project-label"]')
+    await label.setValue('Escribiendo')
+    projects.value = [{ ...projects.value[0], name: 'Otro' }]
+    await flushPromises()
+    expect((label.element as HTMLInputElement).value).toBe('Escribiendo')
+    w.unmount()
+  })
+
+  it('un cambio de label del server se refleja si no se estaba editando', async () => {
+    const { w } = await mountAt('/settings/projects/back/general')
+    projects.value = [{ ...projects.value[0], name: 'Otro' }]
+    await flushPromises()
+    expect((w.get('[data-test="project-label"]').element as HTMLInputElement).value).toBe('Otro')
     w.unmount()
   })
 })

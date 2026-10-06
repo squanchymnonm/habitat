@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, effectScope, onScopeDispose, shallowRef, watch, type EffectScope } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useProjectConfigDraft, type ProjectConfigDraft } from '../../composables/useProjectConfigDraft'
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
-const { projects, error } = useProjects()
+const { projects, loaded, error } = useProjects()
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -33,10 +33,15 @@ const project = computed(() => projects.value.find((p) => projectSlug(p.dir) ===
 // Un único borrador para Relacionados, Infra y .env: cambiar de pestaña no pierde lo editado.
 // Se crea cuando aparece el proyecto (la lista puede llegar después) y se rehace sólo al
 // cambiar de proyecto, no cuando la lista se recarga tras guardar.
+// Cada borrador vive en su propio scope, que se para al cambiar de proyecto o al desmontar.
 const draft = shallowRef<ProjectConfigDraft | null>(null)
+let draftScope: EffectScope | null = null
 watch(() => project.value?.dir, (dir) => {
-  draft.value = dir ? useProjectConfigDraft(computed(() => project.value as Project)) : null
+  draftScope?.stop()
+  draftScope = dir ? effectScope(true) : null
+  draft.value = draftScope?.run(() => useProjectConfigDraft(computed(() => project.value as Project))) ?? null
 }, { immediate: true })
+onScopeDispose(() => draftScope?.stop())
 
 function choose(id: TabId) {
   if (id !== tab.value) router.replace(`/settings/projects/${name.value}/${id}`)
@@ -46,7 +51,8 @@ const link = 'inline-flex min-h-10 items-center text-sm text-muted no-underline 
 </script>
 
 <template>
-  <div v-if="!project" class="flex flex-col gap-3">
+  <p v-if="!project && !loaded" class="m-0 text-sm text-muted">Cargando…</p>
+  <div v-else-if="!project" class="flex flex-col gap-3">
     <p class="m-0 text-sm text-text">Proyecto no encontrado.</p>
     <RouterLink to="/settings/projects" :class="link">‹ Volver a Proyectos</RouterLink>
   </div>
