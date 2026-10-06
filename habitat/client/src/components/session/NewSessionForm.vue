@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
 import { useProjects } from '../../composables/useProjects'
 import { CHARACTERS, faceFor } from '../../sprites'
@@ -8,7 +8,9 @@ import { cn } from '@/lib/utils'
 
 // Contenido compartido por el Dialog (desktop) y el Sheet (celular) de NewSessionDialog:
 // proyecto → nombre (opcional) y personaje → crear.
-const emit = defineEmits<{ (e: 'done'): void }>()
+// `project-change` avisa al contenedor (Dialog/Sheet) qué proyecto está elegido, para que
+// muestre su nombre en la descripción del header (ese estado vive acá, no ahí).
+const emit = defineEmits<{ (e: 'done'): void; (e: 'project-change', name: string | null): void }>()
 const { projects, error, spawn } = useProjects()
 // `error` es un ref compartido a nivel de módulo (useProjects): si quedó seteado por un
 // intento fallido anterior, no debe reaparecer al reabrir el diálogo. Como este componente
@@ -21,6 +23,7 @@ const name = ref('')
 const char = ref<string | undefined>(undefined)
 const busy = ref(false)
 const project = computed(() => projects.value.find((p) => p.dir === dir.value) ?? null)
+watch(project, (p) => emit('project-change', p ? p.name : null), { immediate: true })
 // La allowlist del proyecto manda; si está vacía, cualquier personaje.
 const chars = computed(() => (project.value?.chars?.length ? project.value.chars : CHARACTERS))
 

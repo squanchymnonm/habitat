@@ -72,6 +72,21 @@ describe('NewSessionDialog', () => {
     expect(q('[data-test="ns-sheet"]')).not.toBeNull()
     w.unmount()
   })
+  it('en phone el cuerpo del Sheet tiene padding (no toca los bordes)', async () => {
+    mode.value = 'phone'
+    const w = await open()
+    const cls = q('[data-test="ns-sheet-body"]').className
+    expect(cls).toContain('px-4')
+    expect(cls).toContain('pb-[calc(1rem+env(safe-area-inset-bottom,0px))]')
+    w.unmount()
+  })
+  it('la descripción muestra "Elegí el proyecto" y, con uno elegido, su nombre', async () => {
+    const w = await open()
+    expect(q('[data-test="ns-description"]').textContent?.trim()).toBe('Elegí el proyecto')
+    qa('[data-test="ns-project"]')[0].click(); await flushPromises()
+    expect(q('[data-test="ns-description"]').textContent?.trim()).toBe('back')
+    w.unmount()
+  })
   it('botones táctiles y sin estilo nativo', async () => {
     const w = await open()
     const cls = qa('[data-test="ns-project"]')[0].className
