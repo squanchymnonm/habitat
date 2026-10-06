@@ -6,6 +6,7 @@ import { useLayoutMode } from '../../composables/useLayoutMode'
 import GeneralSettings from './GeneralSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import AccountSettings from './AccountSettings.vue'
+import ProjectsSettings from './ProjectsSettings.vue'
 import ProjectsManager from '../ProjectsManager.vue'
 import { cn } from '@/lib/utils'
 
@@ -37,7 +38,8 @@ const side = computed(() => mode.value === 'landscape')
       <GeneralSettings v-if="current === 'general'" />
       <AppearanceSettings v-else-if="current === 'appearance'" />
       <AccountSettings v-else-if="current === 'account'" />
-      <!-- Legacy hasta que lleguen ProjectsSettings / ProjectDetail (Tasks 3 y 4). -->
+      <ProjectsSettings v-else-if="route.name !== 'project'" />
+      <!-- Legacy hasta que llegue ProjectDetail (Task 4). -->
       <ProjectsManager v-else />
     </div>
   </div>

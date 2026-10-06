@@ -9,6 +9,7 @@ vi.mock('../../composables/useLayoutMode', async (orig) => ({
   useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {}, allCollapsed: ref(false), setCollapsedAll: () => {} }),
 }))
 vi.mock('../ProjectsManager.vue', () => ({ default: { template: '<div data-test="projects-stub" />' } }))
+vi.mock('./ProjectsSettings.vue', () => ({ default: { template: '<div data-test="projects-settings-stub" />' } }))
 import SettingsLayout from './SettingsLayout.vue'
 import { createHabitatRouter } from '../../router'
 
@@ -33,6 +34,20 @@ describe('SettingsLayout', () => {
   it('en /settings/account muestra AccountSettings', async () => {
     const { w } = await mountAt('/settings/account')
     expect(w.find('[data-test="account-user"]').exists()).toBe(true)
+  })
+
+  it('en /settings/projects muestra ProjectsSettings', async () => {
+    const { w } = await mountAt('/settings/projects')
+    expect(w.find('[data-test="projects-settings-stub"]').exists()).toBe(true)
+    expect(w.find('[data-test="projects-stub"]').exists()).toBe(false)
+  })
+
+  it('en la página de un proyecto muestra ProjectsManager (legacy, hasta la Task 4) con Proyectos activo', async () => {
+    const { w } = await mountAt('/settings/projects/back/general')
+    expect(w.find('[data-test="projects-stub"]').exists()).toBe(true)
+    expect(w.find('[data-test="projects-settings-stub"]').exists()).toBe(false)
+    const links = w.findAll('[data-test="settings-link"]')
+    expect(links[2].attributes('aria-current')).toBe('page')
   })
 
   it('en landscape la nav es flex-col y en portrait no', async () => {
