@@ -10,14 +10,23 @@ const authHeaders = (): Record<string, string> => {
 
 // null = aún no chequeado; true/false = resultado de /auth/me.
 const authed = ref<boolean | null>(null)
+// Usuario logueado (USER/PASSWORD_HASH); null si entró por token o aún no se sabe.
+const user = ref<string | null>(null)
 
 export function useAuth() {
   async function checkAuth() {
     try {
       const res = await fetch('/auth/me', { headers: authHeaders() })
       authed.value = res.status === 200
+      if (res.status === 200) {
+        const data = (await res.json?.().catch(() => ({}))) as { user?: string | null } | undefined
+        user.value = data?.user ?? null
+      } else {
+        user.value = null
+      }
     } catch {
       authed.value = false
+      user.value = null
     }
   }
 
@@ -28,14 +37,15 @@ export function useAuth() {
       body: JSON.stringify({ user, password }),
     })
     const ok = res.status === 204
-    if (ok) authed.value = true
+    if (ok) await checkAuth()
     return ok
   }
 
   async function logout() {
     try { await fetch('/logout', { method: 'POST' }) } catch { /* ignore */ }
     authed.value = false
+    user.value = null
   }
 
-  return { authed, checkAuth, login, logout }
+  return { authed, user, checkAuth, login, logout }
 }

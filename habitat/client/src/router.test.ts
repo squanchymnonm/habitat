@@ -41,6 +41,29 @@ describe('router', () => {
   })
 })
 
+describe('rutas de ajustes', () => {
+  it('/settings va a general y acepta las secciones', async () => {
+    const router = createHabitatRouter(createMemoryHistory())
+    await router.push('/settings'); await router.isReady()
+    expect(router.currentRoute.value.fullPath).toBe('/settings/general')
+    for (const s of ['appearance', 'projects', 'account']) {
+      await router.push(`/settings/${s}`)
+      expect(router.currentRoute.value.params.section).toBe(s)
+    }
+  })
+  it('sección desconocida vuelve a general', async () => {
+    const router = createHabitatRouter(createMemoryHistory())
+    await router.push('/settings/nada'); await router.isReady()
+    expect(router.currentRoute.value.fullPath).toBe('/settings/general')
+  })
+  it('página de proyecto con pestaña', async () => {
+    const router = createHabitatRouter(createMemoryHistory())
+    await router.push('/settings/projects/back/infra'); await router.isReady()
+    expect(router.currentRoute.value.name).toBe('project')
+    expect(router.currentRoute.value.params).toMatchObject({ name: 'back', tab: 'infra' })
+  })
+})
+
 describe('router — celular', () => {
   const orig = { w: window.innerWidth, h: window.innerHeight }
   const setSize = (w: number, h: number) => {

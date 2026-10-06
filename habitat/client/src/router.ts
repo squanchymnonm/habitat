@@ -17,7 +17,10 @@ export function createHabitatRouter(history: RouterHistory = createWebHashHistor
       { path: '/s/:id', name: 'session', component: () => import('./views/FocusRoute.vue') },
       { path: '/board', name: 'board', component: () => import('./views/BoardRoute.vue') },
       { path: '/sessions', name: 'list', component: () => import('./views/SessionListRoute.vue') },
-      { path: '/settings/:section?', name: 'settings', component: () => import('./views/SettingsRoute.vue') },
+      { path: '/settings', redirect: '/settings/general' },
+      { path: '/settings/:section(general|appearance|projects|account)', name: 'settings', component: () => import('./views/SettingsRoute.vue') },
+      { path: '/settings/projects/:name/:tab?', name: 'project', component: () => import('./views/SettingsRoute.vue') },
+      { path: '/settings/:pathMatch(.*)*', redirect: '/settings/general' },
       { path: '/:pathMatch(.*)*', redirect: '/' },
     ],
   })
