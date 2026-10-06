@@ -66,10 +66,33 @@ describe('SessionHeader', () => {
     await flushPromises()
     expect(w.get('[data-test="docker-down"]').text()).toContain('1')
   })
-  it('acciones sin estilo nativo (preflight apagado)', () => {
+  it('acciones sin estilo nativo (preflight apagado) y con objetivo táctil ≥40px', () => {
     const w = mount(SessionHeader, { props: { session: base } })
     for (const sel of ['[data-test="open-editor"]', '[data-test="close-session"]']) {
-      expect(w.get(sel).classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer']))
+      expect(w.get(sel).classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer', 'min-h-10', 'min-w-10']))
     }
+  })
+  it('Editor y Cerrar tienen nombre accesible (en el teléfono quedan sólo con ícono)', () => {
+    const w = mount(SessionHeader, { props: { session: base } })
+    for (const sel of ['[data-test="open-editor"]', '[data-test="close-session"]']) {
+      expect(w.get(sel).attributes('aria-label')).toBeTruthy()
+      expect(w.get(sel).attributes('title')).toBeTruthy()
+    }
+  })
+  it('muestra la acción actual y hace cuánto está activa', () => {
+    const w = mount(SessionHeader, { props: { session: { ...base, since: Date.now() - 5 * 60000 } } })
+    const line = w.get('[data-test="session-activity"]')
+    expect(line.text()).toContain('Edit')
+    expect(line.text()).toContain('activa hace 5m')
+    expect(line.classes()).toEqual(expect.arrayContaining(['truncate', 'text-xs', 'text-muted']))
+  })
+  it('el error de nvim se limpia al cambiar de sesión', async () => {
+    openInNvim.mockResolvedValueOnce({ ok: false, message: 'nvim no está' } as any)
+    const w = mount(SessionHeader, { props: { session: base } })
+    await w.get('[data-test="open-editor"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('nvim no está')
+    await w.setProps({ session: { ...base, id: 's2' } })
+    expect(w.text()).not.toContain('nvim no está')
   })
 })

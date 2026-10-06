@@ -6,6 +6,7 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import { useProjects } from '../../composables/useProjects'
 import { useProjectTree } from '../../composables/useProjectTree'
 import { STATUS_LABEL, STATE_TOKEN, type Session } from '../../types'
+import { ago } from '../../sprites'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{ session: Session }>()
@@ -22,6 +23,8 @@ const badge = computed(() => BADGE[STATE_TOKEN[props.session.status]])
 const projectColor = computed(() => colorForProject(props.session.project))
 
 const editorErr = ref('')
+// El error de nvim es de la sesión en la que se intentó: no arrastrarlo a otra.
+watch(() => props.session.id, () => { editorErr.value = '' })
 async function openEditor() {
   editorErr.value = ''
   const r = await openInNvim(props.session.id, '.')
@@ -49,7 +52,8 @@ async function doDockerDown() {
 
 const confirmClose = ref(false)
 const confirmDocker = ref(false)
-const action = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1.5 font-[inherit] text-xs font-semibold text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
+// min-h-10/min-w-10: objetivo táctil ≥40px (spec §5); en el teléfono Editor y Cerrar quedan sólo con ícono.
+const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1.5 font-[inherit] text-xs font-semibold text-text hover:text-accent disabled:cursor-default disabled:opacity-50'
 </script>
 
 <template>
@@ -68,16 +72,21 @@ const action = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r
         {{ session.project }}<template v-if="session.branch"> · <span class="text-accent">{{ session.branch }}</span></template>
       </span>
       <span v-if="editorErr" class="text-xs text-danger">{{ editorErr }}</span>
+      <span data-test="session-activity" class="w-full min-w-0 truncate text-xs text-muted">
+        <template v-if="session.action">{{ session.action }}<span class="hidden sm:inline"> · </span></template><span :class="session.action ? 'hidden sm:inline' : ''">activa hace {{ ago(session.since) }}</span>
+      </span>
     </div>
     <div class="flex shrink-0 items-center gap-2">
-      <button data-test="open-editor" type="button" :class="action" title="Abrir nvim en la carpeta de la sesión" @click="openEditor">
+      <button data-test="open-editor" type="button" :class="action" title="Abrir nvim en la carpeta de la sesión"
+        aria-label="Editor: abrir nvim en la carpeta de la sesión" @click="openEditor">
         <SquarePen class="size-3.5" /><span class="hidden sm:inline">Editor</span>
       </button>
       <button v-if="canSpawn && dockerStacks.length" data-test="docker-down" type="button" :class="action" :disabled="dockerBusy"
         :title="`Bajar containers: ${dockerStacks.join(', ')}`" @click="confirmDocker = true">
         <Container class="size-3.5" />{{ dockerBusy ? 'Bajando…' : `Bajar docker (${dockerStacks.length})` }}
       </button>
-      <button v-if="canSpawn" data-test="close-session" type="button" :class="cn(action, 'hover:text-danger')" @click="confirmClose = true">
+      <button v-if="canSpawn" data-test="close-session" type="button" :class="cn(action, 'hover:text-danger')"
+        title="Cerrar sesión" aria-label="Cerrar sesión" @click="confirmClose = true">
         <X class="size-3.5" /><span class="hidden sm:inline">Cerrar</span>
       </button>
     </div>
