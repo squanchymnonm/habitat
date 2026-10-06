@@ -5,7 +5,7 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import { useSessions } from '../../stores/sessions'
 import { postOrder } from '../../composables/useSessionOrder'
 import { useLayoutMode } from '../../composables/useLayoutMode'
-import { STATUS_LABEL, STATE_TOKEN, type Session } from '../../types'
+import { STATUS_LABEL, STATE_TOKEN, STATE_TEXT, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -21,10 +21,9 @@ const items = computed<Session[]>({
 })
 // Clases literales (no interpoladas) para que Tailwind las detecte.
 const INFRA_DOT: Record<string, string> = { up: 'bg-state-done', partial: 'bg-state-working', off: 'bg-state-idle' }
-const TXT: Record<string, string> = { working: 'text-state-working', waiting: 'text-state-waiting', done: 'text-state-done', idle: 'text-muted', error: 'text-state-error' }
 // vuedraggable no tipa el slot `element`; esta función sólo acota el tipo al indexar STATUS_LABEL.
 const statusLabel = (s: Session) => STATUS_LABEL[s.status]
-const statusClass = (s: Session) => TXT[STATE_TOKEN[s.status]]
+const statusClass = (s: Session) => STATE_TEXT[STATE_TOKEN[s.status]]
 </script>
 
 <template>

@@ -63,4 +63,11 @@ describe('FocusRoute — navegación por modo', () => {
     const { router } = await mountFocus('/')
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
+  it('en phone, un link directo /s/:id abre el foco (no redirige a la lista)', async () => {
+    mode.value = 'phone'
+    useSessions().setAll([sess('a')])
+    const { w, router } = await mountFocus('/s/a')
+    expect(w.find('[data-test="focus-view"]').exists()).toBe(true)
+    expect(router.currentRoute.value.fullPath).toBe('/s/a')
+  })
 })
