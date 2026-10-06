@@ -35,6 +35,16 @@ const ALL_VIEWS = {
   'focus-quest': { hash: '#/', prepare: [clickTab('Quest')] },
   // "Fijar al costado" sólo existe en landscape (useLayoutMode): en otros tamaños se saltea.
   'focus-pinned': { hash: '#/', landscapeOnly: true, prepare: [clickTab('Git'), clickSel('[data-test="pin-tool"]')] },
+  board: { hash: '#/board' },
+  // La lista es la pantalla principal del celular (useLayoutMode la fuerza en phone):
+  // en otros tamaños no existe como vista propia, se saltea.
+  'phone-list': { hash: '#/sessions', phoneOnly: true },
+  // Foco a pantalla completa del celular: entramos por la lista y clickeamos la primera
+  // fila, igual que haría el usuario (no asumimos el id de sesión).
+  'phone-focus': { hash: '#/sessions', phoneOnly: true, prepare: [clickSel('[data-test="session-row"]')] },
+  // Diálogo de nueva sesión (Dialog en escritorio, Sheet en celular) con el primer
+  // proyecto ya elegido, para ver el paso de nombre/personaje.
+  'new-session': { hash: '#/', prepare: [clickSel('[data-test="new-session"]'), clickSel('[data-test="ns-project"]')] },
 };
 const THEMES = list(args.themes) ?? ['forja', 'pizarra', 'taberna'];
 const SIZES = (list(args.sizes) ?? ['1440x900', '820x1180', '400x860']).map((s) => s.split('x').map(Number));
@@ -51,6 +61,8 @@ const jb = join(homedir(), '.cache/JetBrains/RemoteDev/dist');
 const libDir = existsSync(jb) ? readdirSync(jb).map((d) => join(jb, d, 'plugins/remote-dev-server/selfcontained/lib')).find(existsSync) : null;
 // Mismo criterio que useLayoutMode para 'landscape'.
 const isLandscape = (w, h) => w > h && w >= 900 && Math.min(w, h) >= 600;
+// Mismo criterio que useLayoutMode para 'phone'.
+const isPhone = (w, h) => Math.min(w, h) < 600;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // mkdir antes de spawnear chrome: si falla (p.ej. permisos), no deja el proceso huérfano.
 mkdirSync(OUT, { recursive: true });
@@ -61,6 +73,7 @@ try {
   await sleep(1500);
   for (const zoom of ZOOMS) for (const theme of THEMES) for (const [w, h] of SIZES) for (const [view, cfg] of Object.entries(VIEWS)) {
     if (cfg.landscapeOnly && !isLandscape(w, h)) { console.log(`skip ${theme}-${w}x${h}-${view}: sólo en landscape`); continue; }
+    if (cfg.phoneOnly && !isPhone(w, h)) { console.log(`skip ${theme}-${w}x${h}-${view}: sólo en celular`); continue; }
     const tab = await (await fetch('http://127.0.0.1:9411/json/new?about:blank', { method: 'PUT' })).json();
     const ws = new WebSocket(tab.webSocketDebuggerUrl); await new Promise((r) => ws.once('open', r));
     let id = 0; const pend = new Map();
