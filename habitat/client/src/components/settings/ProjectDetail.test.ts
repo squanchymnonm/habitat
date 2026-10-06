@@ -73,6 +73,13 @@ describe('ProjectDetail', () => {
     w.unmount()
   })
 
+  it('pestaña inválida en la URL se normaliza a general', async () => {
+    const { w, router } = await mountAt('/settings/projects/back/zzz')
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/settings/projects/back/general'))
+    expect(w.findAll('[data-test="project-tab"]')[0].attributes('aria-selected')).toBe('true')
+    w.unmount()
+  })
+
   it('proyecto inexistente: aviso y link a la lista', async () => {
     const { w } = await mountAt('/settings/projects/nada/general')
     expect(w.text()).toContain('Proyecto no encontrado')
@@ -106,6 +113,23 @@ describe('ProjectDetail', () => {
     await router.push('/settings/projects/front/infra')
     await flushPromises()
     expect((w.get('[data-test="infra-path"]').element as HTMLInputElement).value).toBe('ops')
+    w.unmount()
+  })
+
+  it('cambiar de pestaña no pierde lo escrito en el editor de .env', async () => {
+    projects.value = [{ dir: '/p/back', name: 'Back', color: '#61afef', related: [], infra: null, envFiles: [{ repo: 'self', path: '.env' }] }]
+    getEnv.mockResolvedValue('HOLA=1')
+    const { w } = await mountAt('/settings/projects/back/env')
+    await w.get('[data-test="env-open"]').trigger('click')
+    await flushPromises()
+    await w.get('[data-test="env-text"]').setValue('texto sin guardar')
+    const infraTab = w.findAll('[data-test="project-tab"]').find((t) => t.text() === 'Infra')!
+    await infraTab.trigger('click')
+    await flushPromises()
+    const envTab = w.findAll('[data-test="project-tab"]').find((t) => t.text() === 'Archivos .env')!
+    await envTab.trigger('click')
+    await flushPromises()
+    expect((w.get('[data-test="env-text"]').element as HTMLTextAreaElement).value).toBe('texto sin guardar')
     w.unmount()
   })
 

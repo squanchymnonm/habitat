@@ -3,11 +3,11 @@ import { ref } from 'vue'
 import { Textarea } from '@/components/ui/textarea'
 import { useProjects } from '../../../composables/useProjects'
 import type { ProjectConfigDraft } from '../../../composables/useProjectConfigDraft'
-import type { EnvFile, Project } from '../../../types'
+import type { Project } from '../../../types'
 import ConfigSaveBar from './ConfigSaveBar.vue'
 
 const props = defineProps<{ project: Project; draft: ProjectConfigDraft }>()
-const { envFiles, repoOptions, repoLabel } = props.draft
+const { envFiles, repoOptions, repoLabel, editing, envText, envMsg, envErr } = props.draft
 const { getEnv, saveEnv, importEnv } = useProjects()
 
 const newEnvRepo = ref('self')
@@ -27,10 +27,6 @@ function removeEnvFile(i: number) {
 // Se identifica el archivo en edición por (repo, path), no por índice: si se
 // quita una fila anterior en la lista, un índice quedaría apuntando a otro
 // archivo (o fuera de rango).
-const editing = ref<EnvFile | null>(null)
-const envText = ref('')
-const envMsg = ref('')
-const envErr = ref('')
 async function openEnv(i: number) {
   const e = envFiles.value[i]
   editing.value = { ...e }
@@ -100,8 +96,8 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
         <button type="button" data-test="env-save" :class="btn" @click="doSaveEnv">guardar</button>
         <button type="button" :class="btn" @click="editing = null">cerrar</button>
       </div>
-      <p v-if="envMsg" class="m-0 text-sm text-muted">{{ envMsg }}</p>
-      <p v-if="envErr" class="m-0 text-sm text-danger">{{ envErr }}</p>
+      <p v-if="envMsg" aria-live="polite" class="m-0 text-sm text-muted">{{ envMsg }}</p>
+      <p v-if="envErr" role="alert" class="m-0 text-sm text-danger">{{ envErr }}</p>
     </div>
 
     <ConfigSaveBar :draft="draft" />

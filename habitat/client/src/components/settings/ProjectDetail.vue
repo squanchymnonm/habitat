@@ -30,6 +30,18 @@ const tab = computed<TabId>(() => {
 })
 const project = computed(() => projects.value.find((p) => projectSlug(p.dir) === name.value))
 
+// Una pestaña inválida en la URL (p. ej. /zzz) se corrige a "general" en la URL misma,
+// no sólo en lo que se muestra: si no, el link de General queda como no-op.
+watch(
+  () => String(route.params.tab ?? ''),
+  (t) => {
+    if (t && !TABS.some((x) => x.id === t)) {
+      router.replace({ name: 'project', params: { name: name.value, tab: 'general' } })
+    }
+  },
+  { immediate: true },
+)
+
 // Un único borrador para Relacionados, Infra y .env: cambiar de pestaña no pierde lo editado.
 // Se crea cuando aparece el proyecto (la lista puede llegar después) y se rehace sólo al
 // cambiar de proyecto, no cuando la lista se recarga tras guardar.
@@ -44,7 +56,7 @@ watch(() => project.value?.dir, (dir) => {
 onScopeDispose(() => draftScope?.stop())
 
 function choose(id: TabId) {
-  if (id !== tab.value) router.replace(`/settings/projects/${name.value}/${id}`)
+  if (id !== tab.value) router.replace({ name: 'project', params: { name: name.value, tab: id } })
 }
 
 const link = 'inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-accent'

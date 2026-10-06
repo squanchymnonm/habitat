@@ -101,7 +101,7 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
         <li v-for="p in projects" :key="p.dir" data-test="project-row"
           class="flex min-h-10 items-center gap-3 rounded-[var(--radius)] bg-surface px-3">
           <i class="size-3 shrink-0 rounded-sm" :style="{ background: p.color }" />
-          <RouterLink :to="`/settings/projects/${projectSlug(p.dir)}/general`" data-test="project-open"
+          <RouterLink :to="{ name: 'project', params: { name: projectSlug(p.dir), tab: 'general' } }" data-test="project-open"
             class="flex min-w-0 flex-1 items-center gap-3 font-[inherit] text-sm text-text no-underline hover:text-accent">
             <span class="font-semibold">{{ p.name }}</span>
             <span class="min-w-0 truncate text-xs text-muted">{{ p.dir }}</span>
@@ -166,7 +166,8 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
         <div class="flex flex-col gap-1">
           <span class="text-sm text-text">Color</span>
           <div class="flex flex-wrap gap-2">
-            <button v-for="c in PALETTE" :key="c" type="button" data-test="draft-color" :style="{ background: c }" :title="c"
+            <button v-for="(c, i) in PALETTE" :key="c" type="button" data-test="draft-color" :style="{ background: c }"
+              :title="c" :aria-label="`Color ${i + 1}`" :aria-pressed="c === draftColor ? 'true' : 'false'"
               :class="cn('size-10 cursor-pointer rounded-[var(--radius)] border-0', c === draftColor && 'ring-2 ring-accent')"
               @click="draftColor = c" />
           </div>
@@ -175,6 +176,7 @@ const input = 'min-h-10 rounded-[var(--radius)] border border-border bg-backgrou
           <span class="text-sm text-text">Personajes permitidos (vacío = todos)</span>
           <div class="flex flex-wrap gap-2">
             <button v-for="c in CHARACTERS" :key="c" type="button" data-test="draft-char" :title="c"
+              :aria-pressed="draftChars.includes(c) ? 'true' : 'false'"
               :class="cn('min-h-10 min-w-10 cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised p-1', draftChars.includes(c) && 'ring-2 ring-accent')"
               @click="toggleDraftChar(c)">
               <img :src="faceFor('', c)" alt="" class="pixel size-8" />

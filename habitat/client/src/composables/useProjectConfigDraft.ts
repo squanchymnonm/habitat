@@ -18,6 +18,14 @@ export function useProjectConfigDraft(project: Ref<Project>) {
   const configError = ref('')
   const configOk = ref(false)
 
+  // Estado del editor de .env (qué archivo está abierto, su texto y los mensajes).
+  // Vive acá, no en ProjectEnvTab, para que cambiar de pestaña (que desmonta el
+  // componente) no tire el texto que el usuario todavía no guardó.
+  const editing = ref<EnvFile | null>(null)
+  const envText = ref('')
+  const envMsg = ref('')
+  const envErr = ref('')
+
   const repoOptions = computed(() => ['self', ...related.value.map((r) => r.name)])
   const repoLabel = (r: string) => (r === 'self' ? 'este repo' : r)
 
@@ -38,7 +46,10 @@ export function useProjectConfigDraft(project: Ref<Project>) {
     else configError.value = r.error
   }
 
-  return { related, infraRepo, infraPath, infraUp, infraDown, envFiles, repoOptions, repoLabel, save, saving, configError, configOk }
+  return {
+    related, infraRepo, infraPath, infraUp, infraDown, envFiles, repoOptions, repoLabel, save, saving, configError, configOk,
+    editing, envText, envMsg, envErr,
+  }
 }
 
 export type ProjectConfigDraft = ReturnType<typeof useProjectConfigDraft>
