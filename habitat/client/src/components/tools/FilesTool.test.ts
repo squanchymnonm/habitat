@@ -63,4 +63,17 @@ describe('FilesTool', () => {
     expect(w.findAll('[data-test="file-entry"]')[0].classes()).toEqual(expect.arrayContaining(['border-0', 'bg-transparent']))
     expect(w.get('[data-test="file-upload"]').classes()).toContain('border-0')
   })
+  it('migas, entradas y acciones con objetivo táctil ≥40px', async () => {
+    const w = mount(FilesTool, { props: { sessionId: 's1', path: '' } })
+    expect(w.get('[data-test="file-crumb"]').classes()).toContain('min-h-10')
+    expect(w.findAll('[data-test="file-entry"]')[0].classes()).toContain('min-h-10')
+    expect(w.get('[data-test="file-upload"]').classes()).toContain('min-h-10')
+  })
+  it('con preview, en el teléfono la grilla usa dos filas acotadas (listado y preview scrollean aparte)', async () => {
+    const w = mount(FilesTool, { props: { sessionId: 's1', path: '' } })
+    expect(w.get('[data-test="file-grid"]').classes()).not.toContain('grid-rows-[minmax(0,1fr)_minmax(0,1fr)]')
+    await w.findAll('[data-test="file-entry"]')[1].trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="file-grid"]').classes()).toEqual(expect.arrayContaining(['grid-rows-[minmax(0,1fr)_minmax(0,1fr)]', 'md:grid-rows-1']))
+  })
 })

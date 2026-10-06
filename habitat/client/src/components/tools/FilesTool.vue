@@ -4,6 +4,7 @@ import { Folder, FileText, Upload, SquarePen, TerminalSquare } from 'lucide-vue-
 import { useProjectTree, type TreeEntry, type FileContent } from '../../composables/useProjectTree'
 import { useFiles, limitMB, quotePath, type TooLarge } from '../../composables/useFiles'
 import { fmt } from '../../sprites'
+import { cn } from '@/lib/utils'
 
 // Explorador del working dir de la sesión: navegar, previsualizar, insertar la ruta
 // en la terminal, editar en nvim y subir archivos. La carpeta actual la maneja el
@@ -67,15 +68,16 @@ async function doUpload(file: File) {
   }
 }
 
-const crumb = 'cursor-pointer rounded border-0 bg-transparent px-1 font-mono text-xs text-muted hover:text-accent'
-const act = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:opacity-50'
+// min-h-10: objetivo táctil ≥40px (spec §5).
+const crumb = 'inline-flex min-h-10 items-center cursor-pointer rounded border-0 bg-transparent px-1 font-mono text-xs text-muted hover:text-accent'
+const act = 'inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[var(--radius)] border-0 bg-surface-raised px-2.5 py-1 font-[inherit] text-xs text-text hover:text-accent disabled:opacity-50'
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col gap-2 p-3">
     <div class="flex items-center gap-2">
       <nav class="flex min-w-0 flex-1 flex-wrap items-center">
-        <button type="button" :class="crumb" @click="emit('navigate', '')">{{ listing?.root || '~' }}</button>
+        <button data-test="file-crumb" type="button" :class="crumb" @click="emit('navigate', '')">{{ listing?.root || '~' }}</button>
         <template v-for="c in listing?.breadcrumbs || []" :key="c.rel">
           <span class="text-xs text-muted">/</span>
           <button type="button" :class="crumb" @click="emit('navigate', c.rel)">{{ c.name }}</button>
@@ -87,14 +89,17 @@ const act = 'inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radi
       <input ref="fileInput" data-test="file-upload-input" type="file" hidden @change="onFile" />
     </div>
     <p v-if="actionErr" class="m-0 text-sm text-danger">{{ actionErr }}</p>
-    <div class="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(12rem,1fr)_2fr]">
+    <!-- En el teléfono (una columna) con preview: dos filas acotadas, cada una con su
+         scroll; si no, un listado largo empuja Insertar/Editar fuera de la pantalla. -->
+    <div data-test="file-grid" :class="cn('grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(12rem,1fr)_2fr]',
+      preview && 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:grid-rows-1')">
       <ul class="m-0 min-h-0 list-none overflow-y-auto p-0">
         <li v-if="loading" class="px-2 py-1 text-sm text-muted">cargando…</li>
         <li v-else-if="error === 'sin-dir'" class="px-2 py-1 text-sm text-muted">sesión sin working dir</li>
         <li v-else-if="error" class="px-2 py-1 text-sm text-muted">no se pudo listar ({{ error }})</li>
         <li v-for="e in listing?.entries || []" :key="e.rel">
-          <button data-test="file-entry" type="button" @click="openEntry(e)" @dblclick="!e.isDir && editInNvim(e.rel)"
-            class="flex w-full cursor-pointer items-center gap-2 rounded-[var(--radius)] border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-sm text-text hover:bg-surface-raised">
+          <button data-test="file-entry" type="button" :data-dir="e.isDir ? '' : undefined" @click="openEntry(e)" @dblclick="!e.isDir && editInNvim(e.rel)"
+            class="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-[var(--radius)] border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-sm text-text hover:bg-surface-raised">
             <Folder v-if="e.isDir" class="size-4 shrink-0 text-accent" /><FileText v-else class="size-4 shrink-0 text-muted" />
             <span class="min-w-0 flex-1 truncate">{{ e.name }}</span>
             <span v-if="e.isRepo" class="rounded bg-surface-raised px-1.5 text-[10px] uppercase text-muted">git</span>
