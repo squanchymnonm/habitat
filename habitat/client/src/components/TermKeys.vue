@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{ dense?: boolean }>(), { dense: false })
 
 const btnClass = computed(() => cn(
   'cursor-pointer select-none rounded-[var(--radius)] border border-border bg-surface-raised font-mono text-text hover:text-accent',
-  props.dense ? 'min-h-8 min-w-8 px-1.5 py-0.5 text-[11px]' : 'min-h-9 min-w-10 px-2 py-1 text-xs',
+  props.dense ? 'min-h-[26px] min-w-8 px-1.5 py-0.5 text-[11px]' : 'min-h-10 min-w-10 px-2 py-1 text-xs',
 ))
 
 // Fila de teclas que Android no tiene: flechas + Enter/Esc/Tab.
