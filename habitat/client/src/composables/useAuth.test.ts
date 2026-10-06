@@ -40,6 +40,18 @@ describe('useAuth', () => {
     expect(a.user.value).toBe('nico')
   })
 
+  it('login ok + /auth/me falla por red: authed sigue en true, sólo user queda null', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ status: 204, ok: true }) // /login
+      .mockRejectedValueOnce(new Error('network')) // /auth/me
+    vi.stubGlobal('fetch', fetchMock as any)
+    const a = useAuth()
+    const ok = await a.login('nico', 'clave')
+    expect(ok).toBe(true)
+    expect(a.authed.value).toBe(true)
+    expect(a.user.value).toBe(null)
+  })
+
   it('login devuelve false en 401', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ status: 401, ok: false })) as any)
     const a = useAuth()
