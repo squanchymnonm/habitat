@@ -88,6 +88,13 @@ describe('SessionNav', () => {
     expect(w.find('[data-test="session-tabs"]').classes()).toContain('collapsed')
     expect(w.findAll('[data-test="session-name"]').length).toBe(0)
   })
+  it('la barra lateral expandida muestra el estado en texto', async () => {
+    const { w } = await mountNav(1440, 900)
+    const items = w.findAll('[data-test="session-item"]')
+    expect(items[1].text()).toContain('te necesita') // yoshi está waiting
+    await w.get('[data-test="nav-collapse"]').trigger('click')
+    expect(w.findAll('[data-test="session-item"]')[1].text()).not.toContain('te necesita')
+  })
   it('la seleccionada queda marcada', async () => {
     const { w, store } = await mountNav(1440, 900)
     store.select('ezio'); await w.vm.$nextTick()

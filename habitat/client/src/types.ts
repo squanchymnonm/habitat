@@ -84,6 +84,12 @@ export const STATE_TOKEN: Record<Status, 'working' | 'waiting' | 'done' | 'idle'
   idle: 'idle', working: 'working', waiting: 'waiting', done: 'done', error: 'error', offline: 'idle',
 }
 
+// Clase de color de texto (--state-*) para cada token, en texto de UI (SessionList, SessionSidebar).
+// Clases literales (no interpoladas) para que Tailwind las detecte.
+export const STATE_TEXT: Record<'working' | 'waiting' | 'done' | 'idle' | 'error', string> = {
+  working: 'text-state-working', waiting: 'text-state-waiting', done: 'text-state-done', idle: 'text-muted', error: 'text-state-error',
+}
+
 export interface QuestExchange {
   claude: string
   you: string

@@ -6,7 +6,7 @@ export type Shortcut = 'prev' | 'next' | 'escape'
 
 // Los atajos no compiten con lo que el usuario escribe: se apagan en la terminal
 // (xterm captura el teclado en su textarea) y en cualquier campo editable.
-function typingTarget(t: EventTarget | null): boolean {
+export function typingTarget(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false
   if (t.closest('.xterm') || t.classList.contains('xterm-helper-textarea')) return true
   const tag = t.tagName
@@ -15,7 +15,7 @@ function typingTarget(t: EventTarget | null): boolean {
 
 // Un diálogo (Reka) es dueño de su propio teclado: ningún atajo nuestro debe actuar
 // si el evento viene de ahí adentro.
-function insideDialog(t: EventTarget | null): boolean {
+export function insideDialog(t: EventTarget | null): boolean {
   return t instanceof HTMLElement && !!t.closest('[role="dialog"]')
 }
 

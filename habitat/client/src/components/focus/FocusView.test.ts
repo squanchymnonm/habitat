@@ -7,7 +7,7 @@ import { createHabitatRouter, syncSelectionWithRoute } from '../../router'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 const canSpawn = ref(true)
-vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('../../composables/useLayoutMode', async (orig) => ({ ...(await orig<typeof import('../../composables/useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
 const insert = vi.fn()
 vi.mock('./TerminalPane.vue', () => ({ default: defineComponent({ props: ['session'], setup(_, { expose }) { expose({ fit: () => {}, insert }); return () => h('div', { 'data-test': 'terminal-pane' }) } }) }))
@@ -107,6 +107,14 @@ describe('FocusView', () => {
   it('sin selección no renderiza nada', async () => {
     const { w } = await mountFocus([], '/')
     expect(w.find('[data-test="terminal-pane"]').exists()).toBe(false)
+    w.unmount()
+  })
+  it('en phone la barra de herramientas va abajo del área', async () => {
+    mode.value = 'phone'
+    const { w } = await mountFocus([sess('a')])
+    const root = w.element as HTMLElement
+    const last = root.children[root.children.length - 1]
+    expect(last.matches('[data-test="tool-bar"]') || !!last.querySelector('[data-test="tool-bar"]')).toBe(true)
     w.unmount()
   })
 

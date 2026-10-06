@@ -167,6 +167,8 @@ Para revisar la UI en los 3 temas y 3 tamaños: levantá una instancia de dev y 
 En el foco: `[` y `]` pasan a la sesión anterior/siguiente; `Esc` cierra el editor y
 desfija el panel. No actúan mientras escribís en la terminal o en un campo.
 
+`g` `b` abre el tablero y `g` `f` vuelve al foco.
+
 ## Crear sesiones desde el panel (opcional)
 
 Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:

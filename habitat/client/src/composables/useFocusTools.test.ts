@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ref, nextTick, effectScope } from 'vue'
 
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
-vi.mock('./useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
+vi.mock('./useLayoutMode', async (orig) => ({ ...(await orig<typeof import('./useLayoutMode')>()), useLayoutMode: () => ({ mode }) }))
 
 import { useFocusTools, resetFocusTools } from './useFocusTools'
 

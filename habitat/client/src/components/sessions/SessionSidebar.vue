@@ -5,7 +5,7 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import { useSessions } from '../../stores/sessions'
 import { postOrder } from '../../composables/useSessionOrder'
 import { useLayoutMode } from '../../composables/useLayoutMode'
-import { STATUS_LABEL, type Session } from '../../types'
+import { STATUS_LABEL, STATE_TOKEN, STATE_TEXT, type Session } from '../../types'
 import SessionAvatar from './SessionAvatar.vue'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ const items = computed<Session[]>({
 const INFRA_DOT: Record<string, string> = { up: 'bg-state-done', partial: 'bg-state-working', off: 'bg-state-idle' }
 // vuedraggable no tipa el slot `element`; esta función sólo acota el tipo al indexar STATUS_LABEL.
 const statusLabel = (s: Session) => STATUS_LABEL[s.status]
+const statusClass = (s: Session) => STATE_TEXT[STATE_TOKEN[s.status]]
 </script>
 
 <template>
@@ -54,6 +55,7 @@ const statusLabel = (s: Session) => STATUS_LABEL[s.status]
                     <span v-if="s.infra?.dir" data-test="infra-dot" :class="cn('size-1.5 shrink-0 rounded-full', INFRA_DOT[s.infra.state ?? 'off'])" :title="`infra: ${s.infra.state ?? 'off'}`" />
                   </span>
                   <span class="block truncate text-xs text-muted">{{ s.project }}<template v-if="s.branch"> · {{ s.branch }}</template></span>
+                  <span data-test="session-status" class="block truncate text-xs" :class="statusClass(s)">{{ statusLabel(s) }}</span>
                 </span>
               </button>
             </TooltipTrigger>

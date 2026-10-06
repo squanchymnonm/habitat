@@ -3,11 +3,14 @@ import { computed } from 'vue'
 import { TerminalSquare, GitBranch, FolderOpen, Server, ScrollText, PanelRightOpen } from 'lucide-vue-next'
 import { useFocusTools, type ToolId, type SideTool } from '../../composables/useFocusTools'
 import { useProjects } from '../../composables/useProjects'
+import { useLayoutMode } from '../../composables/useLayoutMode'
 import type { Session } from '../../types'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{ session: Session }>()
 const { canSpawn } = useProjects()
+const { mode } = useLayoutMode()
+const phone = computed(() => mode.value === 'phone')
 const tools = useFocusTools(computed(() => props.session.id))
 // Avisa al padre que el usuario eligió una herramienta (FocusView cierra el editor).
 const emit = defineEmits<{ (e: 'selected'): void }>()
@@ -28,7 +31,17 @@ const pinnable = computed(() => tools.canPin.value && !tools.pinned.value && too
 </script>
 
 <template>
-  <nav role="tablist" aria-label="Herramientas" class="flex items-center gap-1 overflow-x-auto border-b border-border">
+  <nav v-if="phone" data-test="tool-bar" role="tablist" aria-label="Herramientas"
+    class="flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom,0px)]">
+    <button v-for="t in TABS" :key="t.id" data-test="tool-tab" type="button" role="tab"
+      :aria-selected="current === t.id ? 'true' : 'false'"
+      :class="cn('flex min-h-14 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 border-0 bg-transparent font-[inherit] text-[11px]',
+        current === t.id ? 'text-accent' : 'text-muted')"
+      @click="choose(t.id)">
+      <component :is="t.icon" class="size-5" />{{ t.label }}
+    </button>
+  </nav>
+  <nav v-else role="tablist" aria-label="Herramientas" class="flex items-center gap-1 overflow-x-auto border-b border-border">
     <button v-for="t in TABS" :key="t.id" data-test="tool-tab" type="button" role="tab"
       :aria-selected="current === t.id ? 'true' : 'false'"
       :class="cn('inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 border-0 border-b-2 bg-transparent px-3 font-[inherit] text-sm',

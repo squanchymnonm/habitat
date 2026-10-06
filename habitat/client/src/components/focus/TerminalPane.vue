@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTerminal, canReadClipboard } from '../../composables/useTerminal'
 import { useTermKeys } from '../../composables/useTermKeys'
 import { useZoom } from '../../composables/useZoom'
+import { useLayoutMode } from '../../composables/useLayoutMode'
 import { createLongPress } from '../../composables/longPress'
 import TermKeys from '../TermKeys.vue'
 import type { Session } from '../../types'
@@ -16,6 +17,8 @@ const sessionId = computed(() => props.session.id)
 const { fit, insert, getSelection, copySelection, pasteClipboard, copyVisible, selectMode, sendKey } =
   useTerminal(termEl, sessionId, { onCopied: flashCopied })
 const { enabled: termKeysEnabled } = useTermKeys()
+const { mode } = useLayoutMode()
+const phone = computed(() => mode.value === 'phone')
 // En contexto inseguro (HTTP/LAN) no se puede leer el portapapeles desde un click:
 // "Pegar" se deshabilita y el usuario pega con Ctrl+V (evento nativo).
 const canPaste = canReadClipboard()
@@ -80,7 +83,7 @@ defineExpose({ fit, insert })
       <span data-test="term-title" class="min-w-0 flex-[0_1_auto] truncate font-mono text-xs text-muted">
         <b class="text-text">{{ session.project }}</b><template v-if="session.branch"> · {{ session.branch }}</template> · tmux
       </span>
-      <TermKeys v-if="termKeysEnabled" dense @press="sendKey" />
+      <TermKeys v-if="termKeysEnabled && !phone" dense @press="sendKey" />
       <button data-test="term-select" type="button" :class="cn(barBtn, 'ml-auto', selectMode && 'text-accent ring-1 ring-accent')"
         title="Arrastrá con el dedo para seleccionar y copiar" @click="selectMode = !selectMode">
         {{ selectMode ? '✓ seleccionar' : 'seleccionar' }}
@@ -89,6 +92,9 @@ defineExpose({ fit, insert })
       <span class="hidden shrink-0 items-center gap-1.5 text-[11px] uppercase tracking-wider text-state-working sm:inline-flex">
         <i class="size-1.5 rounded-full bg-state-working motion-safe:animate-pulse" /> en vivo
       </span>
+    </div>
+    <div v-if="termKeysEnabled && phone" data-test="term-keys-row" class="flex shrink-0 justify-center border-b border-border bg-surface px-2 py-1">
+      <TermKeys @press="sendKey" />
     </div>
     <div
       ref="termEl"
