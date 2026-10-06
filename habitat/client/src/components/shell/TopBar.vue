@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LayoutGrid, Focus } from 'lucide-vue-next'
+import { LayoutGrid, Focus, Plus } from 'lucide-vue-next'
 import SessionSummary from './SessionSummary.vue'
 import ManaMeter from './ManaMeter.vue'
 import UserMenu from './UserMenu.vue'
-import SpawnMenu from '../SpawnMenu.vue'
+import NewSessionDialog from '../session/NewSessionDialog.vue'
 import { useSessions } from '../../stores/sessions'
+import { useProjects } from '../../composables/useProjects'
 
 const route = useRoute()
 const router = useRouter()
 const store = useSessions()
+const { canSpawn } = useProjects()
+const newOpen = ref(false)
 const onBoard = computed(() => route.name === 'board' || route.path === '/board')
 // Alterna tablero ↔ foco (la última sesión seleccionada, o el foco vacío).
 function toggleBoard() {
@@ -33,7 +36,11 @@ function toggleBoard() {
       <Focus v-if="onBoard" class="size-4" /><LayoutGrid v-else class="size-4" />
       <span class="hidden sm:inline">{{ onBoard ? 'Foco' : 'Tablero' }}</span>
     </button>
-    <SpawnMenu class="shrink-0" />
+    <button v-if="canSpawn" data-test="new-session" type="button" aria-label="Nueva sesión" @click="newOpen = true"
+      class="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius)] border-0 bg-accent px-2.5 font-[inherit] text-sm font-semibold text-accent-foreground hover:opacity-90">
+      <Plus class="size-4" /><span class="hidden sm:inline">Nueva sesión</span>
+    </button>
+    <NewSessionDialog v-model:open="newOpen" />
     <UserMenu />
   </header>
 </template>

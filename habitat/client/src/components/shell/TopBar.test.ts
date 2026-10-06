@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { ref } from 'vue'
 
-vi.mock('../SpawnMenu.vue', () => ({ default: { template: '<button data-test="spawn">+</button>' } }))
+vi.mock('../session/NewSessionDialog.vue', () => ({ default: { props: ['open'], template: '<div data-test="ns-stub" :data-open="String(open)" />' } }))
+vi.mock('../../composables/useProjects', () => ({ useProjects: () => ({ canSpawn: ref(true) }) }))
 import TopBar from './TopBar.vue'
 import { useSessions } from '../../stores/sessions'
 import { setUsage } from '../../composables/useUsage'
@@ -29,7 +31,7 @@ describe('TopBar', () => {
     // En teléfono sólo números: el texto "te necesita" se oculta bajo sm.
     expect(w.get('[data-test="need-label"]').classes()).toEqual(expect.arrayContaining(['hidden', 'sm:inline']))
     expect(w.get('[data-test="mana-fill"]').attributes('style')).toContain('width: 70%')
-    expect(w.find('[data-test="spawn"]').exists()).toBe(true)
+    expect(w.find('[data-test="new-session"]').exists()).toBe(true)
   })
   // Regresión: en teléfono (400px) la barra desbordaba; el resumen cede ancho y los controles no.
   it('la fila de la barra encoge sin desbordar: resumen min-w-0, controles shrink-0', () => {
@@ -102,5 +104,15 @@ describe('TopBar', () => {
     expect(w.get('[data-test="board-toggle"]').text()).toContain('Foco')
     await w.get('[data-test="board-toggle"]').trigger('click'); await flushPromises()
     expect(r.currentRoute.value.path).toBe('/s/a')
+  })
+  it('el botón "Nueva sesión" abre el diálogo', async () => {
+    setActivePinia(createPinia())
+    useSessions().setAll([])
+    const w = mount(TopBar, { global: { plugins: [router] } })
+    const btn = w.get('[data-test="new-session"]')
+    expect(btn.classes()).toEqual(expect.arrayContaining(['min-h-10', 'border-0', 'cursor-pointer']))
+    expect(w.get('[data-test="ns-stub"]').attributes('data-open')).toBe('false')
+    await btn.trigger('click')
+    expect(w.get('[data-test="ns-stub"]').attributes('data-open')).toBe('true')
   })
 })
