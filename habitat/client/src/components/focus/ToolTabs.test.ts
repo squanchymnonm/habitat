@@ -45,6 +45,17 @@ describe('ToolTabs', () => {
     expect(t.pinned.value).toBeNull()
     expect(t.active.value).toBe('git')
   })
+  it('elegir una pestaña o fijar emite selected (el padre cierra el editor)', async () => {
+    const w = mount(ToolTabs, { props: { session: sess() } })
+    await w.findAll('[data-test="tool-tab"]')[1].trigger('click')
+    await w.get('[data-test="pin-tool"]').trigger('click')
+    expect(w.emitted('selected')).toHaveLength(2)
+  })
+  it('el botón fijar tiene objetivo táctil ≥40px', async () => {
+    const w = mount(ToolTabs, { props: { session: sess() } })
+    await w.findAll('[data-test="tool-tab"]')[1].trigger('click')
+    expect(w.get('[data-test="pin-tool"]').classes()).toContain('min-h-10')
+  })
   it('pestañas sin estilo nativo (preflight apagado)', () => {
     const w = mount(ToolTabs, { props: { session: sess() } })
     expect(w.findAll('[data-test="tool-tab"]')[0].classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer']))

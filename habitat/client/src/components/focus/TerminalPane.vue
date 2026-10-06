@@ -69,7 +69,8 @@ onUnmounted(() => {
   if (copiedTimer) clearTimeout(copiedTimer)
 })
 
-const barBtn = 'shrink-0 cursor-pointer whitespace-nowrap rounded-[var(--radius)] border-0 bg-surface-raised px-2 py-1 font-mono text-[11px] text-text hover:text-accent'
+// min-h-10: objetivo táctil ≥40px (spec §5).
+const barBtn = 'min-h-10 shrink-0 cursor-pointer whitespace-nowrap rounded-[var(--radius)] border-0 bg-surface-raised px-2 py-1 font-mono text-[11px] text-text hover:text-accent'
 defineExpose({ fit, insert })
 </script>
 
@@ -106,13 +107,14 @@ defineExpose({ fit, insert })
     </div>
     <template v-if="menu">
       <div class="fixed inset-0 z-40" @click="menu = null" @contextmenu.prevent="menu = null" />
-      <div class="fixed z-41 flex min-w-36 flex-col rounded-[var(--radius)] border border-border bg-surface-raised p-1 shadow-lg" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
+      <!-- data-term-menu: useFocusShortcuts no actúa con Esc mientras este menú está abierto. -->
+      <div data-term-menu data-test="term-menu" class="fixed z-41 flex min-w-36 flex-col rounded-[var(--radius)] border border-border bg-surface-raised p-1 shadow-lg" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
         <button data-test="ctx-copy" type="button" :disabled="!menu.hasSel" @click="menuCopy"
-          class="flex cursor-pointer items-center justify-between gap-4 rounded border-0 bg-transparent px-2.5 py-1.5 text-left font-mono text-xs text-text hover:bg-surface hover:text-accent disabled:cursor-default disabled:opacity-40">
+          class="flex min-h-10 cursor-pointer items-center justify-between gap-4 rounded border-0 bg-transparent px-2.5 py-1.5 text-left font-mono text-xs text-text hover:bg-surface hover:text-accent disabled:cursor-default disabled:opacity-40">
           Copiar <span class="text-[11px] opacity-50">⌃C</span>
         </button>
         <button data-test="ctx-paste" type="button" :disabled="!canPaste" :title="canPaste ? '' : 'Pegá con Ctrl+V'" @click="menuPaste"
-          class="flex cursor-pointer items-center justify-between gap-4 rounded border-0 bg-transparent px-2.5 py-1.5 text-left font-mono text-xs text-text hover:bg-surface hover:text-accent disabled:cursor-default disabled:opacity-40">
+          class="flex min-h-10 cursor-pointer items-center justify-between gap-4 rounded border-0 bg-transparent px-2.5 py-1.5 text-left font-mono text-xs text-text hover:bg-surface hover:text-accent disabled:cursor-default disabled:opacity-40">
           Pegar <span class="text-[11px] opacity-50">⌃V</span>
         </button>
       </div>

@@ -87,6 +87,23 @@ describe('FocusView', () => {
     expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
     w.unmount()
   })
+  it('elegir una pestaña de herramienta cierra el editor', async () => {
+    const { w } = await mountFocus([sess('a')])
+    await w.get('[data-test="header-editor"]').trigger('click')
+    expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+    const git = w.findAll('[data-test="tool-tab"]').find((b) => b.text() === 'Git')!
+    await git.trigger('click'); await flushPromises()
+    expect(w.find('[data-test="editor-pane"]').exists()).toBe(false)
+    expect(w.find('[data-test="git-tool"]').exists()).toBe(true)
+    w.unmount()
+  })
+  it('elegir la pestaña ya activa también cierra el editor', async () => {
+    const { w } = await mountFocus([sess('a')])
+    await w.get('[data-test="header-editor"]').trigger('click')
+    await w.findAll('[data-test="tool-tab"]')[0].trigger('click'); await flushPromises()
+    expect(w.find('[data-test="editor-pane"]').exists()).toBe(false)
+    w.unmount()
+  })
   it('sin selección no renderiza nada', async () => {
     const { w } = await mountFocus([], '/')
     expect(w.find('[data-test="terminal-pane"]').exists()).toBe(false)
@@ -144,6 +161,20 @@ describe('FocusView', () => {
       dialog.remove()
       w.unmount()
     })
+    it('Esc con el menú contextual de la terminal abierto sólo cierra el menú (no el editor ni el panel)', async () => {
+      const { w } = await mountFocus([sess('a')])
+      useFocusTools(ref('a')).pin('quest'); await flushPromises()
+      await w.get('[data-test="header-editor"]').trigger('click')
+      const menu = document.createElement('div')
+      menu.setAttribute('data-term-menu', '')
+      document.body.appendChild(menu)
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+      expect(w.find('[data-test="editor-pane"]').exists()).toBe(true)
+      expect(useFocusTools(ref('a')).pinned.value).toBe('quest')
+      menu.remove()
+      w.unmount()
+    })
   })
 
   describe('selección de Infra obsoleta', () => {
@@ -166,6 +197,19 @@ describe('FocusView', () => {
       await flushPromises()
       expect(useFocusTools(ref('a')).active.value).toBe('terminal')
       expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
+      w.unmount()
+    })
+    it('al pasar a una sesión sin infra que tenía Infra guardada, muestra la terminal', async () => {
+      // a no tiene infra; b tenía Infra activa y la pierde mientras está seleccionada a.
+      // Volver a b es false→false para infraAllowed: un watch sólo de ese gate no se entera.
+      const { w, router } = await mountFocus([sess('a'), sess('b', { dir: '/wt/infra-b' })], '/s/b')
+      useFocusTools(ref('b')).select('infra'); await flushPromises()
+      await router.push('/s/a'); await flushPromises()
+      useSessions().upsert(sess('b', { dir: '' }))
+      await flushPromises()
+      await router.push('/s/b'); await flushPromises()
+      expect(w.find('[data-test="infra-tool"]').exists()).toBe(false)
+      expect(useFocusTools(ref('b')).active.value).toBe('terminal')
       w.unmount()
     })
     it('si session.infra.dir queda vacío (canSpawn sigue en true), vuelve a terminal', async () => {

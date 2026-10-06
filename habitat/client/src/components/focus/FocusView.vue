@@ -20,29 +20,37 @@ const editorOpen = ref(false)
 watch(() => session.value?.id, () => { editorOpen.value = false })
 
 const LABEL: Record<SideTool, string> = { git: 'Git', files: 'Archivos', infra: 'Infra', quest: 'Quest' }
-// La herramienta que ocupa el área (sin panel fijado) o el panel fijado.
-const shownTool = computed<SideTool | null>(() => tools.pinned.value ?? (tools.active.value === 'terminal' ? null : tools.active.value))
 
-// Mismo gate que ToolTabs para la pestaña Infra. Si deja de cumplirse (se cerró la
-// sesión de infra, el server dejó de permitir spawnear) mientras Infra está activa o
-// fijada, no seguir mostrando una herramienta cuya pestaña ya desapareció.
+// Mismo gate que ToolTabs para la pestaña Infra. Si no se cumple (se cerró la sesión
+// de infra, el server dejó de permitir spawnear, o se pasó a una sesión sin infra
+// que tenía Infra guardada), no se muestra una herramienta cuya pestaña no existe.
 const infraAllowed = computed(() => canSpawn.value && !!session.value?.infra?.dir)
-watch(infraAllowed, (allowed) => {
+const visible = (t: SideTool | null): SideTool | null => (t === 'infra' && !infraAllowed.value ? null : t)
+// Panel fijado efectivo: sólo en landscape (respaldo del desfijado por cambio de modo).
+const pinnedTool = computed<SideTool | null>(() => (tools.canPin.value ? visible(tools.pinned.value) : null))
+// La herramienta que ocupa el área (sin panel fijado) o el panel fijado.
+const shownTool = computed<SideTool | null>(() =>
+  pinnedTool.value ?? (tools.active.value === 'terminal' ? null : visible(tools.active.value)))
+// Además limpia el estado guardado, para que la pestaña marcada vuelva a Terminal.
+watch([() => session.value?.id, infraAllowed], ([, allowed]) => {
   if (allowed) return
   if (tools.pinned.value === 'infra') tools.unpin()
   if (tools.active.value === 'infra') tools.select('terminal')
-})
+}, { immediate: true })
+
+// Elegir una pestaña (o fijar) cierra el editor: el usuario quiere ver esa herramienta.
+function onToolSelected() { editorOpen.value = false }
 
 function onInsert(text: string) {
   term.value?.insert(text)
-  if (!tools.pinned.value) tools.select('terminal') // volver a la terminal para seguir escribiendo
+  if (!pinnedTool.value) tools.select('terminal') // volver a la terminal para seguir escribiendo
 }
 
 // Esc: primero cierra el editor, después desfija el panel. Los diálogos (Reka) manejan su propio Esc.
 useFocusShortcuts({
   onEscape: () => {
     if (editorOpen.value) { editorOpen.value = false; return true }
-    if (tools.pinned.value) { tools.unpin(); return true }
+    if (pinnedTool.value) { tools.unpin(); return true }
     return false
   },
 })
@@ -53,12 +61,12 @@ defineExpose({ fit: () => term.value?.fit() })
 <template>
   <div v-if="session" class="flex h-full min-h-0 flex-col gap-2 p-3 sm:p-4">
     <SessionHeader :session="session" @open-editor="editorOpen = true" />
-    <ToolTabs :session="session" />
+    <ToolTabs :session="session" @selected="onToolSelected" />
     <div class="relative min-h-0 flex-1">
-      <PinnedPanel v-if="tools.pinned.value" :size="tools.pinnedSize.value" :label="LABEL[tools.pinned.value]"
+      <PinnedPanel v-if="pinnedTool" :size="tools.pinnedSize.value" :label="LABEL[pinnedTool]"
         @resize="tools.setPinnedSize" @unpin="tools.unpin()">
         <template #left><TerminalPane ref="term" :session="session" /></template>
-        <ToolHost :tool="tools.pinned.value" :session="session" :path="tools.path.value"
+        <ToolHost :tool="pinnedTool" :session="session" :path="tools.path.value"
           @navigate="tools.setPath" @insert="onInsert" @opened="editorOpen = true" />
       </PinnedPanel>
       <template v-else>

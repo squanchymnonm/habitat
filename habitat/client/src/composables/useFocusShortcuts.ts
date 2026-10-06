@@ -42,6 +42,9 @@ export function useFocusShortcuts(opts: { onEscape: () => boolean }) {
       // llegó con preventDefault: nunca lo llamamos acá, y si hay un diálogo abierto
       // en cualquier parte del documento (no sólo dentro del target), el Esc es suyo.
       if (document.querySelector('[role="dialog"][data-state="open"]')) return
+      // Con el menú contextual de la terminal abierto, el Esc sólo cierra el menú
+      // (TerminalPane lo maneja); si no, también cerraría el editor o desfijaría.
+      if (document.querySelector('[data-term-menu]')) return
       opts.onEscape()
       return
     }

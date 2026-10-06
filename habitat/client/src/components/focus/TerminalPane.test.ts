@@ -43,7 +43,17 @@ describe('TerminalPane', () => {
   it('botones sin estilo nativo (preflight apagado)', () => {
     const w = mount(TerminalPane, { props: { session } })
     for (const sel of ['[data-test="term-select"]', '[data-test="term-copy-visible"]']) {
-      expect(w.get(sel).classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer']))
+      expect(w.get(sel).classes()).toEqual(expect.arrayContaining(['border-0', 'cursor-pointer', 'min-h-10']))
     }
+  })
+  it('el menú contextual marca data-term-menu y sus ítems tienen objetivo táctil ≥40px', async () => {
+    const w = mount(TerminalPane, { props: { session }, attachTo: document.body })
+    await w.get('[data-test="term-body"]').trigger('contextmenu', { clientX: 10, clientY: 20 })
+    expect(w.get('[data-test="term-menu"]').attributes()).toHaveProperty('data-term-menu')
+    expect(w.get('[data-test="ctx-copy"]').classes()).toContain('min-h-10')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await w.vm.$nextTick()
+    expect(document.querySelector('[data-term-menu]')).toBeNull()
+    w.unmount()
   })
 })
