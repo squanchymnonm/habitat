@@ -22,7 +22,9 @@
 /* Defaults globales del nuevo tema. */
 @layer base{
   html, body{ height:100%; }
+  /* Alto compensado por el zoom de UI (ver useZoom): `zoom` no afecta a las
+     unidades de viewport, así que sin dividir la app no llena la pantalla. */
   #app{ display:flex; flex-direction:column; height:calc(100dvh / var(--zoom, 1)); overflow:hidden; }
-  body{ font-family:var(--font-ui); color:var(--text); background:var(--background); }
+  body{ font-family:var(--font-ui); font-size:15px; color:var(--text); background:var(--background); }
   @media (prefers-reduced-motion: reduce){ *, ::before, ::after{ animation:none !important; transition:none !important; } }
 }
