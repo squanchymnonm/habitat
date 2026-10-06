@@ -162,6 +162,11 @@ ambos coincidan). El tema se guarda por dispositivo (`localStorage: habitat.them
 Para revisar la UI en los 3 temas y 3 tamaños: levantá una instancia de dev y corré
 `node scripts/screenshots.mjs --url "http://127.0.0.1:8399/?token=<token>" --out /tmp/shots`.
 
+### Atajos
+
+En el foco: `[` y `]` pasan a la sesión anterior/siguiente; `Esc` cierra el editor y
+desfija el panel. No actúan mientras escribís en la terminal o en un campo.
+
 ## Crear sesiones desde el panel (opcional)
 
 Deshabilitado por default. Para habilitarlo, exportar antes de `npm start`:
