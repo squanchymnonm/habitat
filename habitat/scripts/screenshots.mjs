@@ -15,8 +15,17 @@ if (!BASE) { console.error('uso: screenshots.mjs --url "http://127.0.0.1:8399/?t
 const list = (v) => (v ? String(v).split(',').map((x) => x.trim()).filter(Boolean) : null);
 // `prepare` corre después de navegar (con la 1ra sesión ya sola y seleccionada): clickea
 // por CDP (Runtime.evaluate) para llegar a una pestaña de herramienta que no está en la URL.
-const clickTab = (label) => `Array.from(document.querySelectorAll('[data-test="tool-tab"]')).find(b => b.textContent.includes(${JSON.stringify(label)}))?.click()`;
-const clickSel = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
+// Cada paso devuelve (returnByValue) si encontró y clickeó el elemento: si no, o si la
+// evaluación tira, la vista NO se guarda con el view por defecto disfrazada — el loop
+// principal revienta con un error que nombra la vista y el selector/texto buscado.
+const clickTab = (label) => ({
+  desc: `[data-test="tool-tab"] con texto "${label}"`,
+  expr: `(() => { const el = Array.from(document.querySelectorAll('[data-test="tool-tab"]')).find(b => b.textContent.includes(${JSON.stringify(label)})); if (!el) return false; el.click(); return true; })()`,
+});
+const clickSel = (sel) => ({
+  desc: sel,
+  expr: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; el.click(); return true; })()`,
+});
 const ALL_VIEWS = {
   focus: { hash: '#/' },
   settings: { hash: '#/settings/general' },
@@ -52,12 +61,33 @@ try {
     const ws = new WebSocket(tab.webSocketDebuggerUrl); await new Promise((r) => ws.once('open', r));
     let id = 0; const pend = new Map();
     ws.on('message', (d) => { const m = JSON.parse(d); if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } });
-    const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+    // Si el mensaje trae result.exceptionDetails (p.ej. una excepción JS en Runtime.evaluate),
+    // send() la surfacea como rechazo en vez de devolver un resultado silenciosamente vacío.
+    const send = (method, params = {}) => new Promise((resolve, reject) => {
+      const i = ++id;
+      pend.set(i, (m) => {
+        const ex = m.result && m.result.exceptionDetails;
+        if (ex) reject(new Error(ex.exception?.description || ex.text || 'Runtime.evaluate: excepción'));
+        else resolve(m);
+      });
+      ws.send(JSON.stringify({ id: i, method, params }));
+    });
     await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: Math.min(w, h) < 600 });
     await send('Page.enable');
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `try{localStorage.setItem('habitat.theme','${theme}');localStorage.setItem('habitat.zoom','${zoom}')}catch(e){}` });
     await send('Page.navigate', { url: BASE + cfg.hash }); await sleep(2500);
-    for (const expression of cfg.prepare ?? []) { await send('Runtime.evaluate', { expression }); await sleep(400); }
+    for (const step of cfg.prepare ?? []) {
+      let r;
+      try {
+        r = await send('Runtime.evaluate', { expression: step.expr, returnByValue: true });
+      } catch (e) {
+        throw new Error(`vista "${view}": evaluando ${step.desc} tiró una excepción: ${e.message}`);
+      }
+      if (r.result?.result?.value !== true) {
+        throw new Error(`vista "${view}": no encontré/no pude clickear ${step.desc}`);
+      }
+      await sleep(400);
+    }
     const s = await send('Page.captureScreenshot', { format: 'png' });
     writeFileSync(join(OUT, `${theme}-${w}x${h}-${view}${zoom !== 1 ? `-z${zoom}` : ''}.png`), Buffer.from(s.result.data, 'base64'));
     ws.close(); await fetch(`http://127.0.0.1:9411/json/close/${tab.id}`);
