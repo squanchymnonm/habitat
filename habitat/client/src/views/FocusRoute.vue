@@ -11,7 +11,9 @@ const route = useRoute()
 const router = useRouter()
 const { mode } = useLayoutMode()
 // En celular la pantalla principal es la lista; el foco sólo con una sesión explícita (#/s/:id).
-watch([mode, () => route.name], ([m, name]) => { if (m === 'phone' && name === 'focus') router.replace('/sessions') }, { immediate: true })
+// La carga inicial la resuelve el router (beforeEnter de '/'); esto cubre la rotación a phone
+// con #/ ya montado.
+watch(mode, (m) => { if (m === 'phone' && route.name === 'focus') router.replace('/sessions') })
 </script>
 
 <template>

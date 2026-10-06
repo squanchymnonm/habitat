@@ -1,13 +1,19 @@
 import { createRouter, createWebHashHistory, type Router, type RouterHistory } from 'vue-router'
 import { watch } from 'vue'
 import type { useSessions } from './stores/sessions'
+import { layoutModeFor } from './composables/useLayoutMode'
+
+// Celular según el tamaño actual de la ventana (sin window, p. ej. SSR/tests sin DOM: no).
+const isPhone = () => typeof window !== 'undefined' && layoutModeFor(window.innerWidth, window.innerHeight) === 'phone'
 
 // Hash history: funciona detrás de Tailscale/LAN sin tocar el server (no hay rutas server-side).
 export function createHabitatRouter(history: RouterHistory = createWebHashHistory()): Router {
   return createRouter({
     history,
     routes: [
-      { path: '/', name: 'focus', component: () => import('./views/FocusRoute.vue') },
+      // En celular la pantalla principal es la lista: redirigir antes de montar nada, así un
+      // snapshot del WS que llegue mientras carga el chunk no alcanza a mandarnos al foco.
+      { path: '/', name: 'focus', component: () => import('./views/FocusRoute.vue'), beforeEnter: () => (isPhone() ? '/sessions' : true) },
       { path: '/s/:id', name: 'session', component: () => import('./views/FocusRoute.vue') },
       { path: '/board', name: 'board', component: () => import('./views/BoardRoute.vue') },
       { path: '/sessions', name: 'list', component: () => import('./views/SessionListRoute.vue') },
@@ -36,6 +42,8 @@ export function syncSelectionWithRoute(router: Router, store: ReturnType<typeof 
   watch(() => store.selectedId, (id) => {
     const r = router.currentRoute.value
     if (r.name !== 'focus' && r.name !== 'session') return
+    // En celular #/ es (o va a ser) la lista: una selección automática no saca de ahí.
+    if (r.name === 'focus' && isPhone()) return
     const target = id ? `/s/${id}` : '/'
     if (r.fullPath !== target) router.replace(target)
   })

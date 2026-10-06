@@ -7,7 +7,10 @@ import { createMemoryHistory } from 'vue-router'
 const canSpawn = ref(false)
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 vi.mock('../composables/useProjects', () => ({ useProjects: () => ({ canSpawn }) }))
-vi.mock('../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }) }))
+vi.mock('../composables/useLayoutMode', async (orig) => ({
+  ...(await orig<typeof import('../composables/useLayoutMode')>()),
+  useLayoutMode: () => ({ mode, collapsed: ref(false), toggleCollapsed: () => {}, setCollapsed: () => {} }),
+}))
 vi.mock('../components/focus/FocusView.vue', () => ({ default: { template: '<div data-test="focus-view" />', methods: { fit() {} } } }))
 import FocusRoute from './FocusRoute.vue'
 import { useSessions } from '../stores/sessions'
@@ -51,10 +54,12 @@ describe('FocusRoute — estado vacío', () => {
 })
 
 describe('FocusRoute — navegación por modo', () => {
-  it('en phone, #/ redirige a /sessions', async () => {
-    mode.value = 'phone'
+  it('rotar a phone con #/ montado redirige a /sessions', async () => {
+    mode.value = 'portrait'
     useSessions().setAll([sess('a')])
     const { router } = await mountFocus('/')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+    mode.value = 'phone'
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/sessions'))
   })
   it('fuera de phone, #/ no redirige', async () => {
