@@ -851,7 +851,7 @@ import { ref } from 'vue'
 const mode = ref<'landscape' | 'portrait' | 'phone'>('landscape')
 vi.mock('../../composables/useLayoutMode', () => ({ useLayoutMode: () => ({ mode }) }))
 const projects = ref([
-  { dir: '/p/back', name: 'back', color: '#888888', chars: ['knight', 'mage'] },
+  { dir: '/p/back', name: 'back', color: '#888888', chars: ['Knight', 'Monk'] },
   { dir: '/p/front', name: 'front', color: '#888888' },
 ])
 const error = ref('')
@@ -892,7 +892,7 @@ describe('NewSessionDialog', () => {
     name.value = 'ezio'; name.dispatchEvent(new Event('input')); await flushPromises()
     qa('[data-test="ns-char"]')[1].click(); await flushPromises()
     q('[data-test="ns-create"]').click(); await flushPromises()
-    expect(spawn).toHaveBeenCalledWith('/p/back', 'ezio', 'mage')
+    expect(spawn).toHaveBeenCalledWith('/p/back', 'ezio', 'Monk')
     const ev = w.emitted('update:open')
     expect(ev?.[ev.length - 1]).toEqual([false])
     w.unmount()
