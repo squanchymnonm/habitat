@@ -77,7 +77,7 @@ const link = 'inline-flex min-h-10 items-center text-sm text-muted no-underline 
     </nav>
 
     <div role="tabpanel">
-      <ProjectGeneralTab v-if="tab === 'general'" :project="project" />
+      <ProjectGeneralTab v-if="tab === 'general'" :key="project.dir" :project="project" />
       <template v-else-if="draft">
         <ProjectRelatedTab v-if="tab === 'related'" :key="project.dir" :draft="draft" />
         <ProjectInfraTab v-else-if="tab === 'infra'" :key="project.dir" :draft="draft" />
