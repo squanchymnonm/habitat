@@ -54,7 +54,7 @@ function titleClass(status: string) { return TITLE_COLOR[status] ?? 'text-text' 
           <button
             type="button"
             data-test="quest-row"
-            class="flex w-full cursor-pointer items-center gap-2 rounded-[var(--radius)] border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-text hover:bg-surface-raised"
+            class="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-[var(--radius)] border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-text hover:bg-surface-raised"
             :aria-expanded="expanded === q.id"
             @click="toggle(q.id)"
           >
@@ -87,7 +87,7 @@ function titleClass(status: string) { return TITLE_COLOR[status] ?? 'text-text' 
               </div>
             </div>
 
-            <p v-if="q.monster" class="mt-2 text-xs text-muted">Vencido: {{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
+            <p v-if="q.monster" class="m-0 mt-2 text-xs text-muted">Vencido: {{ q.monster }} · {{ q.damage }} dmg · {{ q.hits }} golpes</p>
           </div>
         </li>
       </ul>

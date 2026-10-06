@@ -18,9 +18,10 @@ export const COUNT_PRIMARY = 'bg-accent-foreground/20 text-accent-foreground'
 export const GROUP = 'mb-4 flex flex-col gap-1.5'
 export const GROUP_H4 = 'm-0 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted'
 
-export const MUTED = 'text-sm text-muted'
+// m-0: con preflight apagado los <p> traen el margen 1em del navegador.
+export const MUTED = 'm-0 text-sm text-muted'
 // El error no se comunica sólo por color: el "!" es el cue no-color (ex g-err::before).
-export const ERR = 'mb-2 flex items-start gap-1.5 rounded-[var(--radius)] border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger'
+export const ERR = 'm-0 mb-2 flex items-start gap-1.5 rounded-[var(--radius)] border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger'
 
 export const INPUT = 'min-h-10 rounded-[var(--radius)] border border-border bg-background px-2 py-1 font-[inherit] text-sm text-text'
 

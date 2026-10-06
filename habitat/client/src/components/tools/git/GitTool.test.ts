@@ -169,6 +169,9 @@ describe('GitTool — diagnóstico del 409', () => {
     await flushPromises()
     expect(w.text()).toContain('por encima del directorio de la sesión')
     expect(w.text()).not.toContain('sin repo git acá')
+    // Preflight apagado: el <p> del error no debe traer el margen 1em del navegador.
+    const err = w.findAll('p').find((p) => p.text().includes('por encima'))!
+    expect(err.classes()).toContain('m-0')
   })
 
   it('con reason sin-repo sigue diciendo "sin repo git acá"', async () => {

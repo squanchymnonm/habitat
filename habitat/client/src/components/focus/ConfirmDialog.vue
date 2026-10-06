@@ -17,11 +17,11 @@ function ok() { emit('confirm'); emit('update:open', false) }
       </DialogHeader>
       <DialogFooter class="gap-2">
         <button type="button" data-test="confirm-cancel" @click="emit('update:open', false)"
-          class="cursor-pointer rounded-[var(--radius)] border border-border bg-transparent px-3 py-1.5 font-[inherit] text-sm text-text hover:bg-surface-raised">
+          class="min-h-10 cursor-pointer rounded-[var(--radius)] border border-border bg-transparent px-3 py-1.5 font-[inherit] text-sm text-text hover:bg-surface-raised">
           Cancelar
         </button>
         <button type="button" data-test="confirm-ok" @click="ok"
-          :class="cn('cursor-pointer rounded-[var(--radius)] border-0 px-3 py-1.5 font-[inherit] text-sm font-semibold',
+          :class="cn('min-h-10 cursor-pointer rounded-[var(--radius)] border-0 px-3 py-1.5 font-[inherit] text-sm font-semibold',
             danger ? 'bg-danger text-background' : 'bg-accent text-accent-foreground')">
           {{ confirmLabel }}
         </button>

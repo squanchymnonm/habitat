@@ -12,6 +12,9 @@ describe('ConfirmDialog', () => {
     const btn = document.body.querySelector('[data-test="confirm-ok"]') as HTMLButtonElement
     expect(btn.textContent).toContain('Cerrar')
     expect(btn.className).toContain('bg-danger')
+    // Objetivo táctil ≥40px (spec §5) en ambos botones.
+    expect(btn.classList.contains('min-h-10')).toBe(true)
+    expect(document.body.querySelector('[data-test="confirm-cancel"]')!.classList.contains('min-h-10')).toBe(true)
     btn.click()
     await flushPromises()
     expect(w.emitted('confirm')).toHaveLength(1)

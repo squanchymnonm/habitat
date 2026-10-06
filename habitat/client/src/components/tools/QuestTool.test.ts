@@ -30,6 +30,11 @@ describe('QuestTool', () => {
     expect(w.text()).toContain('Listo el form')
     expect(w.text()).toContain('dale')
   })
+  it('las filas de quest tienen objetivo táctil ≥40px', async () => {
+    const w = mount(QuestTool, { props: { sessionId: 's1' } })
+    await flushPromises()
+    expect(w.findAll('[data-test="quest-row"]')[0].classes()).toContain('min-h-10')
+  })
   it('no es un overlay', async () => {
     const w = mount(QuestTool, { props: { sessionId: 's1' } })
     await flushPromises()

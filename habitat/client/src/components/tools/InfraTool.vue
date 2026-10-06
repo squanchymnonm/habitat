@@ -48,7 +48,8 @@ async function down() {
         :href="`http://${location.hostname}:${p}`"
         target="_blank"
         rel="noopener"
-        class="rounded-[var(--radius)] bg-surface-raised px-2 py-1 font-mono text-xs text-accent no-underline hover:underline"
+        data-test="infra-port"
+        class="inline-flex min-h-10 items-center rounded-[var(--radius)] bg-surface-raised px-2 py-1 font-mono text-xs text-accent no-underline hover:underline"
       >{{ name }} :{{ p }}</a>
     </div>
     <div class="mt-3 flex gap-2">
@@ -56,18 +57,18 @@ async function down() {
         type="button"
         data-test="infra-up"
         :disabled="!!busy"
-        class="cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised px-3 py-1.5 font-[inherit] text-sm text-text hover:text-accent disabled:opacity-50"
+        class="min-h-10 cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised px-3 py-1.5 font-[inherit] text-sm text-text hover:text-accent disabled:opacity-50"
         @click="up"
       >{{ busy === 'up' ? 'Levantando…' : 'Levantar' }}</button>
       <button
         type="button"
         data-test="infra-down"
         :disabled="!!busy || state === 'off'"
-        class="cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised px-3 py-1.5 font-[inherit] text-sm text-text hover:text-accent disabled:opacity-50"
+        class="min-h-10 cursor-pointer rounded-[var(--radius)] border-0 bg-surface-raised px-3 py-1.5 font-[inherit] text-sm text-text hover:text-accent disabled:opacity-50"
         @click="confirmDown = true"
       >{{ busy === 'down' ? 'Bajando…' : 'Bajar' }}</button>
     </div>
-    <p v-if="error" class="mt-2 text-sm text-danger">{{ error }}</p>
+    <p v-if="error" class="m-0 mt-2 text-sm text-danger">{{ error }}</p>
 
     <ConfirmDialog
       v-model:open="confirmDown"

@@ -28,6 +28,9 @@ describe('InfraTool', () => {
     expect(links[0].attributes('href')).toBe(`http://${location.hostname}:20003`)
     expect(links[0].attributes('target')).toBe('_blank')
     expect(links[0].classes()).toContain('no-underline')
+    // Objetivo táctil ≥40px (spec §5) en links de puertos y botones.
+    expect(links[0].classes()).toContain('min-h-10')
+    expect(w.get('[data-test="infra-up"]').classes()).toContain('min-h-10')
   })
 
   it('sin estado muestra apagado; levantar llama al endpoint y muestra el error', async () => {

@@ -199,7 +199,7 @@ defineExpose({ repoLabel, refresh })
       <span aria-hidden="true">!</span>
       <span>{{ actionErr }}</span>
     </p>
-    <p v-if="prUrl" class="px-3 text-sm [overflow-wrap:anywhere]">
+    <p v-if="prUrl" class="m-0 mb-2 px-3 text-sm [overflow-wrap:anywhere]">
       <a :href="prUrl" target="_blank" rel="noopener" class="font-mono text-accent no-underline hover:underline">{{ prUrl }}</a>
     </p>
     <!-- La salida del checkout que falló por árbol sucio. No es un error nuevo:
@@ -210,7 +210,7 @@ defineExpose({ repoLabel, refresh })
         Stashear y reintentar
       </button>
     </p>
-    <p v-if="loading" class="px-3 text-sm text-muted">cargando…</p>
+    <p v-if="loading" class="m-0 px-3 text-sm text-muted">cargando…</p>
 
     <div v-if="status" class="min-h-0 flex-1 overflow-y-auto px-3 py-2">
       <GitWork v-if="tab === 'work'" :status="status" :stash="stash" @run="run" @diff="openDiff" />
