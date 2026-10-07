@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SessionAvatar from '../sessions/SessionAvatar.vue'
+import ProjectStripe from '../sessions/ProjectStripe.vue'
 import { useGoToSession } from '../../composables/useGoToSession'
 import type { Session } from '../../types'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,7 @@ const goTo = useGoToSession()
   <button data-test="board-card" type="button" @click="goTo(props.session.id)"
     :class="cn('flex min-h-10 w-full cursor-pointer items-start gap-3 rounded-[calc(var(--radius)+4px)] border border-border bg-surface p-3 text-left font-[inherit] text-text hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent',
       session.status === 'offline' && 'opacity-60')">
+    <ProjectStripe :project="session.project" />
     <SessionAvatar :session="session" />
     <span class="flex min-w-0 flex-1 flex-col gap-0.5">
       <span class="flex min-w-0 items-center gap-2">

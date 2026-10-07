@@ -25,6 +25,8 @@ const BADGE: Record<string, string> = {
 }
 const badge = computed(() => BADGE[STATE_TOKEN[props.session.status]])
 const projectColor = computed(() => colorForProject(props.session.project))
+// Tinte suave del color del proyecto sobre la superficie (como los pods del diseño anterior).
+const headTint = computed(() => (projectColor.value ? { background: `color-mix(in srgb, ${projectColor.value} 14%, var(--surface))` } : {}))
 
 const editorErr = ref('')
 // El error de nvim es de la sesión en la que se intentó: no arrastrarlo a otra.
@@ -74,7 +76,7 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
 </script>
 
 <template>
-  <header class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[calc(var(--radius)+4px)] border border-border bg-surface px-3 py-2">
+  <header data-test="session-header" :style="headTint" class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[calc(var(--radius)+4px)] border border-border bg-surface px-3 py-2">
     <button v-if="mode === 'phone'" data-test="back-to-list" type="button" aria-label="Volver a la lista" title="Volver a la lista"
       class="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius)] border-0 bg-transparent text-muted hover:bg-surface-raised hover:text-text"
       @click="backToList">
@@ -90,7 +92,7 @@ const action = 'inline-flex min-h-10 min-w-10 cursor-pointer items-center justif
         <i data-test="stamina-fill" class="block h-full" :class="session.stamina < 25 ? 'bg-stamina-low' : 'bg-stamina-ok'" :style="{ width: session.stamina + '%' }" />
       </span>
       <span class="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted">
-        <i class="size-2 shrink-0 rounded-sm" :style="{ background: projectColor }" />
+        <i v-if="projectColor" class="size-2.5 shrink-0 rounded-sm" :style="{ background: projectColor }" />
         <span data-test="session-repo" class="block min-w-0 truncate">{{ session.project }}<template v-if="session.branch"> · <span class="text-accent">{{ session.branch }}</span></template></span>
       </span>
       <span v-if="editorErr" class="text-xs text-danger">{{ editorErr }}</span>
