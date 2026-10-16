@@ -2,9 +2,10 @@ import { createRouter, createWebHashHistory, type Router, type RouterHistory } f
 import { watch } from 'vue'
 import type { useSessions } from './stores/sessions'
 import { layoutModeFor } from './composables/useLayoutMode'
+import { layoutSize } from './composables/useViewport'
 
 // Celular según el tamaño actual de la ventana (sin window, p. ej. SSR/tests sin DOM: no).
-const isPhone = () => typeof window !== 'undefined' && layoutModeFor(window.innerWidth, window.innerHeight) === 'phone'
+const isPhone = () => typeof window !== 'undefined' && layoutModeFor(...layoutSize()) === 'phone'
 
 // Hash history: funciona detrás de Tailscale/LAN sin tocar el server (no hay rutas server-side).
 export function createHabitatRouter(history: RouterHistory = createWebHashHistory()): Router {

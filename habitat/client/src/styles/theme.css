@@ -23,8 +23,9 @@
 @layer base{
   html, body{ height:100%; }
   /* Alto compensado por el zoom de UI (ver useZoom): `zoom` no afecta a las
-     unidades de viewport, así que sin dividir la app no llena la pantalla. */
-  #app{ display:flex; flex-direction:column; height:calc(100dvh / var(--zoom, 1)); overflow:hidden; }
+     unidades de viewport, así que sin dividir la app no llena la pantalla.
+     --app-h es el alto visible (descuenta el teclado en pantalla, ver useViewport). */
+  #app{ display:flex; flex-direction:column; height:calc(var(--app-h, 100dvh) / var(--zoom, 1)); overflow:hidden; }
   body{ font-family:var(--font-ui); font-size:15px; color:var(--text); background:var(--background); }
   /* Con el preflight, el anillo de foco nativo queda blanco: que use el acento del tema.
      `outline: 2px solid` en vez de sólo `outline-color`, porque Firefox y Safari no
