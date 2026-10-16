@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { layoutSize } from './useViewport'
 
 // Modo de layout según el tamaño de la ventana. phone: el lado menor no llega a 600
 // (celular, también acostado). landscape: más ancho que alto y al menos 900 de ancho
@@ -16,8 +17,7 @@ function readCollapsed(m: LayoutMode): boolean {
   try { return localStorage.getItem(KEY(m)) === '1' } catch { return false }
 }
 
-const size = () => (typeof window === 'undefined' ? [1440, 900] : [window.innerWidth, window.innerHeight])
-const mode = ref<LayoutMode>(layoutModeFor(...(size() as [number, number])))
+const mode = ref<LayoutMode>(layoutModeFor(...layoutSize()))
 const collapsedByMode = ref<Record<LayoutMode, boolean>>({
   landscape: readCollapsed('landscape'), portrait: readCollapsed('portrait'), phone: false,
 })
@@ -26,8 +26,8 @@ let listening = false
 function listen() {
   if (listening || typeof window === 'undefined') return
   listening = true
-  // resize cubre también la rotación en tablets.
-  window.addEventListener('resize', () => { mode.value = layoutModeFor(window.innerWidth, window.innerHeight) })
+  // resize cubre también la rotación en tablets (el teclado en pantalla no cambia el modo).
+  window.addEventListener('resize', () => { mode.value = layoutModeFor(...layoutSize()) })
 }
 
 export function useLayoutMode() {
